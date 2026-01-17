@@ -1,0 +1,196 @@
+Backend Guidelines (Hyperlocal Events App)
+
+Workflow
+- Initialize Git repo: git init
+- Create GitHub repository for backup (free private repos available)
+- Commit after each working feature with format: type(scope): description
+  - Examples: feat(events): add creation endpoint, fix(auth): handle expired tokens
+- Push to GitHub at end of each work session for backup
+- Before committing: npm run build && npm run lint && npm run test must pass
+- No feature branches needed for solo MVP; work directly on main
+- Pre-commit hook: npm run build && npm run lint && npm run test
+- Optional GitHub Actions on push to main (no branch protection needed for solo)
+- Tag releases: git tag v0.1.0 when submitting to TestFlight
+
+AI Coding Tool Guidelines
+- Review all generated code before committing; AI hallucinates APIs and creates security holes.
+- Watch for:
+  - SQL injection (string concatenation in queries)
+  - Missing input validation
+  - Hardcoded secrets
+  - Console.log instead of proper logging
+  - Missing error handling
+  - N+1 query patterns
+  - Non-parameterized database queries
+- Before accepting AI suggestions:
+  - Does it pass linting?
+  - Are there tests?
+  - Does it match the complexity limits?
+  - Is error handling present?
+- When AI suggests refactoring working code: push back unless there's a clear bug or performance issue.
+
+Code Quality and Style
+- ESLint complexity rules are errors; pre-commit hooks block violations. Limits: cyclomatic 10; nesting 3; lines/file 300; lines/function 50; params 4; statements/function 20. See CODE_QUALITY.md for refactor patterns.
+- ES modules only ("type": "module" in package.json).
+
+Logging
+- MVP: console.log acceptable for development. Before TestFlight: Migrate to pino or winston.
+- Log levels: ERROR (unhandled failures), WARN (handled errors), INFO (key business events), DEBUG (development only).
+- Always log: auth attempts (success/fail), event CRUD operations, media uploads, geospatial queries with params.
+- Never log: passwords, full JWTs, user coordinates (log distance only).
+- Include request IDs for tracing multi-step operations.
+
+Error Handling
+- Never use empty catch blocks; always log or re-throw.
+- Custom error classes for: ValidationError, AuthError, NotFoundError, PermissionError.
+- Centralized error handler middleware catches all; formats per standard shape.
+- Async functions: always use try/catch; no unhandled promise rejections.
+
+Environment and Setup
+- MVP: Single .env file. Add .env.example for documentation. Before deployment: Split into .env.development, .env.test, .env.production
+- Use dotenv-safe to enforce required vars at startup.
+- Add .env.example with all keys but no values.
+- Require Node.js 18+, Postgres 14+ with PostGIS enabled. Supabase CLI is optional for local dev.
+- .env must define: DB_URL (Postgres+PostGIS), JWT_SECRET, JWT_EXPIRES_IN, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_STORAGE_BUCKET, SUPABASE_ANON_KEY.
+- Provide Docker Compose (or clear instructions) for local Postgres+PostGIS and Supabase emulation; document migration/seed commands.
+
+Database and Migrations
+- Use a migration tool (e.g., Prisma or Knex); commit all migrations and keep them idempotent.
+- Seed data for local/test: verified user plus sample events within the 5 km radius with varied endTime values (past, current, future).
+- Geospatial queries must use ST_DWithin with fixed 5 km radius; add a GIST spatial index on location geometry column.
+- All event queries must filter WHERE endTime > NOW() to exclude expired events (or startTime > NOW() if endTime is null).
+- Daily cron job (or Supabase edge function) hard-deletes events where endTime < NOW() - 24 hours; document in deployment README.
+- Migration needed: Drop B-tree index on (latitude, longitude) and add GIST index on location geometry column.
+  SQL: DROP INDEX IF EXISTS events_latitude_longitude_idx; CREATE INDEX events_location_idx ON events USING GIST (location);
+
+Transactions
+- Wrap multi-step operations in transactions (e.g., create event + upload media references).
+- Use connection pooling (pg-pool); max pool size = 20 for MVP.
+- Always use parameterized queries; never string concatenation for SQL.
+
+API and Validation
+- Routes use /api/ prefix in MVP. Version 1.0 (TestFlight release) will migrate to /api/v1/
+- MVP ships as v1; breaking changes require v2.
+- Validate all inputs at the edge (body/query/params schemas); reject with 4xx on invalid data.
+- Standard error shape: { error: { code, message, details? } }; do not leak stack traces.
+- Auth: email/password with verification; JWTs stored in iOS Keychain and must expire; hash passwords with bcrypt; require basic password complexity.
+- Hard deletes only; no soft deletes in MVP.
+- DELETE /events/:id requires ownership verification (userId matches event creator).
+
+Security
+- HTTPS only in production; reject HTTP.
+- Rate limiting:
+  - Auth endpoints: 5 requests/minute per IP
+  - Event creation: 10/hour per user
+  - Like/Going: 100/hour per user
+- Helmet.js for security headers.
+- JWT: Store in iOS Keychain; short expiration (24h); refresh token pattern NOT in MVP.
+- Input sanitization: trim whitespace, strip HTML tags from text fields.
+- SQL injection prevention: parameterized queries only.
+- CORS: whitelist client origin only; no wildcard in production.
+
+Performance
+- Database queries:
+  - Single event lookup: <50ms
+  - Nearby events query: <200ms
+  - Add EXPLAIN ANALYZE to slow queries in tests
+- API response times:
+  - GET endpoints: <500ms p95
+  - POST endpoints: <1s p95 (excluding media upload)
+- Connection pooling required; no per-request DB connections.
+- Pagination: limit=50 max for list endpoints.
+
+Media Handling
+- Media uploads use Supabase Storage presigned URLs only.
+- Server-side validation:
+  - Photos: JPEG, PNG, HEIC; max 10 MB each
+  - Videos: H.264/HEVC, .mov/.mp4; max 15 seconds duration; max 50 MB each
+  - Up to 3 media items per event (total)
+- Client handles duration validation (AVAsset); server rejects if duration metadata exceeds 15s.
+- Original aspect ratios preserved; no cropping or transformation in MVP.
+- Implement upload retries/timeouts; FFmpeg/Chromium/Puppeteer are not needed.
+
+Testing
+- Unit and integration tests required; E2E tests optional for MVP.
+- Coverage: 80% lines, 75% branches enforced in CI.
+- Test categories:
+  - Happy path (valid inputs, expected outputs)
+  - Validation errors (missing fields, invalid formats)
+  - Auth errors (no token, expired token, wrong user)
+  - Edge cases (5km boundary, expired events, empty results)
+- Use supertest against a real Postgres+PostGIS test database with geospatial fixtures; minimize mocking.
+- Test fixtures must include:
+  - Events with past endTime (should not appear in queries)
+  - Events with future endTime (should appear)
+  - Events at exactly 5 km boundary (edge case)
+- Provide helpers for creating verified users and attaching JWTs in tests.
+- Use factories/fixtures for test data; no hardcoded IDs.
+- Tests must clean up after themselves (truncate tables, not drop/recreate).
+- Parallel test execution disabled (geospatial queries are stateful).
+
+Interactions
+- POST /events/:id/like and POST /events/:id/going are toggle endpoints.
+- Request must include JWT; backend increments/decrements count and returns updated value.
+- No WebSockets; counts are not live-updated across clients in MVP.
+
+Error Responses
+- 401 Unauthorized: Invalid credentials. Try again.
+- 403 Forbidden: You don't have permission to delete this event.
+- 404 Not Found: Event not found.
+- 413 Payload Too Large: File too large. Max 10 MB for photos, 50 MB for videos.
+- 422 Unprocessable Entity: Videos must be 15 seconds or less.
+- 500 Internal Server Error: Something went wrong. Please try again.
+- Network timeout (client-side): Taking longer than usual. Retry?
+
+Observability
+- Health check endpoint: GET /health (returns 200 + DB connection status).
+- Startup validation: fail fast if env vars missing or DB unreachable.
+- Graceful shutdown: close DB connections and finish in-flight requests on SIGTERM.
+
+Dependencies
+- Lock file (package-lock.json) committed; use npm ci in CI, not npm install.
+- Pin major versions; allow patch updates only (e.g., "express": "4.18.x").
+- Run npm audit monthly; fix high/critical vulnerabilities immediately.
+- Avoid dependencies with <1M weekly downloads unless essential.
+- Document why non-obvious dependencies exist (add comment in package.json).
+
+Documentation
+- README.md must include:
+  - Setup instructions (one-command Docker Compose preferred)
+  - How to run tests
+  - How to run migrations
+  - API endpoint summary (link to full docs)
+- API docs: OpenAPI/Swagger spec autogenerated from route validators.
+- Code comments: explain WHY, not WHAT (e.g., // Filter expired events per PRD 5.1 not // Check if endTime is past).
+- Update CHANGELOG.md on each commit to main with significant changes.
+
+Commands
+- npm run dev (API with hot reload)
+- npm run build
+- npm run lint | npm run lint:fix
+- npm run test
+- npm run migrate (run migrations)
+- npm run seed (seed test data)
+- Backend API default: http://localhost:5000 (frontend runs in Xcode).
+
+Endpoints Reference
+POST /api/auth/signup
+POST /api/auth/login
+POST /api/auth/reset
+
+POST   /api/events
+GET    /api/events/nearby?lat=&lng= (filters WHERE endTime > NOW())
+GET    /api/events/:id
+DELETE /api/events/:id (ownership check required)
+
+POST /api/events/:id/like (toggle)
+POST /api/events/:id/going (toggle)
+
+GET   /api/users/me
+GET   /api/users/me/events
+PATCH /api/users/me (update name only in MVP) - Status: Not yet implemented (backlog)
+
+Notes
+- Profile pictures removed from MVP scope.
+- Location permission denial handled client-side with manual address entry fallback.
+- Event lifecycle: visible until endTime passes; background job hard-deletes expired events daily.

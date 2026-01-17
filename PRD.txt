@@ -1,0 +1,419 @@
+# **PRD — Hyperlocal Events App**
+
+**Goal:** Deliver a functional, TestFlight-ready MVP  
+**Platform:** iOS (17+), iPhone only, portrait.  
+**Development:** SwiftUI + Xcode + lightweight backend (Node.js + Postgres + Supabase storage).  
+**Editor:** Xcode for iOS app, VS Code for backend.
+
+---
+
+# **1. Product Summary**
+
+A simple, map-based iOS app that lets users **discover and create local events** within a fixed 5 km radius. Users can upload events (with photos or videos), view nearby events on a map and feed, and interact through **Likes** and **Going**.
+
+There is **one user type**, and **no stories, no following, no saved posts, no comments, no notifications** in MVP.
+
+---
+
+# **2. Goals & Non-Goals**
+
+## **Goals (MVP)**
+
+* Display nearby events on a map (fixed 5 km radius).
+* Allow users to create events with category, description, media, and a chosen location.
+* Provide an event viewer with media carousel and interactions.
+* Include a simple feed: "Nearby Events."
+* Support Likes and Going interactions.
+* Deliver a working TestFlight build.
+
+## **Non-Goals (Not in MVP)**
+
+* Stories
+* Following / followers / social graph
+* Saved posts
+* Comments
+* Shares and deep links
+* Push notifications
+* Multiple user types (no business accounts)
+* Interest matching
+* Complex search
+* Filters (category/time/radius)
+* Radius selector
+* Multi-location events
+* Recommendations or personalization
+
+---
+
+# **3. Users & Assumptions**
+
+* **Single user type**: Anyone can create and view events.
+* **Login**: Email + password only.
+* **Location**:
+  * App requests device location permission.
+  * If denied, user can manually enter address.
+  * Users can **manually pick a location** for their event.
+* **Language**: English only.
+* **Privacy**:
+  * Show distances (km), not raw coordinates.
+  * Do not show other users' exact locations.
+
+---
+
+# **4. Scope (MVP)**
+
+## **4.1 In Scope**
+
+* Email authentication (signup/login/reset).
+* Map view with:
+  * User location dot
+  * Event pins
+  * Fixed radius (5 km)
+* Event creation:
+  * Title
+  * Description
+  * Category (one of simplified category list)
+  * Up to **3 media items** (photo or video)
+  * Manual map location picker
+  * Start time + optional end time
+* Event viewer:
+  * Media carousel
+  * Category chip
+  * Event time + distance
+  * Like + Going interactions (counts update)
+* Feed: "Nearby Events" (sorted newest first).
+* Profile:
+  * Name (no profile picture in MVP)
+  * "My Events" list
+  * Delete own events
+* Backend:
+  * Auth
+  * Event CRUD
+  * Media upload
+  * Geospatial filtering
+
+## **4.2 Out of Scope**
+
+* Stories
+* Following
+* Saved posts
+* Comments
+* Push notifications
+* Deep links
+* Search
+* Filters
+* Radius selector
+* Business profiles
+* Moderation tooling
+* Advanced media processing
+* Accessibility features beyond defaults
+* Profile pictures
+
+---
+
+# **5. Event Model**
+
+```ts
+Event {
+  id: string
+  userId: string
+  title: string
+  description: string
+  category: Category
+  media: MediaItem[]  // max 3
+  latitude: number
+  longitude: number
+  startTime: timestamp
+  endTime?: timestamp
+  createdAt: timestamp
+  likesCount: number
+  goingCount: number
+}
+```
+
+### **MediaItem**
+
+```ts
+MediaItem {
+  url: string
+  type: "photo" | "video"
+}
+```
+
+---
+
+## **5.1 Event Lifecycle**
+
+**Event Visibility Rules:**
+* Events remain visible on map and feed until `endTime` passes (or `startTime` if no `endTime` provided)
+* Users can create events weeks/months in advance
+* Backend includes `WHERE endTime > NOW()` filter on all event queries (or `startTime > NOW()` if `endTime` is null)
+* Daily cron job (or Supabase function) to soft-delete expired events
+
+---
+
+# **6. Categories (Simplified)**
+
+* Food & Drink
+* Arts & Culture
+* Music
+* Nightlife
+* Sports & Outdoors
+* Community
+
+(Each event selects **one** category.)
+
+---
+
+# **7. Feature Specifications**
+
+## **7.1 Map**
+
+* Full-screen Apple Maps.
+* Shows:
+  * Blue dot = user location
+  * Event pins
+* Fixed radius = **5 km around the user**
+* Tap pin → Event viewer
+* No clustering in MVP
+
+---
+
+## **7.2 Nearby Events Feed**
+
+* Single feed: "Nearby Events."
+* Sorted newest-first.
+* Shows:
+  * Thumbnail
+  * Title
+  * Category
+  * Event time
+  * Distance
+  * Likes & Going counts
+
+---
+
+## **7.3 Event Viewer**
+
+* Full-screen overlay.
+* Up to 3 media items with swipe carousel.
+* Title, description, time, category chip.
+* Distance from user.
+* Buttons:
+  * Like (toggle) - User can like/unlike. Count updates on tap via API roundtrip.
+  * Going (toggle) - "I plan to attend." User can toggle on/off. Count updates on tap.
+* Counts refresh when viewer opens, not live while open (no WebSockets in MVP)
+
+---
+
+## **7.4 Event Creation**
+
+**Creation Flow:**
+
+1. Tap **+ Create** button.
+2. First: Pick location on map (or enter address manually if location denied)
+3. Then fill form:
+   * Title
+   * Description
+   * Category
+   * Start/end time
+   * 1–3 media items
+4. Submit
+
+**Validation:**
+
+* Title required
+* Description required
+* Category required
+* Start time required
+* At least 1 media item
+* Location picked manually
+
+**Media Constraints:**
+
+* Photo: JPEG, PNG, HEIC. Max 10 MB. Original aspect ratio preserved.
+* Video: H.264/HEVC, .mov/.mp4. Max 15 seconds. Max 50 MB. Original aspect ratio preserved.
+* Client-side compression where appropriate
+* No cropping in MVP
+
+---
+
+## **7.5 Profile**
+
+**Display:**
+* Name (no profile picture in MVP)
+* "My Events" list (sorted newest first)
+
+**Edit Profile:**
+* Name only
+
+**Delete Event:**
+* User can delete their own events
+* Confirmation dialog: "Delete this event? This can't be undone."
+* Backend endpoint: `DELETE /events/:id` (verify ownership)
+
+---
+
+# **8. Backend Architecture**
+
+## **Stack**
+
+* **Node.js (TypeScript)**
+* **Express** for routes
+* **Postgres (Supabase)**
+* **PostGIS** for geospatial queries
+* **Supabase Storage** for media
+* **JWT** for sessions
+* **Hosting**: Supabase or Render
+
+## **Core Endpoints**
+
+```
+POST /auth/signup
+POST /auth/login
+POST /auth/reset
+
+POST   /events
+GET    /events/nearby?lat=&lng=  // filters WHERE endTime > NOW()
+GET    /events/:id
+DELETE /events/:id  // NEW - verify ownership
+
+POST /events/:id/like    // toggle
+POST /events/:id/going   // toggle
+
+GET /users/me
+GET /users/me/events
+PATCH /users/me  // update name
+```
+
+**Geospatial:**
+* Use Supabase built-in PostGIS functions
+* `ST_DWithin` for 5km radius queries
+* Index on `(latitude, longitude)` using GIST
+
+**Background Jobs:**
+* Daily cron to hard-delete events where `endTime < NOW() - 24 hours`
+
+---
+
+# **9. Non-Functional Requirements**
+
+## **Performance**
+
+* App launch → Map visible < **3s**
+* Nearby event load < **500ms**
+* Event viewer load < **500ms**
+* Smooth map pan/zoom at 60 FPS
+* Progressive image loading
+
+## **Reliability**
+
+* Graceful degradation on slow networks
+* Timeouts: 10–15s
+* Retry failed uploads
+
+## **Security**
+
+* HTTPS
+* JWT stored in Keychain
+* Never expose user coordinates
+* Rate limiting on backend
+
+## **Compatibility**
+
+* iOS 17+
+* iPhone only
+* Portrait only
+
+---
+
+## **9.1 Error States**
+
+**Authentication:**
+* Invalid email/password → "Invalid credentials. Try again."
+* Network error → "Can't connect. Check your internet."
+
+**Location:**
+* Permission denied → Alert: "Location access is required to discover nearby events. Enable in Settings?" → Button opens Settings
+* Location unavailable → Show manual address entry field
+
+**Event Creation:**
+* Upload failed → "Upload failed. Retry?"
+* Missing required field → Inline red text: "This field is required"
+* Video >15 sec → "Videos must be 15 seconds or less"
+* File too large → "File too large. Max 10 MB for photos, 50 MB for videos."
+
+**Map/Feed:**
+* No internet → "Can't load events. Check your connection."
+* API timeout → "Taking longer than usual. Retry?"
+
+---
+
+## **9.2 Empty States**
+
+**First Launch (Location Allowed):**
+* Map centers on user location
+* Loads events within 5 km happening in next 7 days
+* If none found → Show empty state (see below)
+
+**No Nearby Events:**
+* Map shows user location only
+* Overlay message: "No events nearby. Be the first to create one!" + Create button
+
+**My Events (Empty):**
+* "You haven't created any events yet. Tap + to get started."
+
+**Feed (No Results):**
+* "No events match. Maybe you should host one?"
+
+---
+
+# **10. Risks & Mitigations**
+
+### **Media upload failures**
+
+→ Limit size, compress client-side.
+
+### **Bad location accuracy**
+
+→ Allow manual pin selection or address entry.
+
+### **Event overload in dense areas**
+
+→ Cap nearby events at ~50.
+
+### **Backend scalability**
+
+→ Supabase handles MVP scale; reassess post-launch.
+
+### **Video >15 sec enforcement**
+
+→ Validate duration client-side (AVAsset) before upload attempt
+
+### **Location permission denial**
+
+→ Graceful fallback to manual address entry (use MapKit geocoding)
+
+### **Swift/Xcode learning curve**
+
+→ Start with auth + map only. Don't tackle media upload until those basics work.
+
+---
+
+# **11. Acceptance Criteria**
+
+This MVP is complete when:
+
+* User can sign up + sign in via email
+* User can create an event with title, category, description, time, media, and chosen location
+* Map shows nearby events (fixed 5 km)
+* User can open event viewer
+* Likes and Going buttons function and persist
+* Feed displays nearby events
+* Profile shows My Events
+* User can delete their own events
+* No crashes in:
+  * Auth
+  * Upload
+  * Map
+  * Viewer
+* TestFlight build successfully submitted

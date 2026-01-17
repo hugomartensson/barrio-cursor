@@ -1,0 +1,1007 @@
+================================================================================
+BARRIO-CURSOR PROJECT - TECHNICAL HANDOVER SUMMARY
+Session Date: December 5, 2025
+Last Updated: December 6, 2025
+================================================================================
+
+PROJECT OVERVIEW
+----------------
+BarrioCursor is a hyperlocal events discovery platform consisting of:
+- Backend: Node.js/TypeScript REST API with Express.js
+- Database: PostgreSQL 14+ with PostGIS extension
+- Authentication: Supabase Auth (JWT-based)
+- Storage: Supabase Storage for media files
+- Frontend: iOS app built with SwiftUI
+
+Project Structure:
+- /server - Backend API
+- /ios/BarrioCursor - iOS SwiftUI application
+
+================================================================================
+BACKEND ARCHITECTURE
+================================================================================
+
+TECHNOLOGY STACK
+----------------
+- Runtime: Node.js 18+ (ESM modules)
+- Language: TypeScript 5.3+
+- Framework: Express.js 4.18+
+- ORM: Prisma 5.7+
+- Database: PostgreSQL 14+ with PostGIS
+- Authentication: Supabase Auth
+- Storage: Supabase Storage
+- Validation: Zod 3.22+
+- Testing: Jest 29+ with Supertest
+- Code Quality: ESLint + Prettier
+
+KEY ARCHITECTURAL DECISIONS
+----------------------------
+
+1. ESM MODULES
+   - Entire backend uses ES modules (`"type": "module"` in package.json)
+   - All imports use `.js` extensions (required for ESM)
+   - Jest configured for ESM compatibility
+
+2. ACTOR-BASED CONCURRENCY (iOS)
+   - APIService uses Swift `actor` for thread-safe network operations
+   - StorageService uses `actor` for safe concurrent uploads
+   - Prevents data races in async operations
+
+3. AUTHENTICATION FLOW
+   - Supabase Auth handles user creation/login
+   - Backend returns Supabase JWT access tokens to clients
+   - Backend middleware verifies tokens using `supabaseAdmin.auth.getUser(token)`
+   - User synchronization: Local PostgreSQL `users` table synced on signup/login
+   - Token refresh: Refresh tokens stored client-side, automatic refresh on 401
+
+4. DATABASE DESIGN
+   - PostgreSQL with PostGIS for geospatial queries
+   - Prisma ORM for type-safe database access
+   - Key tables: users, events, media_items, likes, going
+   - Events use PostGIS `Geometry` type for location storage
+   - Geospatial queries use `ST_DWithin` and `ST_Distance` functions
+
+5. API DESIGN
+   - RESTful endpoints with consistent error responses
+   - All protected routes use `requireAuth` middleware
+   - Request validation using Zod schemas
+   - Standardized error format: `{ error: { code, message, details? } }`
+   - Standardized success format: `{ data: T }`
+
+================================================================================
+BACKEND IMPLEMENTATION DETAILS
+================================================================================
+
+PROJECT STRUCTURE
+-----------------
+server/
+├── src/
+│   ├── app.ts                 # Express app setup (middleware, routes)
+│   ├── index.ts               # Server entry point (port 5001)
+│   ├── config/
+│   │   └── index.ts           # Environment config with Zod validation
+│   ├── types/
+│   │   └── index.ts           # TypeScript type definitions
+│   ├── utils/
+│   │   ├── ApiError.ts        # Custom error class
+│   │   └── asyncHandler.ts   # Async route wrapper
+│   ├── middleware/
+│   │   ├── auth.ts            # JWT token verification
+│   │   ├── errorHandler.ts    # Global error handler
+│   │   └── validateRequest.ts # Zod schema validation
+│   ├── services/
+│   │   ├── prisma.ts          # Prisma client singleton
+│   │   ├── supabase.ts        # Supabase client instances
+│   │   ├── userSync.ts        # Sync Supabase users to local DB
+│   │   └── media.ts           # Media upload/delete utilities
+│   ├── schemas/
+│   │   ├── auth.ts            # Auth validation schemas
+│   │   └── events.ts          # Event validation schemas
+│   ├── routes/
+│   │   ├── index.ts           # Route aggregator
+│   │   ├── health.ts          # Health check endpoint
+│   │   ├── auth.ts            # Signup, login, refresh, reset-password
+│   │   ├── users.ts           # User profile endpoints
+│   │   ├── events.ts          # Event CRUD, nearby events
+│   │   ├── interactions.ts    # Like/going toggle endpoints
+│   │   └── upload.ts          # Image upload endpoint
+│   └── tests/                 # Jest test suites
+├── prisma/
+│   └── schema.prisma          # Database schema
+├── docker-compose.yml         # PostgreSQL + PostGIS + Adminer
+├── .eslintrc.cjs             # ESLint config with complexity rules
+├── .prettierrc               # Prettier config
+└── jest.config.js             # Jest ESM configuration
+
+AUTHENTICATION IMPLEMENTATION
+------------------------------
+
+1. SIGNUP FLOW (`POST /api/auth/signup`)
+   - Validates email, password (min 8 chars, uppercase, lowercase, number), name
+   - Creates user in Supabase Auth
+   - Syncs user to local PostgreSQL `users` table via `userSync.syncUser()`
+   - Returns: `{ data: { user, token, refreshToken } }`
+   - Handles email confirmation disabled scenario
+
+2. LOGIN FLOW (`POST /api/auth/login`)
+   - Validates email and password
+   - Authenticates with Supabase
+   - Syncs user to local database
+   - Returns: `{ data: { user, token, refreshToken } }`
+
+3. TOKEN REFRESH (`POST /api/auth/refresh`)
+   - Accepts refresh token in request body
+   - Uses `supabaseAdmin.auth.refreshSession()` to get new tokens
+   - Returns new access token and refresh token
+   - Used automatically by iOS app on 401 errors
+
+4. AUTH MIDDLEWARE (`requireAuth`)
+   - Extracts Bearer token from Authorization header
+   - Verifies token using `supabaseAdmin.auth.getUser(token)`
+   - Attaches user info to request: `req.user = { userId, email }`
+   - Returns 401 if token missing, invalid, or expired
+   - Async/await implementation for proper error handling
+
+USER SYNCHRONIZATION
+--------------------
+- Problem: Supabase Auth users need to exist in local PostgreSQL for foreign keys
+- Solution: `userSync.syncUser()` called after signup/login
+- Creates or updates user record in `users` table
+- Prevents foreign key constraint violations when creating events
+
+API ENDPOINTS
+-------------
+
+HEALTH CHECK
+  GET /api/health
+  - Returns server status, uptime, environment
+
+AUTHENTICATION (Public)
+  POST /api/auth/signup
+    Body: { email, password, name }
+    Response: { data: { user, token, refreshToken } }
+  
+  POST /api/auth/login
+    Body: { email, password }
+    Response: { data: { user, token, refreshToken } }
+  
+  POST /api/auth/refresh
+    Body: { refreshToken }
+    Response: { data: { user, token, refreshToken } }
+  
+  POST /api/auth/reset-password
+    Body: { email }
+    Response: { data: { message } }
+
+USERS (Protected)
+  GET /api/users/me
+    Headers: Authorization: Bearer <token>
+    Response: { data: { id, email } }
+  
+  GET /api/users/me/events
+    Headers: Authorization: Bearer <token>
+    Response: { data: Event[] }
+    - Returns all events created by the authenticated user
+    - Sorted by creation date (newest first)
+    - Includes media, user info, and all event details
+
+EVENTS (Protected)
+  POST /api/events
+    Headers: Authorization: Bearer <token>
+    Body: {
+      title, description, category,
+      latitude, longitude,
+      startTime (ISO8601), endTime? (ISO8601),
+      media? (array of { url, type })
+    }
+    Response: { data: Event }
+    Note: media is optional (defaults to empty array)
+  
+  GET /api/events/nearby?lat=<lat>&lng=<lng>&limit?=<limit>
+    Headers: Authorization: Bearer <token>
+    Response: { data: Event[] }
+    - Uses PostGIS ST_DWithin to find events within 5km radius
+    - Calculates distance using ST_Distance
+    - Returns events sorted by distance
+  
+  GET /api/events/:id?lat?=<lat>&lng?=<lng>
+    Headers: Authorization: Bearer <token>
+    Response: { data: Event }
+    - Includes distance if lat/lng provided
+
+INTERACTIONS (Protected)
+  POST /api/events/:id/like
+    Headers: Authorization: Bearer <token>
+    Response: { data: { liked, going, likesCount, goingCount } }
+    - Toggles like status, updates counts
+  
+  POST /api/events/:id/going
+    Headers: Authorization: Bearer <token>
+    Response: { data: { liked, going, likesCount, goingCount } }
+    - Toggles going status, updates counts
+
+UPLOAD (Protected)
+  POST /api/upload
+    Headers: Authorization: Bearer <token>
+    Body: { image: <base64>, contentType: "image/jpeg" }
+    Response: { data: { url, type } }
+    - Accepts base64-encoded images in JSON
+    - Uploads to Supabase Storage using service key
+    - Returns public URL
+    - Validates file type and size
+
+DATABASE SCHEMA
+---------------
+
+Users Table
+  - id (UUID, primary key) - matches Supabase Auth user ID
+  - email (string, unique)
+  - name (string)
+  - profilePictureUrl (string, nullable)
+  - createdAt (timestamp)
+
+Events Table
+  - id (UUID, primary key)
+  - userId (UUID, foreign key -> users.id)
+  - title (string, max 200)
+  - description (string, max 2000)
+  - category (enum: food_drink, arts_culture, music, nightlife, sports_outdoors, community)
+  - location (PostGIS Geometry) - stores lat/lng as point
+  - latitude, longitude (computed fields for queries)
+  - startTime (timestamp)
+  - endTime (timestamp, nullable)
+  - createdAt (timestamp)
+  - likesCount, goingCount (integers, default 0)
+
+MediaItems Table
+  - id (UUID, primary key)
+  - eventId (UUID, foreign key -> events.id)
+  - url (string) - Supabase Storage public URL
+  - type (enum: photo, video)
+  - order (integer) - for sorting
+
+Likes Table
+  - userId (UUID, foreign key -> users.id)
+  - eventId (UUID, foreign key -> events.id)
+  - createdAt (timestamp)
+  - Primary key: (userId, eventId)
+
+Going Table
+  - userId (UUID, foreign key -> users.id)
+  - eventId (UUID, foreign key -> events.id)
+  - createdAt (timestamp)
+  - Primary key: (userId, eventId)
+
+GEOSPATIAL QUERIES
+------------------
+- Uses PostGIS functions:
+  - `ST_MakePoint(longitude, latitude)` - create point from coordinates
+  - `ST_DWithin(geometry1, geometry2, distance_meters)` - find within radius
+  - `ST_Distance(geometry1, geometry2)` - calculate distance
+- Default search radius: 5km (5000 meters)
+- Events sorted by distance (ascending)
+
+MEDIA UPLOAD IMPLEMENTATION
+---------------------------
+1. Client sends base64-encoded image in JSON to `/api/upload`
+2. Backend decodes base64 to Buffer
+3. Validates MIME type (image/jpeg, image/png, etc.)
+4. Validates file size (max 10MB for images)
+5. Generates unique file path: `{userId}/{uuid}.{ext}`
+6. Uploads to Supabase Storage using service key (full access)
+7. Returns public URL: `{supabaseUrl}/storage/v1/object/public/{bucket}/{path}`
+8. Client uses returned URLs when creating events
+
+ERROR HANDLING
+--------------
+- Custom `ApiError` class with status codes
+- Global error handler middleware formats all errors consistently
+- Validation errors from Zod include field-level details
+- 401 errors trigger token refresh in iOS app
+- All errors return: `{ error: { code, message, details? } }`
+
+CODE QUALITY RULES
+------------------
+ESLint complexity limits (enforced):
+  - Cyclomatic complexity: max 10
+  - Nesting depth: max 3
+  - Lines per file: max 300
+  - Lines per function: max 50
+  - Parameters per function: max 4
+  - Statements per function: max 20
+
+Testing:
+  - Jest with ESM support
+  - Supertest for API endpoint testing
+  - Coverage thresholds: 70% statements, 60% branches, 70% functions, 70% lines
+
+================================================================================
+iOS APP ARCHITECTURE
+================================================================================
+
+TECHNOLOGY STACK
+----------------
+- Language: Swift 5+
+- Framework: SwiftUI
+- iOS Version: iOS 17+
+- Concurrency: Swift async/await, actors
+- Networking: URLSession
+- Storage: Keychain for tokens, UserDefaults not used
+- Location: CoreLocation
+- Maps: MapKit
+- Photos: PhotosUI
+
+KEY ARCHITECTURAL DECISIONS
+----------------------------
+
+1. SWIFT ACTORS FOR CONCURRENCY
+   - APIService: `actor` for thread-safe network operations
+   - StorageService: `actor` for safe concurrent uploads
+   - Prevents data races in async/await code
+
+2. OBSERVABLE OBJECTS
+   - AuthManager: `@MainActor class ObservableObject` - manages auth state
+   - LocationManager: `@MainActor class ObservableObject` - manages location
+   - ViewModels: `@MainActor class ObservableObject` - manages view state
+   - All UI updates happen on main actor
+
+3. TOKEN STORAGE
+   - Access tokens stored in Keychain
+   - Refresh tokens stored in Keychain
+   - User data stored in Keychain (JSON encoded)
+   - No UserDefaults usage (more secure)
+
+4. AUTOMATIC TOKEN REFRESH
+   - APIService automatically handles token refresh on 401 errors
+   - On 401, reads refresh token from Keychain
+   - Calls /api/auth/refresh to get new tokens
+   - Updates Keychain with new access and refresh tokens
+   - Automatically retries original request with new token
+   - If refresh fails, clears tokens and throws error
+   - Works transparently for all API calls (no manual handling needed)
+
+5. NETWORK LAYER
+   - Generic APIService with type-safe endpoints
+   - Automatic JSON encoding/decoding
+   - ISO8601 date handling
+   - Error parsing from API responses
+
+PROJECT STRUCTURE
+-----------------
+ios/BarrioCursor/BarrioCursor/BarrioCursor/
+├── BarrioCursorApp.swift      # App entry point, sets up environment objects
+├── ContentView.swift          # Root view, switches between auth/main
+├── Config/
+│   └── AppConfig.swift        # API URLs, Supabase keys, constants
+├── Models/
+│   ├── User.swift             # User, AuthResponse models
+│   ├── Event.swift            # Event, Category, MediaItem models
+│   └── APIError.swift         # Error types, APIErrorResponse
+├── Services/
+│   ├── APIService.swift       # Generic HTTP client (actor)
+│   ├── AuthManager.swift      # Auth state management
+│   ├── LocationManager.swift  # CoreLocation wrapper
+│   └── StorageService.swift   # Image upload service (actor)
+└── Views/
+    ├── MainTabView.swift      # Tab bar (Map, Feed, Profile)
+    ├── Auth/
+    │   ├── AuthView.swift     # Auth container
+    │   ├── LoginView.swift    # Login form
+    │   └── SignupView.swift   # Signup form
+    ├── Map/
+    │   └── MapView.swift      # Map with event pins
+    ├── Feed/
+    │   └── FeedView.swift     # Event cards list
+    ├── Profile/
+    │   └── ProfileView.swift  # User profile + My Events navigation
+    └── Event/
+        ├── EventDetailView.swift  # Event details + interactions
+        └── CreateEventView.swift  # Create event form
+
+AUTHENTICATION FLOW
+--------------------
+
+1. APP LAUNCH
+   - ContentView checks Keychain for stored token
+   - If token exists, shows MainTabView
+   - If no token, shows AuthView
+
+2. SIGNUP/LOGIN
+   - User enters email, password, name (signup)
+   - AuthManager calls APIService.signup/login
+   - On success, stores token + refreshToken + user in Keychain
+   - Sets isAuthenticated = true
+   - ContentView automatically switches to MainTabView
+
+3. TOKEN REFRESH
+   - APIService automatically detects 401 errors in performRequest()
+   - Calls attemptTokenRefresh() which reads refresh token from Keychain
+   - Calls /api/auth/refresh endpoint
+   - Updates Keychain with new tokens
+   - Retries original request with new access token
+   - If refresh fails, clears Keychain tokens
+   - Views no longer need to handle token refresh manually
+
+4. LOGOUT
+   - Clears all Keychain entries
+   - Sets isAuthenticated = false
+   - ContentView switches back to AuthView
+
+API SERVICE IMPLEMENTATION
+--------------------------
+
+APIService (actor)
+  - Generic request methods: get<T>, post<T, B>
+  - Automatic JSON encoding/decoding
+  - ISO8601 date handling
+  - Error parsing and conversion to APIError enum
+  - Bearer token injection in Authorization header
+
+Endpoints implemented:
+  - signup(email, password, name) -> AuthResponse
+  - login(email, password) -> AuthResponse
+  - refreshToken(refreshToken) -> AuthResponse
+  - getProfile(token) -> UserProfileResponse
+  - getUserEvents(token) -> EventsListResponse
+  - getNearbyEvents(lat, lng, token) -> EventsListResponse
+  - getEvent(id, lat?, lng?, token) -> EventResponse
+  - createEvent(...) -> EventResponse
+  - toggleLike(eventId, token) -> InteractionResponse
+  - toggleGoing(eventId, token) -> InteractionResponse
+  - uploadImage(base64Image, contentType, token) -> String (URL)
+
+STORAGE SERVICE IMPLEMENTATION
+-------------------------------
+
+StorageService (actor)
+  - uploadImage(imageData, token) -> String (URL)
+  - uploadImages([imageData], token) -> [String] (URLs)
+  - compressImage() - reduces to ~500KB max
+  - Now delegates to APIService.uploadImage() for automatic token refresh
+
+Upload Flow:
+  1. Compress image to JPEG (max 500KB)
+  2. Encode as base64
+  3. Calls APIService.uploadImage() which POSTs to /api/upload
+  4. APIService handles token refresh automatically if needed
+  5. Backend uploads to Supabase Storage
+  6. Returns public URL
+  7. Client uses URL when creating event
+
+LOCATION MANAGEMENT
+-------------------
+LocationManager
+  - Wraps CLLocationManager
+  - Requests "When In Use" permission
+  - Provides current coordinate
+  - Falls back to default (NYC) if no permission
+  - Updates published location property on changes
+
+MAP VIEW
+--------
+- Uses MapKit with SwiftUI Map API
+- Shows user location with UserAnnotation
+- Event pins colored by category
+- Tap pin to see event details
+- Create event button (FAB) opens CreateEventView
+
+FEED VIEW
+---------
+- Lists nearby events as cards
+- Shows event image, title, category, distance, time
+- Pull-to-refresh support
+- Navigation to EventDetailView on tap
+- Empty state when no events
+
+EVENT DETAIL VIEW
+-----------------
+- Media carousel (TabView with page style)
+- Event info: title, description, category, time, host
+- Like and Going buttons with counts
+- Updates counts in real-time on toggle
+
+CREATE EVENT VIEW
+-----------------
+- Form with sections: Details, When, Where, Photos
+- Category picker
+- Date/time pickers
+- Location picker (MapView with pin)
+- Photo picker (1-3 photos, optional)
+- Validates: title, description required; photos optional
+- Token refresh handled automatically by APIService
+- Uploads images first, then creates event
+
+PROFILE VIEW
+------------
+- Displays user name, email, and avatar
+- Navigation to "My Events" view
+- Placeholder links for "Going" and "Liked" events (future)
+- Logout functionality
+
+MY EVENTS VIEW
+--------------
+- Lists all events created by the current user
+- Uses same EventCard component as FeedView
+- Sorted by creation date (newest first)
+- Pull-to-refresh support
+- Empty state with helpful message
+- Navigation to EventDetailView on tap
+
+KEYCHAIN HELPER
+---------------
+KeychainHelper enum
+  - set(key, value) - stores string in Keychain
+  - get(key) -> String? - retrieves string
+  - delete(key) - removes entry
+  - Uses kSecClassGenericPassword
+  - Account name = key
+
+CONFIGURATION
+-------------
+AppConfig enum
+  - apiBaseURL: "http://192.168.0.117:5001/api" (Mac IP for simulator)
+  - supabaseURL, supabaseAnonKey, storageBucket
+  - Default location (NYC)
+  - Keychain keys
+
+INFO.PLIST PERMISSIONS
+-----------------------
+- NSLocationWhenInUseUsageDescription
+- NSPhotoLibraryUsageDescription
+- NSCameraUsageDescription
+- NSAppTransportSecurity (allows HTTP for localhost)
+
+================================================================================
+SUPABASE INTEGRATION
+================================================================================
+
+AUTHENTICATION
+--------------
+- Supabase Auth handles user creation and login
+- Email/password authentication
+- Email confirmation DISABLED (for MVP simplicity)
+- JWT access tokens (expire after ~1 hour)
+- Refresh tokens (long-lived)
+- Backend uses service key for admin operations
+- Clients use anon key for direct Supabase calls (not currently used)
+
+STORAGE
+-------
+- Bucket name: "media"
+- Storage policy: Authenticated users can upload to "media" bucket
+  SQL Policy:
+    CREATE POLICY "Allow authenticated uploads"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (bucket_id = 'media');
+- File structure: `events/{userId}/{uuid}.{ext}`
+- Public URLs: `{supabaseUrl}/storage/v1/object/public/{bucket}/{path}`
+
+CONFIGURATION
+-------------
+Environment variables:
+  - SUPABASE_URL
+  - SUPABASE_ANON_KEY
+  - SUPABASE_SERVICE_KEY
+  - SUPABASE_STORAGE_BUCKET
+
+================================================================================
+DEVELOPMENT SETUP
+================================================================================
+
+BACKEND SETUP
+-------------
+1. Install dependencies: `npm install`
+2. Start PostgreSQL: `docker-compose up -d`
+3. Run migrations: `npm run migrate`
+4. Start server: `npm run dev` (runs on port 5001)
+5. Health check: `curl http://localhost:5001/api/health`
+
+Environment variables (.env):
+  - DATABASE_URL (PostgreSQL connection string)
+  - JWT_SECRET (not currently used, Supabase handles JWTs)
+  - SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, SUPABASE_STORAGE_BUCKET
+  - PORT (defaults to 5001)
+  - CORS_ORIGIN (defaults to "*")
+
+iOS SETUP
+---------
+1. Open Xcode project: `ios/BarrioCursor/BarrioCursor.xcodeproj`
+2. Update AppConfig.swift with your Mac's IP address (for simulator)
+3. Build and run (⌘R)
+4. First launch: Sign up or log in
+5. Grant location and photo permissions when prompted
+
+SIMULATOR NETWORKING
+--------------------
+- iOS Simulator cannot access `localhost`
+- Must use Mac's IP address: `http://192.168.0.117:5001/api`
+- Find Mac IP: `ifconfig en0 | grep "inet "`
+- Update AppConfig.apiBaseURL accordingly
+- For physical device: Can use localhost if device is on same network
+
+================================================================================
+KEY TECHNICAL DECISIONS & RATIONALE
+================================================================================
+
+1. WHY SUPABASE AUTH INSTEAD OF CUSTOM JWT?
+   - Faster MVP development
+   - Built-in user management
+   - Email/password handling
+   - Token refresh mechanism
+   - Can migrate to custom JWT later if needed
+
+2. WHY BASE64 IMAGE UPLOAD?
+   - Avoids Express body parsing conflicts
+   - Works with existing JSON middleware
+   - Simpler than multipart/form-data
+   - Trade-off: ~33% size increase, acceptable for MVP
+
+3. WHY ACTOR FOR APISERVICE?
+   - Thread-safe concurrent network requests
+   - Prevents data races in async code
+   - Swift concurrency best practice
+   - Isolates network state
+
+4. WHY USER SYNC TO LOCAL DB?
+   - Foreign key constraints require user records
+   - Events.userId references users.id
+   - Supabase Auth users don't automatically exist in local DB
+   - Sync on signup/login ensures referential integrity
+
+5. WHY POSTGIS FOR LOCATION?
+   - Efficient geospatial queries
+   - ST_DWithin for radius searches
+   - ST_Distance for distance calculations
+   - Industry standard for location-based apps
+   - Better than calculating distance in application code
+
+6. WHY MEDIA OPTIONAL?
+   - Reduces friction for event creation
+   - Users can add events quickly
+   - Can add photos later (future feature)
+   - Better UX for MVP
+
+7. WHY TOKEN REFRESH IN VIEW?
+   - Simpler than middleware approach
+   - View has access to AuthManager
+   - Can show user-friendly error messages
+   - Can retry specific operations
+   - Future: Extract to APIService interceptor
+
+8. WHY KEYCHAIN NOT USERDEFAULTS?
+   - More secure for sensitive data
+   - Tokens encrypted by iOS
+   - Best practice for authentication tokens
+   - UserDefaults is plaintext
+
+================================================================================
+KNOWN LIMITATIONS & FUTURE IMPROVEMENTS
+================================================================================
+
+CURRENT LIMITATIONS
+-------------------
+1. Image compression is basic
+   - Fixed 500KB target
+   - Could be smarter (maintain aspect ratio, quality)
+
+3. No pagination on nearby events
+   - Currently returns up to 50 events
+   - Should implement cursor-based pagination
+
+4. No offline support
+   - All data requires network
+   - Could cache events locally
+
+5. No push notifications
+   - Users don't get notified of nearby events
+   - Future: Firebase Cloud Messaging or APNs
+
+6. No event editing/deletion
+   - Users can only create events
+   - Should allow editing own events
+
+7. No user profile editing
+   - Name and email are read-only
+   - Profile picture upload not implemented
+   - Should allow profile updates
+
+8. No search/filter
+   - Can only browse nearby events
+   - Should add search by keyword, filter by category
+
+FUTURE IMPROVEMENTS
+-------------------
+1. Real-time updates (Supabase Realtime)
+   - Live event updates
+   - Real-time like/going counts
+
+2. Image optimization
+   - Multiple sizes (thumbnail, medium, full)
+   - WebP format support
+   - Lazy loading
+
+3. Advanced geospatial features
+   - Custom search radius
+   - Map clustering for many events
+   - Route planning
+
+4. Social features
+   - User profiles with avatars
+   - Follow users
+   - Event comments
+
+5. Analytics
+   - Track popular events
+   - User engagement metrics
+   - Location heatmaps
+
+6. Admin features
+   - Content moderation
+   - Event reporting
+   - User management
+
+================================================================================
+TESTING
+================================================================================
+
+BACKEND TESTS
+-------------
+Location: server/src/tests/
+- app.test.ts - Basic app and health check
+- auth.test.ts - Signup validation
+- auth-login.test.ts - Login validation
+- auth-protected.test.ts - Protected route access
+- events.test.ts - Event creation validation
+- events-nearby.test.ts - Nearby events validation
+- events-get.test.ts - Get event validation
+
+Run tests: `npm test`
+Coverage: `npm test -- --coverage`
+
+iOS TESTS
+---------
+- Not yet implemented
+- Should add unit tests for:
+  - AuthManager token refresh
+  - APIService error handling
+  - StorageService image compression
+  - ViewModels state management
+
+================================================================================
+DEPLOYMENT CONSIDERATIONS
+================================================================================
+
+BACKEND
+-------
+- Environment: Node.js 18+ required
+- Database: PostgreSQL 14+ with PostGIS extension
+- Environment variables must be set
+- CORS_ORIGIN should be restricted in production
+- Rate limiting configured (100 req/15min per IP)
+- Helmet security headers enabled
+
+iOS
+---
+- Minimum iOS 17+
+- Requires location permission
+- Requires photo library permission
+- Requires camera permission (optional)
+- App Transport Security allows HTTP (for development only)
+- Production: Use HTTPS, remove ATS exception
+
+SUPABASE
+--------
+- Storage bucket policies must be configured
+- Email confirmation should be enabled in production
+- Rate limits apply (check Supabase dashboard)
+- Service key must be kept secret (never expose to client)
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+COMMON ISSUES
+-------------
+
+1. "Token expired" errors
+   - Solution: Log out and log back in to get new refresh token
+   - Future: Automatic background refresh
+
+2. "Could not connect to server" (iOS Simulator)
+   - Check Mac IP address in AppConfig.swift
+   - Ensure backend is running on that IP
+   - Check firewall settings
+
+3. Foreign key constraint violations
+   - Ensure userSync.syncUser() is called after signup/login
+   - Check that Supabase user ID matches local user ID
+
+4. Image upload fails with 403
+   - Check Supabase storage bucket policy
+   - Ensure "Allow authenticated uploads" policy exists
+   - Verify bucket name matches SUPABASE_STORAGE_BUCKET
+
+5. Geospatial queries return no results
+   - Verify PostGIS extension is installed: `CREATE EXTENSION postgis;`
+   - Check that events have valid lat/lng coordinates
+   - Verify ST_DWithin radius (default 5000m)
+
+6. Build errors in Xcode
+   - Ensure all Swift files are added to target
+   - Check Info.plist is not in "Copy Bundle Resources"
+   - Verify bridging header is empty (pure Swift project)
+
+================================================================================
+CODE QUALITY METRICS
+================================================================================
+
+ESLint Rules Enforced:
+  - max-lines-per-function: 50
+  - max-lines: 300
+  - max-depth: 3
+  - max-params: 4
+  - max-statements: 20
+  - complexity: 10
+
+Prettier: Auto-formatting on save (if configured)
+
+Git: Feature branch workflow recommended
+
+================================================================================
+ENVIRONMENT VARIABLES REFERENCE
+================================================================================
+
+BACKEND (.env)
+--------------
+DATABASE_URL=postgresql://user:password@localhost:5432/barrio
+JWT_SECRET=your-secret-key (not currently used)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_KEY=your-service-key
+SUPABASE_STORAGE_BUCKET=media
+PORT=5001
+CORS_ORIGIN=*
+NODE_ENV=development
+
+iOS (AppConfig.swift)
+---------------------
+apiBaseURL - Backend API URL
+supabaseURL - Supabase project URL
+supabaseAnonKey - Supabase anonymous key
+storageBucket - Storage bucket name
+
+================================================================================
+API RESPONSE EXAMPLES
+================================================================================
+
+SUCCESS RESPONSE
+---------------
+{
+  "data": {
+    "id": "uuid",
+    "title": "Event Title",
+    ...
+  }
+}
+
+ERROR RESPONSE
+-------------
+{
+  "error": {
+    "code": "UNAUTHORIZED",
+    "message": "Invalid token",
+    "details": { ... }  // optional
+  }
+}
+
+AUTH RESPONSE
+-------------
+{
+  "data": {
+    "user": {
+      "id": "uuid",
+      "email": "user@example.com",
+      "name": "User Name"
+    },
+    "token": "jwt-access-token",
+    "refreshToken": "jwt-refresh-token"
+  }
+}
+
+================================================================================
+DATABASE MIGRATIONS
+================================================================================
+
+Initial migration creates:
+  - users table
+  - events table with PostGIS geometry
+  - media_items table
+  - likes table
+  - going table
+  - Indexes on foreign keys and location
+
+Run migrations: `npm run migrate`
+Reset database: `npm run migrate:reset` (development only)
+
+================================================================================
+SECURITY CONSIDERATIONS
+================================================================================
+
+1. JWT tokens stored securely in Keychain
+2. Service key never exposed to client
+3. Input validation on all endpoints (Zod)
+4. SQL injection prevented by Prisma
+5. CORS configured (should restrict in production)
+6. Rate limiting enabled
+7. Helmet security headers
+8. Password requirements enforced
+9. Email enumeration prevented (reset password always returns success)
+
+================================================================================
+PERFORMANCE CONSIDERATIONS
+================================================================================
+
+1. PostGIS indexes on location for fast geospatial queries
+2. Database indexes on foreign keys
+3. Image compression reduces upload size
+4. Pagination should be added for large result sets
+5. Consider caching for frequently accessed data
+6. Database connection pooling via Prisma
+
+================================================================================
+END OF HANDOVER DOCUMENT
+================================================================================
+
+For questions or clarifications, refer to:
+- Code comments in source files
+- Prisma schema for database structure
+- API route handlers for endpoint logic
+- Swift view files for UI implementation
+
+================================================================================
+RECENT UPDATES (December 6, 2025)
+================================================================================
+
+1. MY EVENTS FEATURE
+   - Backend: Added GET /api/users/me/events endpoint
+     * Returns all events created by authenticated user
+     * Includes full event data with media and user info
+     * Sorted by creation date (newest first)
+   - iOS: Implemented MyEventsView
+     * Displays user's created events using EventCard component
+     * Pull-to-refresh support
+     * Empty state with helpful message
+     * Navigation to event details on tap
+   - Location: server/src/routes/users.ts, ios/.../Views/Profile/ProfileView.swift
+
+2. GENERALIZED TOKEN REFRESH
+   - APIService now automatically handles token refresh on all 401 errors
+   - performRequest() detects 401, calls attemptTokenRefresh()
+   - Reads refresh token from Keychain
+   - Calls /api/auth/refresh endpoint
+   - Updates Keychain with new tokens
+   - Automatically retries original request
+   - StorageService now uses APIService.uploadImage() for automatic refresh
+   - CreateEventView simplified (removed manual token refresh logic)
+   - All API calls now benefit from automatic token refresh
+   - Location: ios/.../Services/APIService.swift, StorageService.swift
+
+3. CODE IMPROVEMENTS
+   - Removed duplicate token refresh logic from views
+   - Centralized token refresh in APIService
+   - Better separation of concerns
+   - More maintainable codebase
+
+================================================================================
+END OF HANDOVER DOCUMENT
+================================================================================
+
+For questions or clarifications, refer to:
+- Code comments in source files
+- Prisma schema for database structure
+- API route handlers for endpoint logic
+- Swift view files for UI implementation
+
+Last updated: December 6, 2025
+
+

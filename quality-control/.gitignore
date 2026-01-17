@@ -1,0 +1,6 @@
+# Quality reports
+quality-report.txt
+quality-report-*.txt
+
+# Logs
+*.log
