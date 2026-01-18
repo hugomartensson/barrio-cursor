@@ -5,7 +5,10 @@ dotenv.config();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().default('5000'),
+  PORT: z
+    .string()
+    .default('5000')
+    .transform((val) => parseInt(val, 10)),
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('7d'),
@@ -20,6 +23,8 @@ const parseEnv = (): z.infer<typeof envSchema> => {
   const parsed = envSchema.safeParse(process.env);
 
   if (!parsed.success) {
+    // Use console.error here since logger depends on config
+    // This is a bootstrap error before logger is initialized
     console.error('❌ Invalid environment variables:');
     console.error(parsed.error.flatten().fieldErrors);
     process.exit(1);
@@ -33,5 +38,3 @@ export const config = parseEnv();
 export const isProduction = config.NODE_ENV === 'production';
 export const isDevelopment = config.NODE_ENV === 'development';
 export const isTest = config.NODE_ENV === 'test';
-
-

@@ -18,7 +18,11 @@ interface UpdateUserResponse {
   data: { id: string; email: string; name: string };
 }
 
-type PatchRequest = Request<object, UpdateUserResponse | ApiErrorResponse, UpdateUserInput>;
+type PatchRequest = Request<
+  object,
+  UpdateUserResponse | ApiErrorResponse,
+  UpdateUserInput
+>;
 
 interface EventData {
   id: string;
@@ -46,20 +50,22 @@ interface EventsListResponse {
 router.get(
   '/me',
   requireAuth,
-  asyncHandler(async (req: Request, res: Response<UserProfileResponse | ApiErrorResponse>) => {
-    const authReq = req as AuthenticatedRequest;
+  asyncHandler(
+    async (req: Request, res: Response<UserProfileResponse | ApiErrorResponse>) => {
+      const authReq = req as AuthenticatedRequest;
 
-    const user = await prisma.user.findUnique({
-      where: { id: authReq.user.userId },
-      select: { id: true, email: true, name: true },
-    });
+      const user = await prisma.user.findUnique({
+        where: { id: authReq.user.userId },
+        select: { id: true, email: true, name: true },
+      });
 
-    if (!user) {
-      throw ApiError.notFound('User'); // This shouldn't happen if auth is working
+      if (!user) {
+        throw ApiError.notFound('User'); // This shouldn't happen if auth is working
+      }
+
+      res.json({ data: { id: user.id, email: user.email, name: user.name } });
     }
-
-    res.json({ data: { id: user.id, email: user.email, name: user.name } });
-  })
+  )
 );
 
 /**

@@ -2,18 +2,33 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { ApiError } from '../utils/ApiError.js';
 import { isProduction } from '../config/index.js';
-import type { ApiErrorResponse } from '../types/index.js';
+import { createLogger } from '../services/logger.js';
+import type { RequestWithId, ApiErrorResponse } from '../types/index.js';
+
+const logger = createLogger({ component: 'error-handler' });
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response<ApiErrorResponse>,
   _next: NextFunction
 ): void => {
-  // Log error in development
-  if (!isProduction) {
-    console.error('Error:', err);
-  }
+  const requestWithId = req as RequestWithId;
+  // Log error with request context
+  const logLevel = err instanceof ApiError && err.statusCode < 500 ? 'warn' : 'error';
+  logger[logLevel](
+    {
+      error: {
+        name: err.name,
+        message: err.message,
+        stack: isProduction ? undefined : err.stack,
+      },
+      requestId: requestWithId.id || 'unknown',
+      method: req.method,
+      path: req.path || req.url,
+    },
+    'Request error'
+  );
 
   // Handle known ApiError
   if (err instanceof ApiError) {
@@ -70,5 +85,3 @@ export const notFoundHandler = (
     },
   });
 };
-
-

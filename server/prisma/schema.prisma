@@ -10,7 +10,7 @@ datasource db {
 }
 
 model User {
-  id                String   @id @default(uuid())
+  id                String   @id // ID comes from Supabase Auth, no default needed
   email             String   @unique
   passwordHash      String   @map("password_hash")
   name              String

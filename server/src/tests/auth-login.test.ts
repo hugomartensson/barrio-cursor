@@ -31,5 +31,3 @@ describe('Auth API - Login Validation', () => {
     expect((response.body as ApiErrorResponse).error.code).toBe('VALIDATION_ERROR');
   });
 });
-
-

@@ -13,6 +13,9 @@ Workflow
 - Tag releases: git tag v0.1.0 when submitting to TestFlight
 
 AI Coding Tool Guidelines
+
+**GOLDEN RULE: Never trust AI-generated code without verification. Always build/test before accepting.**
+
 - Review all generated code before committing; AI hallucinates APIs and creates security holes.
 - Watch for:
   - SQL injection (string concatenation in queries)
@@ -22,12 +25,80 @@ AI Coding Tool Guidelines
   - Missing error handling
   - N+1 query patterns
   - Non-parameterized database queries
-- Before accepting AI suggestions:
-  - Does it pass linting?
-  - Are there tests?
-  - Does it match the complexity limits?
-  - Is error handling present?
+  - **Swift/SwiftUI API misuse (AI's #1 mistake: inventing properties/methods that don't exist)**
+  - Deprecated iOS APIs (e.g., CLGeocoder in iOS 26.0+ should use MapKit)
+  - Incorrect SwiftUI closure signatures (e.g., .onChange API changes in iOS 17+)
+
+**Before accepting AI suggestions - REQUIRED CHECKLIST:**
+
+1. **For Swift/iOS code:**
+   - ✅ Does it compile in Xcode? (⌘B - must succeed)
+   - ✅ Does Xcode autocomplete show the properties/methods? (If not → they don't exist)
+   - ✅ Are there compilation errors? (If yes → fix before committing)
+   - ✅ Verified API usage against Apple documentation?
+   
+2. **For all code:**
+   - ✅ Does it pass linting?
+   - ✅ Are there tests?
+   - ✅ Does it match the complexity limits?
+   - ✅ Is error handling present?
+
+3. **When AI suggests framework APIs:**
+   - ✅ STOP - Don't copy/paste immediately
+   - ✅ Verify property/method name in official documentation
+   - ✅ Test autocomplete in Xcode (for Swift) or IDE (for other languages)
+   - ✅ Build and test before accepting
+   
 - When AI suggests refactoring working code: push back unless there's a clear bug or performance issue.
+
+**Common pattern of AI mistakes:**
+1. AI suggests: `item.identifier` (seems logical)
+2. Reality: `PhotosPickerItem` doesn't have `.identifier` 
+3. Result: Compilation error
+4. Prevention: Always verify in Xcode/Apple docs before using
+
+iOS/Swift Specific Guidelines
+- **CRITICAL: Always verify Swift/SwiftUI API usage against Apple documentation when AI suggests properties/methods**
+  - AI frequently hallucinates property/method names that don't exist (e.g., `PhotosPickerItem.identifier` → should be `itemIdentifier` or `supportedContentTypes`)
+  - Never trust AI suggestions for framework APIs without verification
+  - When AI suggests using a property/method, check Apple's official documentation first
+  
+- **Build verification before committing:**
+  - Code MUST compile successfully in Xcode (⌘B) before committing
+  - NEVER commit code with compilation errors - fix errors first
+  - If Xcode shows compilation errors, do NOT accept "it should work" - the compiler is always right
+  - Run clean build (⇧⌘K then ⌘B) to catch hidden compilation issues
+
+- **API verification process:**
+  - Step 1: AI suggests API usage → **STOP**
+  - Step 2: Check Apple documentation (developer.apple.com/documentation)
+  - Step 3: Verify property/method exists in Xcode autocomplete (⌘Space after dot)
+  - Step 4: If Xcode autocomplete doesn't show it → property/method doesn't exist → don't use it
+  - Step 5: Build and test (⌘B) → must compile without errors
+  
+- **Watch for API changes between iOS versions:**
+  - Project targets iOS 17+, but APIs may have changed in iOS 26+
+  - Deprecated APIs: CLGeocoder → MapKit geocoding (iOS 26.0+)
+  - SwiftUI APIs evolve: `.onChange(of:)` closure signature varies by iOS version
+  - Check deprecation warnings in Xcode - don't ignore them
+
+- **Common AI hallucination patterns to watch for:**
+  - `PhotosPickerItem.identifier` → ❌ Doesn't exist (use `itemIdentifier` or `supportedContentTypes`)
+  - `PhotosPickerItem.loadImage()` → ❌ Doesn't exist (use `loadTransferable(type: Image.self)`)
+  - Properties that "make sense" but don't exist (e.g., `.identifier` on types that use `.itemIdentifier`)
+  - API methods with names that seem logical but aren't in the framework
+  - Always verify against Apple documentation or Xcode autocomplete
+
+- **When AI gives Swift code:**
+  - ✅ First: Copy to Xcode, try autocomplete on the API
+  - ✅ Second: Build (⌘B) - must compile without errors
+  - ✅ Third: Test the functionality
+  - ❌ NEVER: Assume AI code is correct without building/testing
+  
+- **Xcode autocomplete is your friend:**
+  - If Xcode doesn't suggest a property/method after typing `.` → it doesn't exist
+  - Trust Xcode autocomplete over AI suggestions
+  - If autocomplete shows a different name → use that name, not what AI suggested
 
 Code Quality and Style
 - ESLint complexity rules are errors; pre-commit hooks block violations. Limits: cyclomatic 10; nesting 3; lines/file 300; lines/function 50; params 4; statements/function 20. See CODE_QUALITY.md for refactor patterns.
@@ -53,6 +124,31 @@ Environment and Setup
 - Require Node.js 18+, Postgres 14+ with PostGIS enabled. Supabase CLI is optional for local dev.
 - .env must define: DB_URL (Postgres+PostGIS), JWT_SECRET, JWT_EXPIRES_IN, SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_STORAGE_BUCKET, SUPABASE_ANON_KEY.
 - Provide Docker Compose (or clear instructions) for local Postgres+PostGIS and Supabase emulation; document migration/seed commands.
+
+**CRITICAL: Dependency Checking and Validation**
+- **NEVER assume dependencies are installed or services are running.** Always verify before proceeding.
+- **Before starting any work that requires a service:**
+  1. ✅ Check if Docker is installed and running (`docker --version`, `docker ps`)
+  2. ✅ Check if PostgreSQL is running (`pg_isready -h localhost -p 5432` or `docker ps | grep postgres`)
+  3. ✅ Check if Node.js is installed (`node --version`, must be 18+)
+  4. ✅ Check if npm packages are installed (`ls node_modules` or `npm list --depth=0`)
+  5. ✅ Check if environment variables are set (verify .env file exists and has required keys)
+  6. ✅ Check if database migrations are up to date (`prisma migrate status`)
+- **When encountering errors:**
+  - First check: Is the required service/dependency actually running/installed?
+  - Don't assume the user has set things up outside the workspace
+  - Provide clear, actionable error messages that guide the user to fix missing dependencies
+  - If a service is missing, stop and explain what needs to be installed/started before continuing
+- **For AI assistants:**
+  - Before suggesting code that requires a service (database, Docker, etc.), verify the service is available
+  - If a service is missing, explain what it is, why it's needed, and how to install/start it
+  - Don't proceed with implementation until dependencies are confirmed
+  - Check for Docker: `which docker || echo "Docker not found - install Docker Desktop"`
+  - Check for database: `pg_isready -h localhost -p 5432 || echo "PostgreSQL not running - start with docker-compose up -d"`
+- **Startup validation:**
+  - Server should fail fast with clear error messages if dependencies are missing
+  - Health check endpoint should verify database connectivity
+  - Log warnings if optional dependencies are missing (e.g., Supabase CLI)
 
 Database and Migrations
 - Use a migration tool (e.g., Prisma or Knex); commit all migrations and keep them idempotent.
@@ -165,6 +261,7 @@ Documentation
 - Update CHANGELOG.md on each commit to main with significant changes.
 
 Commands
+- npm run check-deps (verify all dependencies are installed and services are running - run this first!)
 - npm run dev (API with hot reload)
 - npm run build
 - npm run lint | npm run lint:fix

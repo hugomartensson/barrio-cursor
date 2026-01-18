@@ -62,7 +62,9 @@ describe('Upload API - Video Duration Validation', () => {
 
       expect(response.status).toBe(422);
       expect((response.body as ApiErrorResponse).error.code).toBe('UNPROCESSABLE_ENTITY');
-      expect((response.body as ApiErrorResponse).error.message).toContain('15 seconds or less');
+      expect((response.body as ApiErrorResponse).error.message).toContain(
+        '15 seconds or less'
+      );
     });
 
     it('should accept video with duration = 15 seconds', async () => {
@@ -81,7 +83,9 @@ describe('Upload API - Video Duration Validation', () => {
       // Note: This will fail at Supabase upload, but duration validation should pass
       // We're testing the duration validation, not the actual upload
       expect(response.status).not.toBe(422);
-      expect((response.body as ApiErrorResponse).error?.code).not.toBe('UNPROCESSABLE_ENTITY');
+      expect((response.body as ApiErrorResponse).error?.code).not.toBe(
+        'UNPROCESSABLE_ENTITY'
+      );
     });
 
     it('should accept video with duration < 15 seconds', async () => {
@@ -99,7 +103,9 @@ describe('Upload API - Video Duration Validation', () => {
 
       // Note: This will fail at Supabase upload, but duration validation should pass
       expect(response.status).not.toBe(422);
-      expect((response.body as ApiErrorResponse).error?.code).not.toBe('UNPROCESSABLE_ENTITY');
+      expect((response.body as ApiErrorResponse).error?.code).not.toBe(
+        'UNPROCESSABLE_ENTITY'
+      );
     });
 
     it('should accept image without duration parameter', async () => {
@@ -118,7 +124,9 @@ describe('Upload API - Video Duration Validation', () => {
 
       // Note: This will fail at Supabase upload, but duration validation should pass
       expect(response.status).not.toBe(400);
-      expect((response.body as ApiErrorResponse).error?.message).not.toContain('duration');
+      expect((response.body as ApiErrorResponse).error?.message).not.toContain(
+        'duration'
+      );
     });
   });
 });

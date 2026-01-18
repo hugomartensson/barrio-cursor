@@ -1,0 +1,753 @@
+================================================================================
+BARRIO PROJECT - DEVELOPMENT LEARNINGS & BEST PRACTICES
+Comprehensive Guide for Continuing Development
+================================================================================
+
+This document consolidates all learnings, best practices, troubleshooting guides,
+and important notes from developing the Barrio hyperlocal events app. Use this
+as your primary reference when continuing development.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+
+1. DEPENDENCY CHECKING & VALIDATION
+2. AI CODING TOOL GUIDELINES
+3. SWIFT/IOS DEVELOPMENT BEST PRACTICES
+4. SUPABASE UPLOADS & MEDIA HANDLING
+5. NETWORK & CONNECTIVITY
+6. ERROR HANDLING & DIAGNOSTICS
+7. DATABASE & GEOSPATIAL QUERIES
+8. AUTHENTICATION & SECURITY
+9. API DESIGN & VALIDATION
+10. TESTING & QUALITY ASSURANCE
+
+================================================================================
+1. DEPENDENCY CHECKING & VALIDATION
+================================================================================
+
+CRITICAL RULE: Never assume dependencies are installed or services are running.
+
+ALWAYS VERIFY BEFORE STARTING WORK:
+
+✅ Required Checks:
+   1. Node.js 18+ installed: `node --version`
+   2. Docker installed and running: `docker --version && docker ps`
+   3. PostgreSQL container running: `docker ps | grep postgres`
+   4. npm packages installed: `ls node_modules` (or run `npm install`)
+   5. Environment variables set: Check `.env` file exists with required keys
+   6. Database migrations up to date: `npm run migrate`
+   7. Prisma client generated: `ls node_modules/.prisma/client`
+
+✅ Automated Dependency Checker:
+   Run: `npm run check-deps` (in server directory)
+   
+   This script checks all dependencies and provides clear pass/fail status with
+   instructions for fixing issues.
+
+✅ Before Implementing Features That Require Services:
+   - First: Run `npm run check-deps` or manually verify dependencies
+   - If missing: Stop and explain what needs to be installed/started
+   - Don't proceed until dependencies are confirmed
+
+✅ When Encountering Errors:
+   - First check: Is the required service/dependency actually running/installed?
+   - Don't assume the user has set things up outside the workspace
+   - Provide clear, actionable error messages that guide the user to fix issues
+
+✅ Startup Validation:
+   - Server should fail fast with clear error messages if dependencies are missing
+   - Health check endpoint verifies database connectivity
+   - Log warnings if optional dependencies are missing
+
+LESSONS LEARNED:
+- Missing Docker installation caused hours of debugging database connection errors
+- Always verify services before assuming they're available
+- Clear error messages prevent wasted debugging time
+
+================================================================================
+2. AI CODING TOOL GUIDELINES
+================================================================================
+
+GOLDEN RULE: Never trust AI-generated code without verification. Always build/test
+before accepting.
+
+COMMON AI MISTAKES TO WATCH FOR:
+- SQL injection (string concatenation in queries)
+- Missing input validation
+- Hardcoded secrets
+- Console.log instead of proper logging
+- Missing error handling
+- N+1 query patterns
+- Non-parameterized database queries
+- **Swift/SwiftUI API misuse** (AI's #1 mistake: inventing properties/methods)
+- Deprecated iOS APIs
+- Incorrect SwiftUI closure signatures (e.g., .onChange API changes in iOS 17+)
+
+MANDATORY VERIFICATION CHECKLIST (Before Accepting AI Suggestions):
+
+1. For Swift/iOS Code:
+   ✅ Does it compile in Xcode? (⌘B - must succeed)
+   ✅ Does Xcode autocomplete show the properties/methods? (If not → don't exist)
+   ✅ Are there compilation errors? (If yes → fix before committing)
+   ✅ Verified API usage against Apple documentation?
+
+2. For All Code:
+   ✅ Does it pass linting?
+   ✅ Are there tests?
+   ✅ Does it match complexity limits?
+   ✅ Is error handling present?
+
+3. When AI Suggests Framework APIs:
+   ✅ STOP - Don't copy/paste immediately
+   ✅ Verify property/method name in official documentation
+   ✅ Test autocomplete in Xcode (for Swift) or IDE (for other languages)
+   ✅ Build and test before accepting
+
+COMMON PATTERN OF AI MISTAKES:
+1. AI suggests: `item.identifier` (seems logical)
+2. Reality: `PhotosPickerItem` doesn't have `.identifier`
+3. Result: Compilation error
+4. Prevention: Always verify in Xcode/Apple docs before using
+
+VERIFICATION WORKFLOW:
+```
+AI Suggests Code
+    ↓
+STOP - Don't copy/paste yet
+    ↓
+1. Check Xcode autocomplete (⌘Space after the dot)
+   - If property shows up → it exists ✅
+   - If property doesn't show → it doesn't exist ❌
+    ↓
+2. Build in Xcode (⌘B)
+   - If it compiles → proceed ✅
+   - If errors → fix them first ❌
+    ↓
+3. Test the functionality
+   - Does it work as expected? ✅
+```
+
+VERIFICATION METHODS (in order of reliability):
+1. Xcode Autocomplete (MOST RELIABLE) - Type `.` after object, see suggestions
+2. Build in Xcode (REQUIRED) - ⌘B to build, compiler errors = property doesn't exist
+3. Apple Documentation (GOOD REFERENCE) - developer.apple.com/documentation
+4. Web Search (SUPPLEMENTARY) - Good for examples, not reliable for API verification
+
+KEY TAKEAWAY:
+Never trust AI-generated API code without verification. The compiler (Xcode) is
+always right. If it doesn't compile, the AI was wrong.
+
+================================================================================
+3. SWIFT/IOS DEVELOPMENT BEST PRACTICES
+================================================================================
+
+CRITICAL: Always verify Swift/SwiftUI API usage against Apple documentation.
+
+API VERIFICATION PROCESS:
+1. AI suggests API usage → STOP
+2. Check Apple documentation (developer.apple.com/documentation)
+3. Verify property/method exists in Xcode autocomplete (⌘Space after dot)
+4. If Xcode autocomplete doesn't show it → property/method doesn't exist
+5. Build and test (⌘B) → must compile without errors
+
+BUILD VERIFICATION BEFORE COMMITTING:
+- Code MUST compile successfully in Xcode (⌘B) before committing
+- NEVER commit code with compilation errors - fix errors first
+- If Xcode shows compilation errors, do NOT accept "it should work"
+- Run clean build (⇧⌘K then ⌘B) to catch hidden compilation issues
+
+WATCH FOR API CHANGES BETWEEN iOS VERSIONS:
+- Project targets iOS 17+, but APIs may have changed in iOS 26+
+- Deprecated APIs: CLGeocoder → MapKit geocoding (iOS 26.0+)
+- SwiftUI APIs evolve: `.onChange(of:)` closure signature varies by iOS version
+- Check deprecation warnings in Xcode - don't ignore them
+
+COMMON AI HALLUCINATION PATTERNS:
+- `PhotosPickerItem.identifier` → ❌ Doesn't exist (use `itemIdentifier` or `supportedContentTypes`)
+- `PhotosPickerItem.loadImage()` → ❌ Doesn't exist (use `loadTransferable(type: Image.self)`)
+- Properties that "make sense" but don't exist
+- API methods with names that seem logical but aren't in the framework
+- Always verify against Apple documentation or Xcode autocomplete
+
+XCODE AUTOCOMPLETE IS YOUR FRIEND:
+- If Xcode doesn't suggest a property/method after typing `.` → it doesn't exist
+- Trust Xcode autocomplete over AI suggestions
+- If autocomplete shows a different name → use that name, not what AI suggested
+
+SWIFT CONCURRENCY:
+- Use `nonisolated` for Codable structs that don't need MainActor isolation
+- Mark services as `actor` for thread-safe state management
+- Use `@MainActor` for UI updates
+- Avoid actor isolation warnings by properly marking types
+
+SWIFTUI BEST PRACTICES:
+- Break complex `body` properties into smaller computed properties
+- Use `@ViewBuilder` for conditional view construction
+- Avoid `let` declarations directly inside `@ViewBuilder` closures
+- Use `onChange(of:)` with correct closure signature for iOS 17+
+
+VIDEO THUMBNAIL GENERATION:
+- Use `AVURLAsset` (not deprecated `AVAsset`)
+- Set `requestedTimeToleranceBefore/After = .zero` for CPU rendering (avoids Metal issues)
+- Copy `CGImage` to new `CGContext` to break Metal resource dependencies
+- Use `nil` placeholders instead of empty `UIImage()` to avoid crashes
+
+KEY TAKEAWAY:
+When AI gives Swift code:
+✅ First: Copy to Xcode, try autocomplete on the API
+✅ Second: Build (⌘B) - must compile without errors
+✅ Third: Test the functionality
+❌ NEVER: Assume AI code is correct without building/testing
+
+================================================================================
+4. SUPABASE UPLOADS & MEDIA HANDLING
+================================================================================
+
+ARCHITECTURE: Direct Client Uploads (Recommended)
+
+Instead of uploading through our server (iOS → Server → Supabase), we use direct
+client uploads:
+
+1. iOS app requests signed upload URL from our server
+2. Server validates (content type, video duration) and generates Supabase signed URL
+3. iOS app uploads directly to Supabase using signed URL
+4. Much faster (no double-hop, reduces server bandwidth)
+
+IMPLEMENTATION:
+
+Backend (`GET /api/upload/signed-url`):
+- Validates content type and video duration
+- Generates signed upload URL with 10-minute expiration
+- Returns upload URL and public URL
+- Video duration is required for video uploads
+
+iOS (`StorageService.swift`):
+- Requests signed URL with content type and duration
+- Uploads directly to Supabase using PUT request with signed URL
+- Custom `URLSession` with longer timeouts (5 min request, 10 min resource)
+- Comprehensive logging for upload progress and response
+
+BENEFITS:
+- Reduced server load (no bandwidth for large files)
+- Faster uploads (direct connection to Supabase)
+- Better scalability
+- Server only validates, doesn't handle file transfer
+
+SUPABASE STORAGE CONFIGURATION:
+
+✅ Required Settings:
+   - File size limit: At least 50MB (Free plan) or higher
+   - Public bucket: Enabled if you want public URLs
+   - Allowed MIME types: `video/mp4`, `video/quicktime`, `image/jpeg`, etc.
+
+✅ Global Storage Settings:
+   - Check global file size limit (should be ≥50MB)
+   - Verify bucket configuration in Supabase Dashboard
+
+✅ Network/Region Considerations:
+   - Server and Supabase should be in same region for best performance
+   - Cross-region uploads will be slower
+
+MEDIA VALIDATION:
+
+Server-side validation:
+- Content type validation (images: JPEG, PNG, HEIC; videos: H.264/HEVC)
+- Video duration validation (max 15 seconds per PRD)
+- File size limits (images: 10MB, videos: 50MB)
+- Up to 3 media items per event
+
+Client-side validation:
+- Video duration check before upload (using AVAsset)
+- File size validation
+- Content type detection
+
+VIDEO PROCESSING:
+- Use `AVURLAsset` to read video duration
+- Temporary files must have file extension (`.mov`, `.mp4`) for AVAsset
+- Video thumbnail generation uses `AVAssetImageGenerator`
+- CPU rendering preferred to avoid Metal resource conflicts
+
+UPLOAD TIMEouts:
+
+For direct Supabase uploads:
+- Request timeout: 300 seconds (5 minutes)
+- Resource timeout: 600 seconds (10 minutes)
+- Signed URL expiration: 600 seconds (10 minutes)
+
+This accommodates large videos (12.5MB) even on slow connections (hotspot).
+
+TROUBLESHOOTING UPLOAD ISSUES:
+
+If uploads are slow (>60 seconds):
+1. Check Supabase Dashboard settings (file size limits)
+2. Verify bucket configuration (public access, MIME types)
+3. Check network region (server and Supabase should be same region)
+4. Consider video compression before upload (future optimization)
+
+If uploads fail:
+1. Check signed URL expiration (should be 10 minutes)
+2. Verify content type matches file type
+3. Check Supabase storage quota
+4. Review response status codes and error bodies in logs
+
+LESSONS LEARNED:
+- Server-side uploads (base64 decode + Supabase) are too slow for videos
+- Direct client uploads reduce server load and improve performance
+- Signed URLs must have sufficient expiration time for large files
+- Video files need extensions for AVAsset to read metadata correctly
+
+================================================================================
+5. NETWORK & CONNECTIVITY
+================================================================================
+
+iOS SIMULATOR:
+- Use `127.0.0.1` instead of `localhost` (more reliable)
+- Server must bind to `0.0.0.0` to accept connections from all interfaces
+- Check `NSAppTransportSecurity` in `Info.plist` (allow local networking)
+
+PHYSICAL DEVICE:
+- Cannot use `localhost` or `127.0.0.1`
+- Must use Mac's IP address on same network
+- Find Mac's IP: `ipconfig getifaddr en0` (WiFi) or `ipconfig getifaddr en1` (Ethernet)
+- Update `AppConfig.swift` with Mac's IP: `http://192.168.x.x:5000/api`
+
+WI-FI CLIENT ISOLATION:
+- Many WiFi networks (especially public/corporate) prevent device-to-device communication
+- iPhone cannot reach Mac on same WiFi if isolation is enabled
+- Solution: Use Mac Personal Hotspot
+
+MAC PERSONAL HOTSPOT SETUP:
+
+1. Enable Internet Sharing on Mac:
+   - System Settings → General → Sharing
+   - Enable "Internet Sharing"
+   - Share from: Wi‑Fi (or Ethernet)
+   - To computers using: Wi‑Fi
+   - Set network name and password
+
+2. Connect iPhone to hotspot:
+   - Settings → Wi‑Fi → Connect to Mac's hotspot
+
+3. Get hotspot IP:
+   ```bash
+   ifconfig bridge0 | grep "inet " | awk '{print $2}'
+   # OR
+   ifconfig bridge100 | grep "inet " | awk '{print $2}'
+   ```
+   Common IPs: `192.168.2.1` or `172.20.10.1`
+
+4. Update `AppConfig.swift`:
+   ```swift
+   nonisolated static let apiBaseURL = "http://192.168.2.1:5000/api"
+   ```
+
+5. Test connection:
+   - iPhone Safari: `http://192.168.2.1:5000/api/health`
+   - Should see JSON response
+
+VERIFICATION CHECKLIST:
+- [ ] Server is running: `lsof -i :5000` shows process
+- [ ] Server responds locally: `curl http://127.0.0.1:5000/api/health`
+- [ ] iPhone connected to Mac hotspot (or WiFi without isolation)
+- [ ] `AppConfig.swift` uses correct IP (hotspot IP, not WiFi IP)
+- [ ] iPhone Safari can reach health endpoint
+
+URLSESSION CONFIGURATION:
+
+For API calls:
+- Use `URLSessionConfiguration.ephemeral` (avoid connection state issues)
+- Timeout: 60s request, 120s resource
+- `waitsForConnectivity = false` (fail fast)
+- `allowsCellularAccess = true`
+- Disable caching: `urlCache = nil`
+
+For direct Supabase uploads:
+- Use custom `URLSession` with longer timeouts
+- Timeout: 300s request, 600s resource
+- Same network configuration as above
+
+COMMON NETWORK ERRORS:
+
+-1004 (NSURLErrorCannotConnectToHost):
+- Server not running
+- Port blocked by firewall
+- Server not listening on correct interface
+- Solution: Check server status, verify binding to `0.0.0.0`
+
+-1001 (NSURLErrorTimedOut):
+- Request took too long
+- Network too slow
+- Solution: Increase timeouts for large uploads, check network speed
+
+Code 61 (Connection refused):
+- Server not accepting connections
+- Port not listening
+- Solution: Verify server is running, check port with `lsof -i :5000`
+
+LESSONS LEARNED:
+- WiFi client isolation is common and causes device-to-device communication to fail
+- Mac Personal Hotspot is most reliable for physical device testing
+- Server must bind to `0.0.0.0` to accept connections from all interfaces
+- `127.0.0.1` is more reliable than `localhost` for simulator
+
+================================================================================
+6. ERROR HANDLING & DIAGNOSTICS
+================================================================================
+
+BACKEND ERROR HANDLING:
+
+Enhanced Health Check (`GET /api/health`):
+- Tests connectivity to all services (database, Supabase)
+- Returns service status for each dependency
+- Helps isolate connection issues quickly
+
+Enhanced Auth Error Messages:
+- Network/Supabase errors: `503 SERVICE_UNAVAILABLE` with diagnostic details
+- Supabase Auth errors: `400 AUTH_ERROR` with specific error details
+- Database sync errors: Logged but don't fail signup (allows retry)
+
+Error Response Format:
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable message",
+    "details": { /* optional diagnostic info */ }
+  }
+}
+```
+
+Error Categories:
+- `SERVICE_UNAVAILABLE` (503): External service unreachable (Supabase/Database)
+- `AUTH_ERROR` (400): Authentication/authorization error
+- `VALIDATION_ERROR` (422): Request validation failed
+- `INTERNAL_ERROR` (500): Server-side error
+
+IOS ERROR HANDLING:
+
+Enhanced Connection Logging:
+- All API requests log connection attempts with full URLs
+- HTTP response status codes logged
+- Detailed error information (domain, code, underlying errors)
+
+Error Categorization:
+- Network errors (-1004, code 61): Connection refused diagnostics
+- Service unavailable (503): Dependency issues
+- Supabase connection errors: Specific Supabase diagnostics
+
+Retry Logic:
+- Automatic retries (up to 3) for network errors
+- Increasing delays: 1s, 2s, 3s
+- Detailed logging of each retry attempt
+
+Diagnostic Checklist:
+When connection fails, console shows:
+```
+❌ APIService: Connection failed after retries
+   DIAGNOSTIC CHECKLIST:
+   1. Is server running? Test: curl http://127.0.0.1:5000/api/health
+   2. Is server listening on correct port? Check: lsof -i :5000
+   3. Is iOS Simulator network working? Try: ping 127.0.0.1
+   4. Check server logs for connection attempts
+```
+
+TROUBLESHOOTING WORKFLOW:
+
+Step 1: Check Server Health
+```bash
+curl http://127.0.0.1:5000/api/health | jq .
+```
+Look for: `status: "healthy"` (all services working) or `status: "degraded"` (some services down)
+
+Step 2: Check Server Logs
+- Look for connection attempts from iOS
+- Check for Supabase/database connection errors
+- Find request IDs for tracing
+
+Step 3: Check iOS Console
+- Look for `🌐 APIService: Attempting connection to...`
+- Check for `❌ APIService: Connection failed...`
+- Review diagnostic messages with `⚠️ DIAGNOSIS:`
+
+Step 4: Verify Network Connectivity
+```bash
+# Test server is reachable
+curl http://127.0.0.1:5000/api/health
+
+# Check if port is listening
+lsof -i :5000
+
+# Test from iOS Simulator network
+ping 127.0.0.1
+```
+
+COMMON ERROR SCENARIOS:
+
+1. Connection Refused (Code 61):
+   - Symptoms: `-1004` with `_kCFStreamErrorCodeKey=61`
+   - Diagnosis: Server not running or not listening on correct interface
+   - Solutions: Verify server running, check binding to `0.0.0.0`
+
+2. Supabase Connection Failed:
+   - Symptoms: Server returns `503 SERVICE_UNAVAILABLE`
+   - Diagnosis: Supabase URL incorrect or service unreachable
+   - Solutions: Check Supabase URL in `.env`, test Supabase directly
+
+3. Database Connection Failed:
+   - Symptoms: Health check shows `database.status: "unhealthy"`
+   - Diagnosis: Docker/PostgreSQL not running or URL incorrect
+   - Solutions: Check Docker, verify `DATABASE_URL`, run `npm run check-deps`
+
+4. iOS Simulator Network Issues:
+   - Symptoms: Connection works from terminal but not iOS
+   - Diagnosis: Simulator network stack issues
+   - Solutions: Use `127.0.0.1` instead of `localhost`, restart simulator
+
+LESSONS LEARNED:
+- Comprehensive error messages save hours of debugging
+- Health check endpoints are essential for diagnosing service issues
+- Request ID tracking helps trace errors across logs
+- User-friendly error messages improve developer experience
+
+================================================================================
+7. DATABASE & GEOSPATIAL QUERIES
+================================================================================
+
+POSTGRESQL WITH POSTGIS:
+
+- Use PostGIS extension for geospatial queries
+- GIST index on location geometry column for performance
+- Automatic location geometry updates via database triggers
+- Geography type (not geometry) for accurate distance calculations
+
+GEOSPATIAL QUERY PATTERN:
+
+```sql
+SELECT * FROM events
+WHERE ST_DWithin(
+  location::geography,
+  ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography,
+  5000  -- 5km in meters
+)
+AND (endTime > NOW() OR (endTime IS NULL AND startTime > NOW()))
+ORDER BY created_at DESC
+LIMIT 50
+```
+
+Key Points:
+- Use `ST_DWithin` for radius filtering (efficient with GIST index)
+- Use `::geography` for accurate distance calculations (accounts for Earth's curvature)
+- Filter expired events in query (not client-side)
+- GIST index enables sub-100ms query times
+
+PRISMA ORM:
+
+- Use Prisma for type-safe database access
+- Always use parameterized queries (prevents SQL injection)
+- Use transactions for multi-step operations
+- Connection pooling (max 20 connections for MVP)
+
+Database Migrations:
+- Commit all migrations
+- Keep migrations idempotent
+- Run migrations before starting server: `npm run migrate`
+- Check migration status: `npm run migrate`
+
+Common Prisma Patterns:
+- `findUnique` for single record lookups (use unique fields)
+- `create` for new records
+- `update` for existing records (only update provided fields)
+- `delete` for hard deletes (cascade deletes handled by schema)
+
+PRISMA SCHEMA NOTES:
+
+- User `id` comes from Supabase (no `@default(uuid())`)
+- Event `id` uses `@default(uuid())`
+- Media items cascade delete with events
+- Likes/Going use composite primary keys `[userId, eventId]`
+
+LESSONS LEARNED:
+- PostGIS `ST_DWithin` is much faster than calculating distances in application code
+- GIST index is essential for performance (sub-100ms vs. seconds without index)
+- Geography type is more accurate than geometry for distance calculations
+- Prisma `upsert` can fail if schema doesn't match usage pattern (use explicit findUnique + create/update)
+
+================================================================================
+8. AUTHENTICATION & SECURITY
+================================================================================
+
+SUPABASE AUTH:
+
+- User authentication handled by Supabase
+- JWT tokens for API authentication
+- Tokens stored in iOS Keychain (not UserDefaults)
+- Automatic token refresh on 401 errors
+
+TOKEN MANAGEMENT:
+
+- JWT tokens with 24-hour expiration
+- Refresh token pattern (not in MVP, but infrastructure ready)
+- Token refresh on 401 errors (up to 3 retries)
+- Secure storage in iOS Keychain
+
+USER SYNC:
+
+- After Supabase signup/login, sync user to local database
+- Use `email` first, then `id` for `findUnique`
+- Update existing users if email/name changed
+- Create new users if not found
+
+SECURITY BEST PRACTICES:
+
+- Passwords never logged (Supabase handles hashing)
+- JWT secrets in environment variables
+- Rate limiting: Auth (5 req/min), Event creation (10/hour), Interactions (100/hour)
+- Helmet.js for security headers
+- CORS: Whitelist client origin only (no wildcard in production)
+- Input sanitization: Trim whitespace, strip HTML tags
+
+PASSWORD RESET:
+
+- Backend endpoint: `POST /api/auth/reset-password`
+- Uses Supabase `resetPasswordForEmail`
+- `redirectTo: undefined` to disable Supabase redirect (handle via API)
+- iOS UI not yet implemented (backend ready)
+
+LESSONS LEARNED:
+- Supabase connection errors should be caught and return `503` with diagnostic info
+- Token storage in Keychain is more secure than UserDefaults
+- User sync should handle both `email` and `id` lookups (both are unique)
+- Supabase email redirects should be disabled for API-only flows
+
+================================================================================
+9. API DESIGN & VALIDATION
+================================================================================
+
+RESTFUL API DESIGN:
+
+- Routes use `/api/` prefix in MVP
+- Consistent response format: `{ data: T }` for success, `{ error: { code, message, details? } }` for errors
+- Standard HTTP status codes
+- Request ID tracking in headers
+
+VALIDATION:
+
+- Zod schemas for all inputs (body, query, params)
+- Validate at the edge (reject with 4xx on invalid data)
+- Server-side validation required (don't trust client)
+- Client-side validation for better UX
+
+ERROR RESPONSES:
+
+- 401 Unauthorized: Invalid credentials
+- 403 Forbidden: Permission denied (e.g., deleting another user's event)
+- 404 Not Found: Resource not found
+- 413 Payload Too Large: File too large
+- 422 Unprocessable Entity: Validation failed
+- 500 Internal Server Error: Server-side error
+
+ENDPOINT PATTERNS:
+
+- POST /api/auth/signup - User registration
+- POST /api/auth/login - User authentication
+- GET /api/events/nearby?lat=&lng= - Get nearby events (5km radius)
+- POST /api/events - Create event
+- GET /api/events/:id - Get event details
+- DELETE /api/events/:id - Delete event (ownership verified)
+- POST /api/events/:id/like - Toggle like
+- POST /api/events/:id/going - Toggle going
+- GET /api/users/me - Get current user
+- PATCH /api/users/me - Update user (name only in MVP)
+
+RATE LIMITING:
+
+- Development: 1000 requests per 15 minutes
+- Production: 100 requests per 15 minutes
+- Per-endpoint limits: Auth (5/min), Events (10/hour), Interactions (100/hour)
+
+BODY SIZE LIMITS:
+
+- `express.json` limit: 70MB (accommodates base64-encoded videos)
+- `express.urlencoded` limit: 70MB
+- Video size limit: 50MB
+- Image size limit: 10MB
+
+LESSONS LEARNED:
+- Body size limits must be large enough for base64-encoded media (13MB video → ~17MB base64)
+- Rate limiting prevents abuse but should be higher in development
+- Request ID tracking helps debug issues across logs
+- Zod schemas provide type safety and runtime validation
+
+================================================================================
+10. TESTING & QUALITY ASSURANCE
+================================================================================
+
+DEPENDENCY CHECKING:
+
+- Always run `npm run check-deps` before starting development
+- Verify all services are running before running tests
+- Health check endpoint verifies database connectivity
+
+BUILD VERIFICATION:
+
+- iOS: Code MUST compile in Xcode (⌘B) before committing
+- Backend: `npm run build && npm run lint` must pass
+- Never commit code with compilation errors
+
+TESTING CHECKLIST:
+
+- [ ] All dependencies installed and running
+- [ ] Server starts without errors
+- [ ] Database migrations up to date
+- [ ] Health check returns `200 OK`
+- [ ] iOS app builds in Xcode
+- [ ] Authentication works (signup/login)
+- [ ] Event creation works
+- [ ] Map displays events
+- [ ] Feed displays events
+- [ ] Media uploads work (images and videos)
+
+MANUAL TESTING:
+
+- Test on iOS Simulator first
+- Test on physical device for network issues
+- Test with slow network (hotspot)
+- Test with missing permissions (location, photos)
+- Test error scenarios (invalid inputs, network failures)
+
+QUALITY METRICS:
+
+- Code complexity limits enforced by ESLint
+- Test coverage targets (80% lines, 75% branches)
+- Build must pass before commit
+- Linting must pass before commit
+
+LESSONS LEARNED:
+- Dependency checking prevents hours of debugging
+- Build verification catches issues early
+- Manual testing on physical devices reveals network issues
+- Clear error messages improve debugging efficiency
+
+================================================================================
+SUMMARY: KEY PRINCIPLES
+================================================================================
+
+1. ALWAYS VERIFY DEPENDENCIES before starting work
+2. NEVER TRUST AI-GENERATED CODE without building/testing
+3. USE XCODE AUTOCOMPLETE as source of truth for Swift APIs
+4. DIRECT CLIENT UPLOADS to Supabase for better performance
+5. COMPREHENSIVE ERROR HANDLING with diagnostic messages
+6. POSTGIS for efficient geospatial queries
+7. SECURE TOKEN STORAGE in iOS Keychain
+8. VALIDATE ALL INPUTS at multiple layers
+9. BIND SERVER TO 0.0.0.0 for physical device testing
+10. USE MAC HOTSPOT if WiFi has client isolation
+
+================================================================================
+END OF LEARNINGS DOCUMENT
+================================================================================
+
+This document should be your first reference when continuing development on the
+Barrio project. It consolidates all learnings and best practices discovered
+during development.

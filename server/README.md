@@ -19,39 +19,63 @@ Backend server for Barrio - a hyperlocal events discovery app.
 
 ## Getting Started
 
-### 1. Clone and install dependencies
+### 1. Verify Dependencies (Recommended First Step)
+
+Before starting, check that all required dependencies are installed and services are running:
 
 ```bash
 cd server
+npm run check-deps
+```
+
+This will verify:
+- ✅ Node.js 18+ is installed
+- ✅ Docker is installed and running
+- ✅ PostgreSQL container is running
+- ✅ npm packages are installed
+- ✅ Environment variables are configured
+- ✅ Prisma client is generated
+
+**If any checks fail, fix them before proceeding.**
+
+### 2. Install npm packages
+
+```bash
 npm install
 ```
 
-### 2. Set up environment variables
+### 3. Set up environment variables
 
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
-### 3. Start the database
+### 4. Start the database
 
 ```bash
 docker-compose up -d
 ```
 
-### 4. Run database migrations
+Wait 10-15 seconds for PostgreSQL to start, then verify:
+
+```bash
+npm run check-deps
+```
+
+### 5. Run database migrations
 
 ```bash
 npm run migrate
 ```
 
-### 5. (Optional) Seed the database
+### 6. (Optional) Seed the database
 
 ```bash
 npm run seed
 ```
 
-### 6. Start the development server
+### 7. Start the development server
 
 ```bash
 npm run dev
@@ -63,6 +87,7 @@ The API will be available at `http://localhost:5000`
 
 | Command | Description |
 |---------|-------------|
+| `npm run check-deps` | **Verify all dependencies are installed and services are running** |
 | `npm run dev` | Start development server with hot reload |
 | `npm run build` | Compile TypeScript to JavaScript |
 | `npm run start` | Run production build |

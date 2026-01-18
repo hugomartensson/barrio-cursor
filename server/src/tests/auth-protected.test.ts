@@ -35,5 +35,3 @@ describe('Auth API - Protected Routes', () => {
     expect((response.body as ApiErrorResponse).error.code).toBe('VALIDATION_ERROR');
   });
 });
-
-

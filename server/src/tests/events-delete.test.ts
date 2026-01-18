@@ -180,7 +180,9 @@ describe('Events API - Delete Event', () => {
 
       expect(response.status).toBe(404);
       expect((response.body as ApiErrorResponse).error.code).toBe('NOT_FOUND');
-      expect((response.body as ApiErrorResponse).error.message).toContain('Event not found');
+      expect((response.body as ApiErrorResponse).error.message).toContain(
+        'Event not found'
+      );
     });
   });
 

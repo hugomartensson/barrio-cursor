@@ -1,10 +1,13 @@
 import { prisma } from '../services/prisma.js';
+import { createLogger } from '../services/logger.js';
+
+const logger = createLogger({ component: 'cleanup-job' });
 
 /**
  * Cleanup expired events job
  * Hard deletes events where endTime < NOW() - 24 hours
  * Per PRD Section 8: Daily cron to hard-delete expired events
- * 
+ *
  * SQL query uses Prisma's template literal syntax which automatically parameterizes queries
  * This prevents SQL injection - ${twentyFourHoursAgo} is safely parameterized
  */
@@ -23,22 +26,22 @@ export async function cleanupExpiredEvents(): Promise<number> {
     )
   `;
 
-  return result as number;
+  return result;
 }
 
 /**
  * Run cleanup and log results
- * Note: console.log is acceptable for MVP per guidelines
- * TODO: Migrate to structured logging (pino/winston) before TestFlight
+ * Uses structured logging (pino) per guidelines
  */
 export async function runCleanupWithLogging(): Promise<void> {
   try {
     const deletedCount = await cleanupExpiredEvents();
-    console.log(
-      `[Cleanup Job] Deleted ${deletedCount} expired event(s) (endTime < NOW() - 24 hours)`
+    logger.info(
+      { deletedCount, threshold: '24 hours' },
+      'Deleted expired events (endTime < NOW() - 24 hours)'
     );
   } catch (error) {
-    console.error('[Cleanup Job] Error cleaning up expired events:', error);
+    logger.error({ error }, 'Error cleaning up expired events');
     throw error;
   }
 }

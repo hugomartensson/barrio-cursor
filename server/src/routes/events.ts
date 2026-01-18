@@ -4,13 +4,18 @@ import { requireAuth } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
+import { logger } from '../services/logger.js';
 import {
   createEventSchema,
   nearbyEventsSchema,
   eventIdSchema,
 } from '../schemas/events.js';
 import type { CreateEventInput, NearbyEventsQuery } from '../schemas/events.js';
-import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
+import type {
+  AuthenticatedRequest,
+  ApiErrorResponse,
+  RequestWithId,
+} from '../types/index.js';
 
 const router = Router();
 
@@ -46,7 +51,10 @@ interface EventsListResponse {
 // Request types
 type CreateReq = Request<object, EventResponse | ApiErrorResponse, CreateEventInput>;
 type GetReq = Request<{ id: string }, EventResponse | ApiErrorResponse>;
-type DeleteReq = Request<{ id: string }, { data: { message: string } } | ApiErrorResponse>;
+type DeleteReq = Request<
+  { id: string },
+  { data: { message: string } } | ApiErrorResponse
+>;
 
 /**
  * POST /events - Create a new event
@@ -58,7 +66,20 @@ router.post(
   asyncHandler(
     async (req: CreateReq, res: Response<EventResponse | ApiErrorResponse>) => {
       const authReq = req as AuthenticatedRequest;
+      const requestId = (req as RequestWithId).id;
       const input = req.body;
+
+      logger.info(
+        {
+          requestId,
+          userId: authReq.user.userId,
+          title: input.title,
+          category: input.category,
+          mediaCount: input.media.length,
+          location: { lat: input.latitude, lng: input.longitude },
+        },
+        '📝 Creating new event'
+      );
 
       const event = await prisma.event.create({
         data: {
@@ -79,6 +100,16 @@ router.post(
           user: { select: { id: true, name: true } },
         },
       });
+
+      logger.info(
+        {
+          requestId,
+          eventId: event.id,
+          title: event.title,
+          location: { lat: event.latitude, lng: event.longitude },
+        },
+        '✅ Event created successfully'
+      );
 
       res.status(201).json({ data: formatEvent(event) });
     }
@@ -126,10 +157,7 @@ router.get(
     // PRD 5.1: Filter expired events - events visible until endTime > NOW() (or startTime > NOW() if no endTime)
     // Check if event is expired: endTime <= NOW() OR (endTime IS NULL AND startTime <= NOW())
     const now = new Date();
-    const isExpired =
-      event.endTime
-        ? event.endTime <= now
-        : event.startTime <= now;
+    const isExpired = event.endTime ? event.endTime <= now : event.startTime <= now;
 
     if (isExpired) {
       throw ApiError.notFound('Event');
@@ -147,17 +175,25 @@ router.get(
 );
 
 /**
- * DELETE /events/:id - Delete an event with ownership verification
- * Per PRD Section 7.5: Users can delete their own events
- * Ownership verification: Only the event creator can delete their event
+ * DELETE /events/:id endpoint with ownership verification
+ *
+ * PRD Section 7.5: DELETE /events/:id endpoint with ownership verification
+ * - Users can delete their own events
+ * - Ownership verification: Only the event creator can delete their event
+ * - Verifies event.userId matches authenticated user.userId before deletion
+ * - Returns 403 Forbidden if user is not the event owner
+ * - Returns 404 Not Found if event does not exist
  */
 router.delete(
   '/:id',
   requireAuth,
   validateRequest({ params: eventIdSchema }),
   asyncHandler(
-    async (req: DeleteReq, res: Response<{ data: { message: string } } | ApiErrorResponse>) => {
-      const authReq = req as AuthenticatedRequest;
+    async (
+      req: DeleteReq,
+      res: Response<{ data: { message: string } } | ApiErrorResponse>
+    ) => {
+      const authReq = req as unknown as AuthenticatedRequest;
       const eventId = req.params.id;
 
       // Find event and check if it exists
@@ -170,7 +206,9 @@ router.delete(
         throw ApiError.notFound('Event');
       }
 
-      // PRD 7.5: Ownership verification - only event creator can delete
+      // PRD Section 7.5: DELETE /events/:id endpoint with ownership verification
+      // Ownership verification: Only the event creator (userId matches authenticated user) can delete
+      // This ensures users can only delete their own events, not events created by others
       if (event.userId !== authReq.user.userId) {
         throw ApiError.forbidden("You don't have permission to delete this event");
       }

@@ -15,9 +15,15 @@ export interface JwtPayload {
   email: string;
 }
 
+// Request with ID for logging
+export interface RequestWithId extends Request {
+  id: string;
+}
+
 // Authenticated request with user attached
 export interface AuthenticatedRequest extends Request {
   user: JwtPayload;
+  id: string;
 }
 
 // Standard API error response
@@ -81,5 +87,3 @@ export interface GeoParams {
   longitude: number;
   radiusKm: number;
 }
-
-

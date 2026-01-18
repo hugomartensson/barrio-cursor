@@ -48,4 +48,3 @@ export const eventIdSchema = z.object({
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 export type NearbyEventsQuery = z.infer<typeof nearbyEventsSchema>;
-

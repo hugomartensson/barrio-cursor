@@ -2,12 +2,44 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import * as pinoHttpModule from 'pino-http';
 import { config } from './config/index.js';
+import { logger } from './services/logger.js';
+import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import routes from './routes/index.js';
+import type { RequestWithId } from './types/index.js';
 
 export const createApp = (): Express => {
   const app = express();
+
+  // Request ID middleware (must be first)
+  app.use(requestIdMiddleware);
+
+  // HTTP request logging middleware
+  const pinoHttpOptions = {
+    logger,
+    genReqId: (req: express.Request) => (req as unknown as RequestWithId).id || 'unknown',
+    customLogLevel: (_req: express.Request, res: express.Response, err?: Error) => {
+      if (res.statusCode >= 400 && res.statusCode < 500) {
+        return 'warn';
+      } else if (res.statusCode >= 500 || err) {
+        return 'error';
+      }
+      return 'info';
+    },
+    customSuccessMessage: (req: express.Request, res: express.Response) => {
+      return `${req.method} ${req.url} ${res.statusCode}`;
+    },
+    customErrorMessage: (req: express.Request, res: express.Response, err?: Error) => {
+      return `${req.method} ${req.url} ${res.statusCode} - ${err?.message}`;
+    },
+  };
+  // Handle default export for ES modules
+  const pinoHttpFn = ((
+    pinoHttpModule as unknown as { default?: (opts?: unknown) => express.RequestHandler }
+  ).default || pinoHttpModule) as (opts?: unknown) => express.RequestHandler;
+  app.use(pinoHttpFn(pinoHttpOptions));
 
   // Security middleware
   app.use(helmet());
@@ -21,9 +53,11 @@ export const createApp = (): Express => {
   );
 
   // Rate limiting
+  // More permissive in development for testing/debugging
+  // Production should use stricter limits (e.g., 100 per 15 minutes)
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per window
+    max: config.NODE_ENV === 'production' ? 100 : 1000, // 1000 in dev, 100 in prod
     message: {
       error: {
         code: 'TOO_MANY_REQUESTS',
@@ -36,8 +70,10 @@ export const createApp = (): Express => {
   app.use(limiter);
 
   // Body parsing
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  // Increased limit for video uploads: max video size is 50MB, base64 encoding adds ~33% overhead
+  // So we need: 50MB * 1.33 ≈ 66MB, use 70MB to be safe
+  app.use(express.json({ limit: '70mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '70mb' }));
 
   // API routes
   app.use('/api', routes);
@@ -57,5 +93,3 @@ export const createApp = (): Express => {
 
   return app;
 };
-
-

@@ -52,5 +52,3 @@ export class ApiError extends Error {
     return new ApiError(500, 'INTERNAL_ERROR', message);
   }
 }
-
-

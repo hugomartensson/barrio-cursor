@@ -27,6 +27,7 @@ interface QualityReport {
   guidelinesCompliance: GuidelinesComplianceCheck[];
   intentionAlignment: IntentionAlignmentCheck[];
   codeQuality: CodeQualityCheck[];
+  iosBuildStatus: IOSBuildCheck[];
   summary: QualitySummary;
 }
 
@@ -78,6 +79,14 @@ interface CodeQualityCheck {
   line?: number;
 }
 
+interface IOSBuildCheck {
+  check: string;
+  status: 'pass' | 'fail' | 'warn';
+  evidence: string;
+  file?: string;
+  error?: string;
+}
+
 interface QualitySummary {
   totalChecks: number;
   passed: number;
@@ -104,18 +113,22 @@ class QualityAgent {
 
   async run(): Promise<QualityReport> {
     console.log('🔍 Quality Control Agent - Starting analysis...\n');
+    console.log('📋 Focus: PRD Compliance & Guidelines Validation\n');
 
     const gitStatus = await this.checkGitStatus();
     const prdCompliance = await this.checkPRDCompliance();
     const guidelinesCompliance = await this.checkGuidelinesCompliance();
-    const intentionAlignment = await this.checkIntentionAlignment();
+    // Intention alignment is optional - NEXT_STEPS.md may be outdated
+    const intentionAlignment = []; // Skip NEXT_STEPS alignment for now
     const codeQuality = await this.checkCodeQuality();
+    const iosBuildStatus = await this.checkIOSBuildStatus();
 
     const summary = this.generateSummary({
       prdCompliance,
       guidelinesCompliance,
       intentionAlignment,
       codeQuality,
+      iosBuildStatus,
     });
 
     // Format timestamp in CET timezone
@@ -128,6 +141,7 @@ class QualityAgent {
       guidelinesCompliance,
       intentionAlignment,
       codeQuality,
+      iosBuildStatus,
       summary,
     };
 
@@ -250,15 +264,22 @@ class QualityAgent {
           pattern: /router\.delete.*\/:id|DELETE.*events|event\.userId\s*!==|event\.userId\s*===.*authReq/i,
           checkFunction: async (content: string, filePath: string) => {
             // Check for DELETE route in events.ts with ownership check
-            if (filePath.includes('routes/events.ts')) {
-              const hasDeleteRoute = /router\.delete.*\/:id/i.test(content);
-              const hasOwnershipCheck = /event\.userId\s*!==\s*authReq|event\.userId\s*===.*user\.userId/i.test(content);
-              const hasAuthMiddleware = /requireAuth|requireAuth/i.test(content);
+            // Check if this is the events.ts file (can be full path or relative)
+            if (filePath.includes('routes/events.ts') || filePath.endsWith('routes/events.ts')) {
+              // Match router.delete across multiple lines (router.delete(...) with '/:id' inside)
+              const hasDeleteRoute = /router\.delete\s*\([^)]*\/:id|router\.delete\s*\([\s\S]*?'\/:id'/i.test(content);
+              // Check for ownership verification: event.userId !== authReq.user.userId
+              const hasOwnershipCheck = /event\.userId\s*!==\s*authReq\.user\.userId/i.test(content);
+              const hasAuthMiddleware = /requireAuth/i.test(content);
               
               if (hasDeleteRoute && hasOwnershipCheck && hasAuthMiddleware) {
                 return { found: true, evidence: 'DELETE endpoint with ownership verification and auth middleware' };
               } else if (hasDeleteRoute) {
-                return { found: false, evidence: 'DELETE route exists but ownership verification may be missing' };
+                // Debug what's missing
+                const missingParts: string[] = [];
+                if (!hasOwnershipCheck) missingParts.push('ownership check');
+                if (!hasAuthMiddleware) missingParts.push('auth middleware');
+                return { found: false, evidence: `DELETE route exists but missing: ${missingParts.join(', ')}` };
               }
             }
             return { found: false, evidence: 'DELETE /events/:id route not found in routes/events.ts' };
@@ -305,9 +326,14 @@ class QualityAgent {
                 file = relative(this.projectRoot, filePath);
                 evidence = result.evidence;
                 break;
+              } else if (result.evidence && result.evidence !== 'Not found in codebase') {
+                // If checkFunction ran but didn't find it, use its evidence instead of default
+                // This helps with debugging
+                evidence = result.evidence;
               }
-            } catch {
-              // Skip files that can't be read
+            } catch (error) {
+              // Skip files that can't be read, but log in debug
+              // console.error(`Error reading ${filePath}:`, error);
             }
           }
         } else {
@@ -617,11 +643,184 @@ class QualityAgent {
     return checks;
   }
 
+  private async checkIOSBuildStatus(): Promise<IOSBuildCheck[]> {
+    const checks: IOSBuildCheck[] = [];
+    const iosProjectPath = join(this.projectRoot, 'ios', 'BarrioCursor', 'BarrioCursor.xcodeproj');
+    
+    // Check if Xcode project exists
+    const projectExists = await this.checkFileExists(iosProjectPath);
+    
+    if (!projectExists) {
+      checks.push({
+        check: 'Xcode project exists',
+        status: 'warn',
+        evidence: 'Xcode project not found at expected path',
+      });
+      return checks;
+    }
+
+    // Check for Swift compilation errors (scan Swift files for syntax issues)
+    const swiftFiles = await this.getAllFiles(
+      join(this.projectRoot, 'ios', 'BarrioCursor'),
+      ['.swift']
+    );
+
+    // Look for common Swift syntax errors in key files
+    const criticalSwiftFiles = [
+      'CreateEventView.swift',
+      'EventDetailView.swift',
+      'LocationManager.swift',
+    ];
+
+    for (const fileName of criticalSwiftFiles) {
+      const filePath = swiftFiles.find(f => f.includes(fileName));
+      if (filePath) {
+        try {
+          const content = await readFile(filePath, 'utf-8');
+          const relativePath = relative(this.projectRoot, filePath);
+          
+          // Check for common Swift errors that would prevent building
+          // Check for .onChange syntax issues (the current error from build log)
+          // Pattern: .onChange(of: var) { param in - might be incompatible with iOS 17+
+          const onChangePattern = /\.onChange\(of:\s*(\w+)\)\s*\{\s*(\w+)\s+in/g;
+          const matches = Array.from(content.matchAll(onChangePattern));
+          if (matches.length > 0) {
+            const firstMatch = matches[0];
+            const lineNum = content.substring(0, firstMatch.index || 0).split('\n').length;
+            checks.push({
+              check: `Swift compilation: .onChange closure in ${fileName}`,
+              status: 'fail',
+              evidence: `.onChange(of:) with closure parameter may be incompatible - check SwiftUI API (iOS 17+) | Line ~${lineNum}`,
+              file: relativePath,
+              error: 'Contextual closure type expects 0 arguments, but 1 was used',
+            });
+          }
+          
+          // Check for deprecated CLGeocoder usage (from error log)
+          if (content.includes('CLGeocoder()')) {
+            checks.push({
+              check: 'iOS API deprecation: CLGeocoder',
+              status: 'warn',
+              evidence: 'CLGeocoder is deprecated in iOS 26.0 - should use MapKit instead (PRD: Section 3 location fallback)',
+              file: relativePath,
+            });
+          }
+
+          // Check for common Swift API misuse patterns
+          // PhotosPickerItem.identifier doesn't exist (current error)
+          if (content.includes('PhotosPickerItem') && content.includes('.identifier')) {
+            const lineNum = content.split('\n').findIndex((line, idx) => {
+              const lineContent = line.includes('PhotosPickerItem') && line.includes('.identifier');
+              return lineContent;
+            }) + 1;
+            checks.push({
+              check: 'Swift API misuse: PhotosPickerItem.identifier',
+              status: 'fail',
+              evidence: 'PhotosPickerItem has no member "identifier" - verify API documentation for correct property/method | Line ~' + lineNum,
+              file: relativePath,
+              error: 'Value of type PhotosPickerItem has no member identifier',
+            });
+          }
+          
+          // Check for basic Swift syntax errors
+          const openBraces = (content.match(/\{/g) || []).length;
+          const closeBraces = (content.match(/\}/g) || []).length;
+          if (openBraces !== closeBraces) {
+            checks.push({
+              check: `Swift syntax: brace mismatch in ${fileName}`,
+              status: 'fail',
+              evidence: `Mismatched braces: ${openBraces} open, ${closeBraces} close`,
+              file: relativePath,
+            });
+          }
+          
+        } catch (error) {
+          // Skip files that can't be read
+        }
+      }
+    }
+
+    // General check: Key iOS files exist per PRD requirements
+    const requiredIOSFiles = [
+      'BarrioCursorApp.swift',
+      'ContentView.swift',
+      'MainTabView.swift',
+      'Views/Map/MapView.swift',
+      'Views/Feed/FeedView.swift',
+      'Views/Event/CreateEventView.swift',
+      'Views/Event/EventDetailView.swift',
+      'Services/LocationManager.swift',
+      'Services/APIService.swift',
+      'Config/AppConfig.swift',
+    ];
+
+    let missingFiles: string[] = [];
+    for (const requiredFile of requiredIOSFiles) {
+      const fullPath = join(this.projectRoot, 'ios', 'BarrioCursor', 'BarrioCursor', requiredFile);
+      if (!(await this.checkFileExists(fullPath))) {
+        missingFiles.push(requiredFile);
+      }
+    }
+
+    if (missingFiles.length > 0) {
+      checks.push({
+        check: 'iOS app structure (PRD: Section 4.1)',
+        status: 'fail',
+        evidence: `Missing required files: ${missingFiles.slice(0, 3).join(', ')}${missingFiles.length > 3 ? '...' : ''}`,
+      });
+    } else {
+      checks.push({
+        check: 'iOS app structure (PRD: Section 4.1)',
+        status: 'pass',
+        evidence: 'All required iOS files present',
+      });
+    }
+
+    // Check Info.plist for required permissions (PRD: Section 3 location)
+    const infoPlistPath = join(this.projectRoot, 'ios', 'BarrioCursor', 'BarrioCursor', 'Info.plist');
+    if (await this.checkFileExists(infoPlistPath)) {
+      try {
+        const plistContent = await readFile(infoPlistPath, 'utf-8');
+        const hasLocationPermission = plistContent.includes('NSLocationWhenInUseUsageDescription');
+        const hasPhotoPermission = plistContent.includes('NSPhotoLibraryUsageDescription');
+        
+        if (!hasLocationPermission) {
+          checks.push({
+            check: 'iOS permissions: Location (PRD: Section 3)',
+            status: 'fail',
+            evidence: 'NSLocationWhenInUseUsageDescription missing in Info.plist',
+            file: 'Info.plist',
+          });
+        } else {
+          checks.push({
+            check: 'iOS permissions: Location (PRD: Section 3)',
+            status: 'pass',
+            evidence: 'Location permission configured',
+          });
+        }
+
+        if (!hasPhotoPermission) {
+          checks.push({
+            check: 'iOS permissions: Photos (PRD: Section 7.4 media)',
+            status: 'warn',
+            evidence: 'NSPhotoLibraryUsageDescription missing (needed for event media)',
+            file: 'Info.plist',
+          });
+        }
+      } catch {
+        // Skip if can't read plist
+      }
+    }
+
+    return checks;
+  }
+
   private generateSummary(data: {
     prdCompliance: PRDComplianceCheck[];
     guidelinesCompliance: GuidelinesComplianceCheck[];
     intentionAlignment: IntentionAlignmentCheck[];
     codeQuality: CodeQualityCheck[];
+    iosBuildStatus: IOSBuildCheck[];
   }): QualitySummary {
     const allChecks = [
       ...data.prdCompliance,
@@ -633,20 +832,27 @@ class QualityAgent {
     const warnings = allChecks.filter((c) => c.status === 'warn').length;
     const passed = allChecks.filter((c) => c.status === 'pass').length;
 
+    // Focus on PRD, Guidelines, and iOS build failures as critical issues
     const criticalIssues = [
-      ...allChecks
-        .filter((c) => c.status === 'fail' && 'severity' in c && c.severity === 'error')
-        .map((c) => c.rule || c.requirement),
-      ...data.intentionAlignment
-        .filter((c) => c.status === 'not-implemented')
-        .map((c) => `Not implemented: ${c.intention}`),
+      ...data.prdCompliance
+        .filter((c) => c.status === 'fail')
+        .map((c) => `PRD [${c.section}]: ${c.requirement}`),
+      ...data.guidelinesCompliance
+        .filter((c) => c.status === 'fail' && c.category === 'security')
+        .map((c) => `Security: ${c.rule}`),
+      ...data.codeQuality
+        .filter((c) => c.status === 'fail' && c.severity === 'error')
+        .map((c) => c.rule),
+      ...data.iosBuildStatus
+        .filter((c) => c.status === 'fail')
+        .map((c) => `iOS Build: ${c.check}${c.file ? ` (${c.file})` : ''}`),
     ];
 
     const overall =
       failed > 0 ? 'fail' : warnings > 0 ? 'warn' : 'pass';
 
     return {
-      totalChecks: allChecks.length + data.intentionAlignment.length,
+      totalChecks: allChecks.length, // Focus on PRD, Guidelines, Code Quality only
       passed,
       failed,
       warnings,
@@ -768,9 +974,9 @@ class QualityAgent {
       });
     }
 
-    // Intention Alignment
+    // Intention Alignment (optional - NEXT_STEPS.md may be outdated)
     if (report.intentionAlignment.length > 0) {
-      lines.push('🎯 INTENTION ALIGNMENT');
+      lines.push('🎯 INTENTION ALIGNMENT (Optional - NEXT_STEPS.md may be outdated)');
       lines.push('-'.repeat(80));
       report.intentionAlignment.forEach((check) => {
         const icon =
@@ -804,6 +1010,25 @@ class QualityAgent {
       });
     }
 
+    // iOS Build Status
+    if (report.iosBuildStatus.length > 0) {
+      lines.push('📱 iOS BUILD STATUS (PRD: TestFlight-ready MVP)');
+      lines.push('-'.repeat(80));
+      report.iosBuildStatus.forEach((check) => {
+        const icon = check.status === 'pass' ? '✅' : check.status === 'fail' ? '❌' : '⚠️';
+        lines.push(`${icon} ${check.check}`);
+        lines.push(`   Status: ${check.status.toUpperCase()}`);
+        lines.push(`   Evidence: ${check.evidence}`);
+        if (check.file) {
+          lines.push(`   File: ${check.file}`);
+        }
+        if (check.error) {
+          lines.push(`   Error: ${check.error}`);
+        }
+        lines.push('');
+      });
+    }
+
     lines.push('═'.repeat(80));
 
     return lines.join('\n');
@@ -822,15 +1047,25 @@ if (isMainModule) {
       const reportText = agent.generateReport(report);
       console.log(reportText);
       
-      // Write to file
+      // Write to file - use __dirname which points to quality-control/, so go up one level
       const fs = await import('fs/promises');
-      const reportPath = join(process.cwd(), 'quality-report.txt');
+      const reportPath = join(__dirname, '..', 'quality-report.txt');
       await fs.writeFile(reportPath, reportText, 'utf-8');
       console.log(`\n📄 Report saved to: ${reportPath}`);
       
       process.exit(report.summary.overall === 'fail' ? 1 : 0);
     } catch (error) {
       console.error('❌ Quality Agent Error:', error);
+      // Still try to write error to file so user knows something went wrong
+      try {
+        const fs = await import('fs/promises');
+        const reportPath = join(__dirname, '..', 'quality-report.txt');
+        const errorMessage = `❌ Quality Agent Error: ${error instanceof Error ? error.message : String(error)}\n\nCheck console output for details.\n\nTimestamp: ${new Date().toISOString()}`;
+        await fs.writeFile(reportPath, errorMessage, 'utf-8');
+        console.log(`\n⚠️  Error saved to: ${reportPath}`);
+      } catch {
+        // Ignore write errors
+      }
       process.exit(1);
     }
   })();

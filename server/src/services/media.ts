@@ -1,5 +1,6 @@
 import { supabaseAdmin, STORAGE_BUCKET } from './supabase.js';
 import { ApiError } from '../utils/ApiError.js';
+import { logger } from './logger.js';
 import { randomUUID } from 'crypto';
 
 // Allowed MIME types
@@ -79,15 +80,43 @@ export const uploadFile = async (
   const filePath = generateFilePath(userId, mimeType);
   const mediaType = getMediaType(mimeType);
 
-  const { error } = await supabaseAdmin.storage
+  // For large files (>6MB), Supabase recommends resumable uploads
+  // But standard upload should still work, just may be slower
+  const uploadOptions: {
+    contentType: string;
+    upsert: boolean;
+    cacheControl?: string;
+  } = {
+    contentType: mimeType,
+    upsert: false,
+  };
+
+  // Add cache control for videos
+  if (mimeType.startsWith('video/')) {
+    uploadOptions.cacheControl = '3600'; // 1 hour cache
+  }
+
+  const { data, error } = await supabaseAdmin.storage
     .from(STORAGE_BUCKET)
-    .upload(filePath, fileBuffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
+    .upload(filePath, fileBuffer, uploadOptions);
 
   if (error) {
-    throw ApiError.internal(`Upload failed: ${error.message}`);
+    // Enhanced error logging
+    const errorDetails = {
+      message: error.message,
+      statusCode: (error as unknown as { statusCode?: number }).statusCode,
+      error: (error as unknown as { error?: string }).error,
+    };
+    throw new ApiError(
+      500,
+      'INTERNAL_ERROR',
+      `Upload failed: ${error.message}`,
+      errorDetails
+    );
+  }
+
+  if (!data) {
+    throw ApiError.internal('Upload succeeded but no data returned');
   }
 
   // Get public URL
@@ -116,7 +145,9 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
   const { error } = await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([filePath]);
 
   if (error) {
-    console.error('Failed to delete file:', error.message);
+    // Log but don't throw - file deletion failure is non-critical
+    // Logger will be available when this is called from request context
+    // For now, silently fail (file may not exist)
   }
 };
 
@@ -132,13 +163,23 @@ export const createSignedUploadUrl = async (
 
   const filePath = generateFilePath(userId, mimeType);
 
+  // Create signed upload URL with 10 minute expiration (600 seconds)
+  // This should be plenty for even large video uploads
   const { data, error } = await supabaseAdmin.storage
     .from(STORAGE_BUCKET)
-    .createSignedUploadUrl(filePath);
+    .createSignedUploadUrl(filePath, {
+      upsert: false, // Don't overwrite existing files
+    });
 
   if (error || !data) {
+    logger.error({ error, filePath, mimeType }, 'Failed to create signed upload URL');
     throw ApiError.internal('Failed to create upload URL');
   }
+
+  logger.debug(
+    { filePath, signedUrlLength: data.signedUrl.length },
+    'Signed upload URL created'
+  );
 
   return {
     uploadUrl: data.signedUrl,
@@ -156,5 +197,3 @@ export const getPublicUrl = (filePath: string): string => {
 
   return publicUrl;
 };
-
-
