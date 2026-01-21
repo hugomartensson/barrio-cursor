@@ -7,7 +7,9 @@
   "scripts": {
     "run": "tsx quality-agent.ts",
     "watch": "nodemon --watch ../server/src --watch ../quality-control --exec tsx quality-agent.ts",
-    "check": "tsx quality-agent.ts"
+    "check": "tsx quality-agent.ts",
+    "verify": "tsx implementation-verifier.ts",
+    "auto-verify": "tsx auto-verify.ts"
   },
   "keywords": [
     "quality-control",

@@ -25,20 +25,22 @@ mkdir -p "$GIT_HOOKS_DIR"
 echo "Setting up pre-commit hook (optional)..."
 cat > "$GIT_HOOKS_DIR/pre-commit-quality" << 'EOF'
 #!/bin/sh
-# Quality Control Agent - Pre-commit Hook (Optional)
-# Uncomment the line below to enable blocking commits on quality failures
-
-# cd "$(git rev-parse --show-toplevel)" && tsx quality-control/quality-agent.ts || exit 1
+# Quality Control - Pre-commit Hook (Optional)
+# Uncomment the line below to enable blocking commits on quality failures.
+# Uses Tier 2 (full backend verification) before allowing commit.
+#
+# cd "$(git rev-parse --show-toplevel)" && ./quality-control/verify-after-work.sh 2 || exit 1
 EOF
 
 chmod +x "$GIT_HOOKS_DIR/pre-commit-quality"
 
-# Post-commit hook (always runs, generates report)
+# Post-commit hook (always runs, generates quick report)
 echo "Setting up post-commit hook..."
 cat > "$GIT_HOOKS_DIR/post-commit-quality" << 'EOF'
 #!/bin/sh
-# Quality Control Agent - Post-commit Hook
-cd "$(git rev-parse --show-toplevel)" && tsx quality-control/quality-agent.ts > quality-report.txt 2>&1 || true
+# Quality Control - Post-commit Hook
+# Runs Tier 1 (quick check) after each commit and writes a report.
+cd "$(git rev-parse --show-toplevel)" && ./quality-control/verify-after-work.sh 1 > quality-control-report.txt 2>&1 || true
 EOF
 
 chmod +x "$GIT_HOOKS_DIR/post-commit-quality"
@@ -80,10 +82,10 @@ echo ""
 echo "✅ Git hooks set up successfully!"
 echo ""
 echo "📝 Hooks installed:"
-echo "   • .git/hooks/pre-commit-quality (optional - currently disabled)"
-echo "   • .git/hooks/post-commit-quality (active)"
+echo "   • .git/hooks/pre-commit-quality (optional - Tier 2, currently disabled)"
+echo "   • .git/hooks/post-commit-quality (active - Tier 1 after each commit)"
 echo ""
 echo "💡 To enable pre-commit blocking (blocks commits on quality failures):"
 echo "   1. Edit .git/hooks/pre-commit-quality"
-echo "   2. Uncomment the tsx command line"
+echo "   2. Uncomment the verify-after-work.sh line"
 echo ""

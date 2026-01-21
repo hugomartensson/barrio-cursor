@@ -10,15 +10,18 @@
  * 4. Code quality standards
  */
 
-import { readFile, readdir, stat } from 'fs/promises';
+import { readFile, readdir, stat, access } from 'fs/promises';
 import { join, dirname, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { constants } from 'fs';
 
 const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+type Tier = 1 | 2 | 3;
 
 interface QualityReport {
   timestamp: string;
@@ -105,23 +108,43 @@ class QualityAgent {
 
   constructor(projectRoot: string = join(__dirname, '..')) {
     this.projectRoot = projectRoot;
-    this.prdPath = join(projectRoot, 'PRD.txt');
+    // PRD-TestFlight.md is the authoritative PRD (may be in Downloads or project root)
+    this.prdPath = join(projectRoot, 'PRD-TestFlight.md');
+    // Fallback to PRD.txt if PRD-TestFlight.md not found (check async in run method)
     this.guidelinesPath = join(projectRoot, 'guidelines.txt');
     this.nextStepsPath = join(projectRoot, 'NEXT_STEPS.md');
     this.codeQualityPath = join(projectRoot, 'server', 'CODE_QUALITY.md');
   }
 
-  async run(): Promise<QualityReport> {
+  private async checkPRDFileExists(): Promise<string> {
+    // Check if PRD-TestFlight.md exists, fallback to PRD.txt
+    try {
+      await access(this.prdPath, constants.F_OK);
+      return this.prdPath;
+    } catch {
+      const fallbackPath = join(this.projectRoot, 'PRD.txt');
+      try {
+        await access(fallbackPath, constants.F_OK);
+        return fallbackPath;
+      } catch {
+        return this.prdPath; // Return original path even if not found (will error later)
+      }
+    }
+  }
+
+  async run(options?: { tier?: Tier }): Promise<QualityReport> {
+    const tier: Tier = options?.tier ?? 2;
+
     console.log('🔍 Quality Control Agent - Starting analysis...\n');
-    console.log('📋 Focus: PRD Compliance & Guidelines Validation\n');
+    console.log(`📋 Focus: PRD Compliance & Guidelines Validation (Tier ${tier})\n`);
 
     const gitStatus = await this.checkGitStatus();
     const prdCompliance = await this.checkPRDCompliance();
     const guidelinesCompliance = await this.checkGuidelinesCompliance();
     // Intention alignment is optional - NEXT_STEPS.md may be outdated
     const intentionAlignment = []; // Skip NEXT_STEPS alignment for now
-    const codeQuality = await this.checkCodeQuality();
-    const iosBuildStatus = await this.checkIOSBuildStatus();
+    const codeQuality = await this.checkCodeQuality({ tier });
+    const iosBuildStatus = tier === 3 ? await this.checkIOSBuildStatus() : [];
 
     const summary = this.generateSummary({
       prdCompliance,
@@ -240,13 +263,15 @@ class QualityAgent {
     const checks: PRDComplianceCheck[] = [];
     
     try {
-      const prdContent = await readFile(this.prdPath, 'utf-8');
+      // Check which PRD file exists
+      const actualPRDPath = await this.checkPRDFileExists();
+      const prdContent = await readFile(actualPRDPath, 'utf-8');
       const serverFiles = await this.getServerFiles();
 
-      // Check key PRD requirements with specific, accurate patterns
+      // Check key PRD-TestFlight.md requirements with specific, accurate patterns
       const requirements = [
         {
-          section: '5.1',
+          section: '5.1 (PRD-TestFlight)',
           requirement: 'Events filtered by expiration (endTime > NOW())',
           pattern: /(endTime\s*>\s*NOW\(\)|startTime\s*>\s*NOW\(\)|WHERE.*endTime.*NOW)/i,
           checkFunction: async (content: string, filePath: string) => {
@@ -259,23 +284,19 @@ class QualityAgent {
           },
         },
         {
-          section: '7.5',
+          section: '4.3 (PRD-TestFlight)',
           requirement: 'DELETE /events/:id endpoint with ownership verification',
           pattern: /router\.delete.*\/:id|DELETE.*events|event\.userId\s*!==|event\.userId\s*===.*authReq/i,
           checkFunction: async (content: string, filePath: string) => {
             // Check for DELETE route in events.ts with ownership check
-            // Check if this is the events.ts file (can be full path or relative)
             if (filePath.includes('routes/events.ts') || filePath.endsWith('routes/events.ts')) {
-              // Match router.delete across multiple lines (router.delete(...) with '/:id' inside)
               const hasDeleteRoute = /router\.delete\s*\([^)]*\/:id|router\.delete\s*\([\s\S]*?'\/:id'/i.test(content);
-              // Check for ownership verification: event.userId !== authReq.user.userId
               const hasOwnershipCheck = /event\.userId\s*!==\s*authReq\.user\.userId/i.test(content);
               const hasAuthMiddleware = /requireAuth/i.test(content);
               
               if (hasDeleteRoute && hasOwnershipCheck && hasAuthMiddleware) {
                 return { found: true, evidence: 'DELETE endpoint with ownership verification and auth middleware' };
               } else if (hasDeleteRoute) {
-                // Debug what's missing
                 const missingParts: string[] = [];
                 if (!hasOwnershipCheck) missingParts.push('ownership check');
                 if (!hasAuthMiddleware) missingParts.push('auth middleware');
@@ -286,11 +307,10 @@ class QualityAgent {
           },
         },
         {
-          section: '8',
+          section: '8 (PRD-TestFlight)',
           requirement: 'Daily cron job for expired events cleanup',
           pattern: /cron|cleanup.*expired|hard-delete.*endTime|cleanupExpiredEvents/i,
           checkFunction: async (content: string, filePath: string) => {
-            // Check for cron job file or cron setup
             if (filePath.includes('jobs/cleanupExpiredEvents.ts') || 
                 (filePath.includes('index.ts') && /cleanupExpiredEvents|schedule.*cleanup/i.test(content))) {
               return { found: true, evidence: 'Cron job file found' };
@@ -299,14 +319,47 @@ class QualityAgent {
           },
         },
         {
-          section: '7.4',
+          section: '4.1 (PRD-TestFlight)',
           requirement: 'Video duration validation (15 seconds max)',
           pattern: /duration.*15|15.*seconds.*video|video.*duration.*validation/i,
         },
         {
-          section: '5.1',
+          section: '7 (PRD-TestFlight)',
           requirement: 'GIST spatial index on location geometry',
           pattern: /GIST|USING GIST|spatial.*index/i,
+        },
+        {
+          section: '5.3 (PRD-TestFlight)',
+          requirement: 'Interested endpoint (not Like) - PRD uses "Interested" terminology',
+          pattern: /\/interested|interestedCount|POST.*\/events\/:id\/interested/i,
+          checkFunction: async (content: string, filePath: string) => {
+            // Check for "interested" endpoint, not "like"
+            if (filePath.includes('routes/interactions.ts') || filePath.includes('routes/events.ts')) {
+              const hasInterested = /\/interested|interestedCount|POST.*\/events\/:id\/interested/i.test(content);
+              const hasLike = /\/like|likesCount|POST.*\/events\/:id\/like/i.test(content);
+              if (hasInterested) {
+                return { found: true, evidence: 'Interested endpoint found (PRD-compliant)' };
+              } else if (hasLike) {
+                return { found: false, evidence: 'Like endpoint found but PRD requires "Interested" terminology' };
+              }
+            }
+            return { found: false, evidence: 'Interested endpoint not found - PRD requires "Interested", not "Like"' };
+          },
+        },
+        {
+          section: '6 (PRD-TestFlight)',
+          requirement: 'Following system endpoints (follow/unfollow)',
+          pattern: /\/follow|POST.*\/users\/:id\/follow|DELETE.*\/users\/:id\/follow/i,
+        },
+        {
+          section: '7 (PRD-TestFlight)',
+          requirement: 'Plans feature endpoints (create, add event, archive)',
+          pattern: /\/plans|POST.*\/plans|POST.*\/plans\/:id\/events/i,
+        },
+        {
+          section: '4.1 (PRD-TestFlight)',
+          requirement: 'Signed URL upload endpoint for direct client uploads',
+          pattern: /\/signed-url|GET.*\/upload\/signed-url|createSignedUploadUrl/i,
         },
       ];
 
@@ -364,10 +417,10 @@ class QualityAgent {
       }
     } catch (error) {
       checks.push({
-        requirement: 'PRD file accessible',
+        requirement: 'PRD-TestFlight.md file accessible',
         section: 'N/A',
         status: 'fail',
-        evidence: `Error reading PRD: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        evidence: `Error reading PRD: ${error instanceof Error ? error.message : 'Unknown error'}. Looking for PRD-TestFlight.md or PRD.txt`,
       });
     }
 
@@ -585,8 +638,14 @@ class QualityAgent {
     return checks;
   }
 
-  private async checkCodeQuality(): Promise<CodeQualityCheck[]> {
+  private async checkCodeQuality(options: { tier: Tier }): Promise<CodeQualityCheck[]> {
+    const { tier } = options;
     const checks: CodeQualityCheck[] = [];
+
+    // Tier 1: keep this fast and let ImplementationVerifier handle quick TS/lint checks.
+    if (tier === 1) {
+      return checks;
+    }
 
     // Check if lint passes
     try {
@@ -740,7 +799,7 @@ class QualityAgent {
       }
     }
 
-    // General check: Key iOS files exist per PRD requirements
+    // General check: Key iOS files exist per PRD-TestFlight.md requirements
     const requiredIOSFiles = [
       'BarrioCursorApp.swift',
       'ContentView.swift',
@@ -752,6 +811,10 @@ class QualityAgent {
       'Services/LocationManager.swift',
       'Services/APIService.swift',
       'Config/AppConfig.swift',
+      // PRD-TestFlight.md Section 6: Social features
+      'Views/Profile/ProfileView.swift', // Required for user profiles
+      // PRD-TestFlight.md Section 7: Plans feature (may not exist yet)
+      // 'Views/Plans/PlansView.swift', // Optional - Plans feature
     ];
 
     let missingFiles: string[] = [];
@@ -764,13 +827,13 @@ class QualityAgent {
 
     if (missingFiles.length > 0) {
       checks.push({
-        check: 'iOS app structure (PRD: Section 4.1)',
+        check: 'iOS app structure (PRD-TestFlight.md Section 8)',
         status: 'fail',
         evidence: `Missing required files: ${missingFiles.slice(0, 3).join(', ')}${missingFiles.length > 3 ? '...' : ''}`,
       });
     } else {
       checks.push({
-        check: 'iOS app structure (PRD: Section 4.1)',
+        check: 'iOS app structure (PRD-TestFlight.md Section 8)',
         status: 'pass',
         evidence: 'All required iOS files present',
       });
@@ -786,14 +849,14 @@ class QualityAgent {
         
         if (!hasLocationPermission) {
           checks.push({
-            check: 'iOS permissions: Location (PRD: Section 3)',
+            check: 'iOS permissions: Location (PRD-TestFlight.md Section 2.1)',
             status: 'fail',
             evidence: 'NSLocationWhenInUseUsageDescription missing in Info.plist',
             file: 'Info.plist',
           });
         } else {
           checks.push({
-            check: 'iOS permissions: Location (PRD: Section 3)',
+            check: 'iOS permissions: Location (PRD-TestFlight.md Section 2.1)',
             status: 'pass',
             evidence: 'Location permission configured',
           });
@@ -801,7 +864,7 @@ class QualityAgent {
 
         if (!hasPhotoPermission) {
           checks.push({
-            check: 'iOS permissions: Photos (PRD: Section 7.4 media)',
+            check: 'iOS permissions: Photos (PRD-TestFlight.md Section 4.1 media)',
             status: 'warn',
             evidence: 'NSPhotoLibraryUsageDescription missing (needed for event media)',
             file: 'Info.plist',
@@ -1012,7 +1075,7 @@ class QualityAgent {
 
     // iOS Build Status
     if (report.iosBuildStatus.length > 0) {
-      lines.push('📱 iOS BUILD STATUS (PRD: TestFlight-ready MVP)');
+      lines.push('📱 iOS BUILD STATUS (PRD-TestFlight.md: TestFlight-ready MVP)');
       lines.push('-'.repeat(80));
       report.iosBuildStatus.forEach((check) => {
         const icon = check.status === 'pass' ? '✅' : check.status === 'fail' ? '❌' : '⚠️';

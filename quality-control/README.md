@@ -1,136 +1,149 @@
-# Quality Control Agent
+# Quality Control System
 
-An automatic quality controller that runs parallel to development to ensure code changes align with the PRD, guidelines, and stated intentions.
+Automated quality control for verifying implementation matches requirements, completeness, and functionality.
 
-## Overview
+## Quick Start
 
-The Quality Control Agent monitors code development and automatically validates:
+**After completing major work:**
 
-1. **PRD Compliance** - Ensures features match Product Requirements Document
-2. **Guidelines Compliance** - Checks code follows development guidelines
-3. **Intention Alignment** - Verifies stated goals (from NEXT_STEPS.md, commits) match implementation
-4. **Code Quality** - Runs linting, tests, and code quality checks
+```bash
+./quality-control/verify-after-work.sh
+```
 
-## Installation
+This runs both agents and generates `quality-control-report.txt`.
 
-The agent uses TypeScript with tsx. Dependencies are managed in the main project.
+## What It Does
+
+### Two-Agent System
+
+1. **Quality Agent** (`quality-agent.ts`)
+   - Checks PRD compliance (features match PRD-TestFlight.md)
+   - Validates guidelines compliance
+   - Runs code quality checks (linting, tests, build)
+
+2. **Implementation Verifier** (`implementation-verifier.ts`)
+   - Extracts features from recent git commits
+   - Verifies each feature is actually implemented
+   - Checks completeness (all required components)
+   - Verifies functionality (builds, tests pass)
+
+### Combined Process (`auto-verify.ts`)
+- Runs both agents in sequence
+- Generates comprehensive report
+- Provides clear pass/fail status
 
 ## Usage
 
-### Run Manually
+### Recommended: After Major Work (Tiered)
 
 ```bash
-cd quality-control
-tsx quality-agent.ts
+# Quick check (Tier 1 - fast, after major AI prompt)
+./quality-control/verify-after-work.sh 1
+
+# Full backend verification (Tier 2 - before commits)
+./quality-control/verify-after-work.sh 2
+
+# Deep verification (Tier 3 - pre-TestFlight)
+./quality-control/verify-after-work.sh 3
 ```
 
-Or from project root:
+Review `quality-control-report.txt` for issues.
+
+### Individual Agents
 
 ```bash
+# Quality Agent only (PRD + Guidelines)
 tsx quality-control/quality-agent.ts
+
+# Implementation Verifier only
+tsx quality-control/implementation-verifier.ts
+
+# Combined (recommended)
+tsx quality-control/auto-verify.ts
 ```
 
-### Run as Git Hook (Automatic)
+### Continuous Monitoring (Optional)
 
-The agent can be integrated into git hooks to run automatically:
-
-#### Pre-commit Hook
-
-Add to `.git/hooks/pre-commit` (or via husky):
+Run in separate terminal while developing:
 
 ```bash
-#!/bin/sh
-tsx quality-control/quality-agent.ts || exit 1
+# Runs every 30 seconds
+./quality-control/watch-quality.sh 30
 ```
 
-#### Post-commit Hook
-
-Run after commits to generate quality reports:
+### Git Hooks (Optional)
 
 ```bash
-#!/bin/sh
-tsx quality-control/quality-agent.ts > quality-report.txt
+./quality-control/setup-git-hooks.sh
 ```
 
-### Run as Watcher (Continuous Monitoring)
+## What Gets Verified
 
-Create a watcher script that runs the agent on file changes:
+### Implementation Checks
 
-```bash
-# Using nodemon or similar
-nodemon --watch server/src --exec "tsx quality-control/quality-agent.ts"
-```
+Automatically detects features from commit messages:
+
+- `feat(plans): add plans feature` → Checks Plans tables, endpoints, iOS views
+- `feat(interested): add interested endpoint` → Checks endpoint, table, field
+- `feat(follow): add following system` → Checks tables, endpoints, user fields
+- `fix(terminology): update to Interested` → Verifies old terminology removed
+
+### Completeness Checks
+
+For each feature, verifies all required components:
+
+**Example: Plans Feature**
+- Database table: Plan
+- Database table: PlanEvent
+- Backend endpoints: POST/GET /api/plans, POST /api/plans/:id/events/:eventId
+- iOS views: PlansView, PlanDetailView
+
+If any component missing → Status: **PARTIAL**
+
+### Functionality Checks
+
+- Backend TypeScript compilation
+- Backend tests pass
+- Backend linting passes
+- iOS build status (if Xcode available)
 
 ## Report Format
 
-The agent generates a comprehensive report showing:
-
-- **Summary** - Overall status, pass/fail counts, critical issues
-- **Git Status** - Current changes, staged files, recent commits
-- **PRD Compliance** - Requirement-by-requirement validation
-- **Guidelines Compliance** - Security, code quality, testing checks
-- **Intention Alignment** - Tasks from NEXT_STEPS.md vs implementation
-- **Code Quality** - ESLint and test results
-
-Reports are printed to console and saved to `quality-report.txt`.
-
-## Integration with Cursor/Chat
-
-To run this agent **in parallel** to your main development chat:
-
-1. **Option A: Separate Terminal**
-   - Open a separate terminal window
-   - Run: `watch -n 30 tsx quality-control/quality-agent.ts`
-   - This runs every 30 seconds and shows the latest report
-
-2. **Option B: Background Process**
-   - Run: `nohup tsx quality-control/quality-agent.ts > quality-report.txt 2>&1 &`
-   - Check reports with: `cat quality-report.txt`
-
-3. **Option C: Git Hook Integration**
-   - Set up post-commit hook to run agent automatically
-   - Reports saved after each commit
-
-## Exit Codes
-
-- `0` - All checks passed (or warnings only)
-- `1` - Failures found (can be used to block commits)
-
-## Customization
-
-Edit `quality-agent.ts` to:
-
-- Add custom PRD requirement checks
-- Adjust guideline patterns
-- Change severity levels
-- Add new check categories
-
-## Example Output
-
 ```
-════════════════════════════════════════════════════════════════════════════════
-  QUALITY CONTROL REPORT
-════════════════════════════════════════════════════════════════════════════════
-Timestamp: 2025-01-06T12:00:00.000Z
-
 📊 SUMMARY
---------------------------------------------------------------------------------
-Overall Status: WARN
-Total Checks: 12
-✅ Passed: 8
-❌ Failed: 2
-⚠️  Warnings: 2
+Overall Status: PASS/FAIL/WARN
+✅ Complete: X
+⚠️  Partial: X
+❌ Missing: X
+💥 Broken: X
 
 🚨 CRITICAL ISSUES:
-   • Events filtered by expiration (endTime > NOW())
-   • Not implemented: Fix GIST Index for PostGIS Performance
-
-[... detailed report sections ...]
+   • Missing: Plans feature
+   • Broken: Backend tests
 ```
 
-## Notes
+## Integration Options
 
-- The agent reads from `PRD.txt`, `guidelines.txt`, and `NEXT_STEPS.md` in the project root
-- Server code is checked in `server/src/`
-- Tests are run if available (may timeout in development)
-- Git commands are optional (agent works without git repo)
+1. **Manual Trigger** (Recommended) - Run after major features
+2. **Git Hook** - Automatic after commits
+3. **Continuous Monitoring** - Background watching
+
+## Troubleshooting
+
+- **"Could not read Prisma schema"** - Ensure `server/prisma/schema.prisma` exists
+- **"Could not read git commits"** - Ensure you're in a git repository
+- **"Tests timeout"** - Expected in development, check report file
+- **"Build fails"** - Fix TypeScript errors, check report for details
+
+## Next Steps
+
+1. **If PASS**: Continue development ✅
+2. **If WARN**: Review partial implementations ⚠️
+3. **If FAIL**: Fix critical issues before continuing ❌
+   - Copy error messages to AI assistant
+   - Fix issues
+   - Re-run verification
+
+---
+
+**Remember**: This is a tool to help ensure quality, not a blocker. Use it to verify work, not to slow down development.

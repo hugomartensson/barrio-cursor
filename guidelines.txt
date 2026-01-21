@@ -1,4 +1,9 @@
-Backend Guidelines (Hyperlocal Events App)
+BARRIO - Development Guidelines
+Product Requirements: See PRD-TestFlight.md (TestFlight Release Version)
+
+This document provides development guidelines for the Barrio hyperlocal events app,
+aligned with the PRD-TestFlight.md requirements. These guidelines ensure code quality,
+security, and alignment with product requirements.
 
 Workflow
 - Initialize Git repo: git init
@@ -11,6 +16,14 @@ Workflow
 - Pre-commit hook: npm run build && npm run lint && npm run test
 - Optional GitHub Actions on push to main (no branch protection needed for solo)
 - Tag releases: git tag v0.1.0 when submitting to TestFlight
+
+**Automated Quality Control (After Major Work):**
+- After completing major features, run: `./quality-control/verify-after-work.sh`
+- This verifies: What was promised → What was delivered, Completeness, Functionality
+- Review `quality-control-report.txt` for issues
+- Copy-paste error messages to AI assistant for diagnosis if needed
+- Fix issues before continuing development
+- See `quality-control/AUTOMATED-QC-GUIDE.md` for details
 
 AI Coding Tool Guidelines
 
@@ -28,6 +41,40 @@ AI Coding Tool Guidelines
   - **Swift/SwiftUI API misuse (AI's #1 mistake: inventing properties/methods that don't exist)**
   - Deprecated iOS APIs (e.g., CLGeocoder in iOS 26.0+ should use MapKit)
   - Incorrect SwiftUI closure signatures (e.g., .onChange API changes in iOS 17+)
+
+**Common Mistakes to Avoid:**
+
+See PRD-TestFlight.md for feature requirements. Common implementation mistakes:
+
+❌ **Don't:** Create separate endpoints for like/going/interested  
+✅ **Do:** Single `/api/events/:id/interested` endpoint (see PRD Section 5.3)
+
+❌ **Don't:** Store coordinates as primary, address as optional  
+✅ **Do:** Address is PRIMARY field, coordinates derived via reverse geocoding (see PRD Section 4.1)
+
+❌ **Don't:** Allow editing past events  
+✅ **Do:** Enforce edit permissions - only future/ongoing events editable (see PRD Section 4.2)
+
+❌ **Don't:** Let users create unlimited plans  
+✅ **Do:** Enforce 5 plan limit with friendly error message (see PRD Section 7.1)
+
+❌ **Don't:** Use "Like" or "Going" terminology anywhere  
+✅ **Do:** Use "Interested" terminology throughout (see PRD Section 5.3)
+
+❌ **Don't:** Allow users to follow themselves  
+✅ **Do:** Validate `followerId !== followingId` (see PRD Section 6.1)
+
+❌ **Don't:** Show private account events to non-followers  
+✅ **Do:** Filter events by follow relationship for private accounts (see PRD Section 6.1)
+
+❌ **Don't:** Auto-advance story viewer media  
+✅ **Do:** Manual swipe only (see PRD Section 2.3)
+
+❌ **Don't:** Implement advanced text overlay features  
+✅ **Do:** Basic features only (see PRD Section 4.1)
+
+❌ **Don't:** Use push notifications for follow requests  
+✅ **Do:** In-app notifications only (see PRD Section 6.1)
 
 **Before accepting AI suggestions - REQUIRED CHECKLIST:**
 
@@ -57,65 +104,262 @@ AI Coding Tool Guidelines
 3. Result: Compilation error
 4. Prevention: Always verify in Xcode/Apple docs before using
 
-iOS/Swift Specific Guidelines
-- **CRITICAL: Always verify Swift/SwiftUI API usage against Apple documentation when AI suggests properties/methods**
-  - AI frequently hallucinates property/method names that don't exist (e.g., `PhotosPickerItem.identifier` → should be `itemIdentifier` or `supportedContentTypes`)
-  - Never trust AI suggestions for framework APIs without verification
-  - When AI suggests using a property/method, check Apple's official documentation first
-  
-- **Build verification before committing:**
-  - Code MUST compile successfully in Xcode (⌘B) before committing
-  - NEVER commit code with compilation errors - fix errors first
-  - If Xcode shows compilation errors, do NOT accept "it should work" - the compiler is always right
-  - Run clean build (⇧⌘K then ⌘B) to catch hidden compilation issues
+iOS/Swift Specific Guidelines (PRD-TestFlight.md Section 2-5)
 
-- **API verification process:**
-  - Step 1: AI suggests API usage → **STOP**
-  - Step 2: Check Apple documentation (developer.apple.com/documentation)
-  - Step 3: Verify property/method exists in Xcode autocomplete (⌘Space after dot)
-  - Step 4: If Xcode autocomplete doesn't show it → property/method doesn't exist → don't use it
-  - Step 5: Build and test (⌘B) → must compile without errors
-  
-- **Watch for API changes between iOS versions:**
-  - Project targets iOS 17+, but APIs may have changed in iOS 26+
-  - Deprecated APIs: CLGeocoder → MapKit geocoding (iOS 26.0+)
-  - SwiftUI APIs evolve: `.onChange(of:)` closure signature varies by iOS version
-  - Check deprecation warnings in Xcode - don't ignore them
+**CRITICAL: Always verify Swift/SwiftUI API usage against Apple documentation when AI suggests properties/methods**
+- AI frequently hallucinates property/method names that don't exist (e.g., `PhotosPickerItem.identifier` → should be `itemIdentifier` or `supportedContentTypes`)
+- Never trust AI suggestions for framework APIs without verification
+- When AI suggests using a property/method, check Apple's official documentation first
 
-- **Common AI hallucination patterns to watch for:**
-  - `PhotosPickerItem.identifier` → ❌ Doesn't exist (use `itemIdentifier` or `supportedContentTypes`)
-  - `PhotosPickerItem.loadImage()` → ❌ Doesn't exist (use `loadTransferable(type: Image.self)`)
-  - Properties that "make sense" but don't exist (e.g., `.identifier` on types that use `.itemIdentifier`)
-  - API methods with names that seem logical but aren't in the framework
-  - Always verify against Apple documentation or Xcode autocomplete
+**Build verification before committing:**
+- Code MUST compile successfully in Xcode (⌘B) before committing
+- NEVER commit code with compilation errors - fix errors first
+- If Xcode shows compilation errors, do NOT accept "it should work" - the compiler is always right
+- Run clean build (⇧⌘K then ⌘B) to catch hidden compilation issues
 
-- **When AI gives Swift code:**
-  - ✅ First: Copy to Xcode, try autocomplete on the API
-  - ✅ Second: Build (⌘B) - must compile without errors
-  - ✅ Third: Test the functionality
-  - ❌ NEVER: Assume AI code is correct without building/testing
-  
-- **Xcode autocomplete is your friend:**
-  - If Xcode doesn't suggest a property/method after typing `.` → it doesn't exist
-  - Trust Xcode autocomplete over AI suggestions
-  - If autocomplete shows a different name → use that name, not what AI suggested
+**API verification process:**
+- Step 1: AI suggests API usage → **STOP**
+- Step 2: Check Apple documentation (developer.apple.com/documentation)
+- Step 3: Verify property/method exists in Xcode autocomplete (⌘Space after dot)
+- Step 4: If Xcode autocomplete doesn't show it → property/method doesn't exist → don't use it
+- Step 5: Build and test (⌘B) → must compile without errors
+
+**Watch for API changes between iOS versions:**
+- Project targets iOS 17+ (PRD Section 7: iOS 17+)
+- Deprecated APIs: CLGeocoder → MapKit geocoding (iOS 26.0+)
+- SwiftUI APIs evolve: `.onChange(of:)` closure signature varies by iOS version
+- Check deprecation warnings in Xcode - don't ignore them
+
+**Common AI hallucination patterns to watch for:**
+- `PhotosPickerItem.identifier` → ❌ Doesn't exist (use `itemIdentifier` or `supportedContentTypes`)
+- `PhotosPickerItem.loadImage()` → ❌ Doesn't exist (use `loadTransferable(type: Image.self)`)
+- Properties that "make sense" but don't exist (e.g., `.identifier` on types that use `.itemIdentifier`)
+- API methods with names that seem logical but aren't in the framework
+- Always verify against Apple documentation or Xcode autocomplete
+
+**When AI gives Swift code:**
+- ✅ First: Copy to Xcode, try autocomplete on the API
+- ✅ Second: Build (⌘B) - must compile without errors
+- ✅ Third: Test the functionality
+- ❌ NEVER: Assume AI code is correct without building/testing
+
+**Xcode autocomplete is your friend:**
+- If Xcode doesn't suggest a property/method after typing `.` → it doesn't exist
+- Trust Xcode autocomplete over AI suggestions
+- If autocomplete shows a different name → use that name, not what AI suggested
+
+**iOS Implementation Guidance:**
+
+For feature requirements, see PRD-TestFlight.md Sections 2-9. Implementation guidance below:
+
+**iOS State Management Best Practices:**
+- Use `@StateObject` for ViewModels that own data
+- Use `@ObservedObject` for ViewModels passed from parent
+- Use `@EnvironmentObject` for shared services (AuthManager, LocationManager)
+- **Plans Feature:** Create `PlansViewModel` to manage plan list, plan detail, and plan operations
+- **Following Feature:** Create `FollowingViewModel` to manage follow/unfollow, follow requests
+- **Interested Feature:** Update existing interactions to use "Interested" terminology
+- Use `async/await` for API calls; handle errors with try/catch and show user-friendly messages
+- **Error Logging:** Log detailed errors with request ID, endpoint, status code, and full response body for AI assistant diagnosis
+- **Error Format:** Structure errors so they can be copy-pasted directly to AI assistant (include context, file path, function name, request ID)
+- **Story Viewer:** Use `TabView` with `.tabViewStyle(.page)` for manual swipe carousel
+- **Text Overlay:** Use `ZStack` with `TextField` overlay, apply to `UIImage` using Core Graphics before upload
+
+**iOS Code Organization:**
+- Group related features: `Views/Plans/`, `Views/Social/`, `ViewModels/Plans/`, `ViewModels/Social/`
+- Keep ViewModels focused: One ViewModel per feature (PlansViewModel, FollowingViewModel)
+- Reusable components: Create shared components for plan selector, follow button, interested button
+- **Plan Selector Sheet:** Create reusable `PlanSelectorView` component used by EventDetailView and Interested flow
 
 Code Quality and Style
 - ESLint complexity rules are errors; pre-commit hooks block violations. Limits: cyclomatic 10; nesting 3; lines/file 300; lines/function 50; params 4; statements/function 20. See CODE_QUALITY.md for refactor patterns.
 - ES modules only ("type": "module" in package.json).
+- **TypeScript:** Use strict mode; prefer interfaces for object shapes, types for unions/intersections.
+- **Swift:** Use structs for models, classes for ViewModels/services; prefer value types (structs) over reference types (classes) when possible.
+- **Naming Conventions:**
+  - Backend: camelCase for variables/functions, PascalCase for types/classes
+  - iOS: camelCase for variables/functions, PascalCase for types/structs/classes
+  - Database: snake_case for columns (Prisma maps automatically)
+  - API endpoints: kebab-case (`/api/users/:id/follow`)
 
-Logging
-- MVP: console.log acceptable for development. Before TestFlight: Migrate to pino or winston.
+Logging (AI-Assistant Friendly)
+
+**CRITICAL: All errors must be detailed enough for AI assistants to diagnose without code inspection.**
+
+- Use structured logging (Pino recommended) with JSON output for easy parsing.
 - Log levels: ERROR (unhandled failures), WARN (handled errors), INFO (key business events), DEBUG (development only).
 - Always log: auth attempts (success/fail), event CRUD operations, media uploads, geospatial queries with params.
 - Never log: passwords, full JWTs, user coordinates (log distance only).
-- Include request IDs for tracing multi-step operations.
 
-Error Handling
-- Never use empty catch blocks; always log or re-throw.
-- Custom error classes for: ValidationError, AuthError, NotFoundError, PermissionError.
+**Structured Logging Format (Required for AI-Assistant Diagnosis):**
+```typescript
+logger.error({
+  requestId: req.id,
+  userId: authReq.user?.userId,
+  endpoint: `${req.method} ${req.path}`,
+  error: {
+    name: error.name,
+    message: error.message,
+    code: error.code, // Custom error code if available
+    stack: error.stack, // Include stack trace in logs (not in API response)
+  },
+  context: {
+    // Include relevant context (eventId, planId, etc.)
+    eventId: req.params.id,
+    // Include request body/query (sanitized - no secrets)
+    body: sanitizeRequestBody(req.body),
+  },
+  file: __filename, // File where error occurred
+  function: 'functionName', // Function name where error occurred
+}, 'Human-readable error description');
+```
+
+**Request ID Tracking (Required):**
+- Every request must have a unique request ID (generated by middleware).
+- Include request ID in all logs, error responses, and API responses.
+- Format: `requestId: "req_abc123xyz"` (visible in logs and error responses).
+- This allows tracing errors across server logs, iOS console, and API responses.
+
+**Error Message Structure (Copy-Paste Friendly):**
+- Errors must include: What failed, Why it failed, Where it failed, How to fix it.
+- Format errors so they can be copy-pasted directly to AI assistant.
+- Include file path, function name, and line number in logs (not in user-facing errors).
+
+**Example Good Error Log:**
+```
+ERROR: Event creation failed
+Request ID: req_abc123xyz
+File: server/src/routes/events.ts:145
+Function: createEvent
+Error: ValidationError: Address is required
+Context: { userId: "user_123", title: "Test Event", hasMedia: true }
+User Message: "Please provide an event location"
+Diagnostic: Check if reverse geocoding failed or address field missing
+```
+
+**Example Bad Error Log (Don't Do This):**
+```
+ERROR: Failed
+```
+
+Error Handling (AI-Assistant Friendly)
+
+**CRITICAL: Errors must be detailed enough for non-coders to copy-paste to AI assistants.**
+
+- Never use empty catch blocks; always log or re-throw with context.
+- Custom error classes for: ValidationError, AuthError, NotFoundError, PermissionError, BusinessRuleError.
 - Centralized error handler middleware catches all; formats per standard shape.
 - Async functions: always use try/catch; no unhandled promise rejections.
+
+**Error Response Format (API):**
+```typescript
+{
+  error: {
+    code: "VALIDATION_ERROR", // Machine-readable code
+    message: "User-friendly message", // Human-readable, shown to user
+    details: {
+      // Optional: Detailed diagnostic info (for AI assistants)
+      requestId: "req_abc123xyz",
+      field: "address",
+      reason: "Address reverse geocoding failed",
+      suggestion: "Check if pin position is valid",
+    }
+  }
+}
+```
+
+**Error Logging Format (Server Logs - Not User-Facing):**
+```typescript
+logger.error({
+  requestId: req.id,
+  error: {
+    name: error.name,
+    message: error.message,
+    stack: error.stack, // Full stack trace in logs
+  },
+  context: {
+    endpoint: `${req.method} ${req.path}`,
+    userId: authReq.user?.userId,
+    // Include relevant IDs (eventId, planId, etc.)
+  },
+  file: __filename,
+  function: 'functionName',
+  line: 145, // Approximate line number if possible
+}, 'Detailed error description for AI assistant');
+```
+
+**iOS Error Handling (Copy-Paste Friendly):**
+
+**CRITICAL: iOS errors must be formatted for easy copy-paste to AI assistants.**
+
+- Log errors with full context: URL, HTTP status, response body, error domain/code.
+- Include request ID from API response in iOS logs (always include if available).
+- Format errors so they can be copy-pasted directly to AI assistant.
+- Use multi-line string format for readability.
+- Include: What failed, Why it failed, Where it failed (file/function), Request ID, Full error details.
+
+**Required iOS Error Log Format:**
+```swift
+print("""
+❌ [SERVICE_NAME]: [Operation] failed
+   Request ID: [requestId from API response]
+   Endpoint: [METHOD] [PATH]
+   Status: [HTTP_STATUS_CODE] [STATUS_TEXT]
+   Error Code: [ERROR_CODE from API]
+   Message: [Error message from API]
+   Details: [Additional diagnostic info]
+   File: [FileName.swift]:[LineNumber]
+   Function: [functionName]
+   Context: { [relevant context like userId, eventId, etc.] }
+   Full Response: [JSON response body if available]
+""")
+```
+
+**Example iOS Error Log (Good):**
+```swift
+print("""
+❌ APIService: Event creation failed
+   Request ID: req_abc123xyz
+   Endpoint: POST /api/events
+   Status: 422 Unprocessable Entity
+   Error Code: VALIDATION_ERROR
+   Message: Address is required
+   Details: Address reverse geocoding failed - pin position invalid
+   File: APIService.swift:234
+   Function: createEvent
+   Context: { userId: "user_123", hasMedia: true, title: "Test Event" }
+   Full Response: {"error":{"code":"VALIDATION_ERROR","message":"Address is required","details":{"requestId":"req_abc123xyz","field":"address"}}}
+""")
+```
+
+**Example iOS Error Log (Bad - Don't Do This):**
+```swift
+print("Error: Failed") // Too vague, no context
+```
+
+**iOS Error Handling Best Practices:**
+- Always log request ID if available from API response.
+- Include full API error response body in logs (for AI assistant diagnosis).
+- Log both user-friendly message AND technical details.
+- Use consistent error log format across all services (APIService, StorageService, etc.).
+- Include file name and approximate line number in error logs.
+- Never log sensitive data (passwords, tokens, user coordinates).
+
+**Error Categories (Use Appropriate Code):**
+- `VALIDATION_ERROR` (422): Input validation failed (include field name and reason)
+- `AUTH_ERROR` (401/403): Authentication/authorization failed
+- `NOT_FOUND` (404): Resource not found (include resource type and ID)
+- `BUSINESS_RULE_ERROR` (400): Business rule violation (e.g., "5 plan limit reached")
+- `SERVICE_UNAVAILABLE` (503): External service unreachable (include service name)
+- `INTERNAL_ERROR` (500): Server-side error (include request ID for tracing)
+
+**Best Practices:**
+- Always include request ID in error responses and logs.
+- Log full error details (stack trace, context) in server logs.
+- Return user-friendly messages in API responses (no stack traces).
+- Include diagnostic details in `error.details` for AI assistant diagnosis.
+- Use consistent error codes across the application.
+- Never log sensitive data (passwords, full JWTs, user coordinates).
 
 Environment and Setup
 - MVP: Single .env file. Add .env.example for documentation. Before deployment: Split into .env.development, .env.test, .env.production
@@ -150,40 +394,74 @@ Environment and Setup
   - Health check endpoint should verify database connectivity
   - Log warnings if optional dependencies are missing (e.g., Supabase CLI)
 
-Database and Migrations
-- Use a migration tool (e.g., Prisma or Knex); commit all migrations and keep them idempotent.
-- Seed data for local/test: verified user plus sample events within the 5 km radius with varied endTime values (past, current, future).
-- Geospatial queries must use ST_DWithin with fixed 5 km radius; add a GIST spatial index on location geometry column.
-- All event queries must filter WHERE endTime > NOW() to exclude expired events (or startTime > NOW() if endTime is null).
-- Daily cron job (or Supabase edge function) hard-deletes events where endTime < NOW() - 24 hours; document in deployment README.
-- Migration needed: Drop B-tree index on (latitude, longitude) and add GIST index on location geometry column.
-  SQL: DROP INDEX IF EXISTS events_latitude_longitude_idx; CREATE INDEX events_location_idx ON events USING GIST (location);
+Database and Migrations (PRD-TestFlight.md Alignment)
+
+**Schema Requirements:**
+- Use Prisma for migrations; commit all migrations and keep them idempotent.
+- **User Model:** Must include `isPrivate` (boolean, default false), `followerCount`, `followingCount` (denormalized counts)
+- **Event Model:** Must include `address` (string, PRIMARY field), `isFree` (boolean), `interestedCount` (renamed from `likesCount`)
+- **MediaItem Model:** Must include `thumbnailUrl` (string | null) for videos
+- **New Tables Required:** `Follow`, `FollowRequest`, `Interested` (replaces `Like`), `Plan`, `PlanEvent`
+- **Tables to Remove:** `Like`, `Going` (not in PRD)
+
+**Migration Strategy:**
+1. Add new fields/tables first (non-breaking)
+2. Migrate data: `Like` → `Interested` (copy all existing likes)
+3. Update code to use new schema
+4. Remove old tables (`Like`, `Going`) in separate migration after code is updated
+
+**Geospatial Queries:**
+- Use ST_DWithin with fixed 5 km radius (see PRD Section 2.1)
+- GIST spatial index on location geometry column (already exists)
+- All event queries must filter WHERE endTime > NOW() (or startTime > NOW() if endTime is null)
+- Address is PRIMARY field; coordinates derived via reverse geocoding (see PRD Section 4.1)
+
+**Background Jobs:**
+- Daily cron job hard-deletes events where endTime < NOW() - 24 hours
+- Same cron job archives plans when all events passed OR plan empty for 7+ days (see PRD Section 7.5)
+- Document in deployment README
+
+**Denormalized Counts Best Practice:**
+- Maintain `followerCount`, `followingCount` on User (updated via triggers or application logic)
+- Maintain `interestedCount` on Event (updated via triggers or application logic)
+- Use transactions when updating counts to ensure consistency
+- Consider database triggers for count updates (more reliable than application-level updates)
 
 Transactions
 - Wrap multi-step operations in transactions (e.g., create event + upload media references).
 - Use connection pooling (pg-pool); max pool size = 20 for MVP.
 - Always use parameterized queries; never string concatenation for SQL.
 
-API and Validation
-- Routes use /api/ prefix in MVP. Version 1.0 (TestFlight release) will migrate to /api/v1/
-- MVP ships as v1; breaking changes require v2.
-- Validate all inputs at the edge (body/query/params schemas); reject with 4xx on invalid data.
+API and Validation (PRD-TestFlight.md Alignment)
+- Routes use /api/ prefix. TestFlight ships as v1; breaking changes require v2.
+- Validate all inputs at the edge (body/query/params schemas using Zod); reject with 4xx on invalid data.
 - Standard error shape: { error: { code, message, details? } }; do not leak stack traces.
-- Auth: email/password with verification; JWTs stored in iOS Keychain and must expire; hash passwords with bcrypt; require basic password complexity.
-- Hard deletes only; no soft deletes in MVP.
-- DELETE /events/:id requires ownership verification (userId matches event creator).
+- Auth: email/password with verification; JWTs stored in iOS Keychain; token refresh endpoint required (PRD Section 7).
+- Hard deletes only; no soft deletes.
+- **Ownership verification patterns:**
+  - DELETE /events/:id: Verify userId matches event creator
+  - PATCH /events/:id: Verify userId matches event creator AND event is future/ongoing (see PRD Section 4.2)
+  - DELETE /plans/:id: Verify userId matches plan owner
+  - PATCH /plans/:id: Verify userId matches plan owner
+- **Edit permissions:** Events can only be edited if startTime > NOW() OR (startTime <= NOW() < endTime) (see PRD Section 4.2).
+- **Plan limit enforcement:** Check active plans count before creation; return friendly error if limit reached (see PRD Section 7.1).
+- **Address validation:** Always reverse-geocode pin position to get address string; store address as PRIMARY field (see PRD Section 4.1).
 
-Security
+Security (PRD-TestFlight.md Alignment)
 - HTTPS only in production; reject HTTP.
 - Rate limiting:
   - Auth endpoints: 5 requests/minute per IP
   - Event creation: 10/hour per user
-  - Like/Going: 100/hour per user
+  - Interested: 100/hour per user (see PRD Section 5.3 for terminology)
+  - Follow actions: 50/hour per user
+  - Plan creation: 20/hour per user
 - Helmet.js for security headers.
-- JWT: Store in iOS Keychain; short expiration (24h); refresh token pattern NOT in MVP.
+- JWT: Store in iOS Keychain; short expiration (24h); refresh token pattern (see PRD Section 7).
 - Input sanitization: trim whitespace, strip HTML tags from text fields.
 - SQL injection prevention: parameterized queries only.
 - CORS: whitelist client origin only; no wildcard in production.
+- **Self-follow prevention:** Validate `followerId !== followingId` in follow endpoints (see PRD Section 6.1).
+- **Ownership verification:** All edit/delete operations must verify userId matches resource owner.
 
 Performance
 - Database queries:
@@ -196,47 +474,150 @@ Performance
 - Connection pooling required; no per-request DB connections.
 - Pagination: limit=50 max for list endpoints.
 
-Media Handling
-- Media uploads use Supabase Storage presigned URLs only.
-- Server-side validation:
-  - Photos: JPEG, PNG, HEIC; max 10 MB each
-  - Videos: H.264/HEVC, .mov/.mp4; max 15 seconds duration; max 50 MB each
-  - Up to 3 media items per event (total)
+Media Handling (see PRD-TestFlight.md Section 4.1)
+- Media uploads use Supabase Storage presigned URLs only (direct client upload).
+- Server-side validation: See PRD Section 4.1 for requirements (photos, videos, duration limits, max 3 items).
 - Client handles duration validation (AVAsset); server rejects if duration metadata exceeds 15s.
-- Original aspect ratios preserved; no cropping or transformation in MVP.
+- Original aspect ratios preserved; no cropping or transformation.
+- Video thumbnails: Generate client-side (iOS), upload to Supabase, store `thumbnailUrl` in MediaItem.
+- **Text overlay tool:** Basic features only (see PRD Section 4.1) - apply client-side before upload.
+- **Live camera capture:** Required for TestFlight (see PRD Section 4.1) - use `UIImagePickerController` or `AVCaptureSession`.
 - Implement upload retries/timeouts; FFmpeg/Chromium/Puppeteer are not needed.
 
 Testing
-- Unit and integration tests required; E2E tests optional for MVP.
-- Coverage: 80% lines, 75% branches enforced in CI.
+- Unit and integration tests required; E2E tests optional for TestFlight.
+- **Test Coverage Requirements:**
+  - Critical paths (auth, event creation, media uploads): 90%+
+  - Social features (following, plans, interested): 80%+
+  - UI/presentation layer: 60%+ (harder to test, lower priority)
+- Coverage: 80% lines, 75% branches enforced in CI (overall minimum).
 - Test categories:
   - Happy path (valid inputs, expected outputs)
   - Validation errors (missing fields, invalid formats)
   - Auth errors (no token, expired token, wrong user)
   - Edge cases (5km boundary, expired events, empty results)
+  - **New:** Edit permissions (future/ongoing events editable, past events not)
+  - **New:** Plan limit enforcement (5 active plans max)
+  - **New:** Self-follow prevention
+  - **New:** Follow request flow (private accounts)
+- **Must-Test Scenarios (Critical):**
+  - Edge case: Event at exactly 5km boundary (should appear/disappear correctly)
+  - Security: Self-follow prevention (followerId !== followingId)
+  - Business rule: 5 plan limit enforcement (friendly error message)
+  - Privacy: Private account events can't be viewed by non-followers
+  - Edit permissions: Past events cannot be edited (endTime < NOW())
+  - Address storage: Address always reverse-geocoded from pin position
 - Use supertest against a real Postgres+PostGIS test database with geospatial fixtures; minimize mocking.
 - Test fixtures must include:
   - Events with past endTime (should not appear in queries)
   - Events with future endTime (should appear)
   - Events at exactly 5 km boundary (edge case)
+  - **New:** Public and private users (for follow request testing)
+  - **New:** Plans with various states (active, archived, at limit)
 - Provide helpers for creating verified users and attaching JWTs in tests.
 - Use factories/fixtures for test data; no hardcoded IDs.
 - Tests must clean up after themselves (truncate tables, not drop/recreate).
 - Parallel test execution disabled (geospatial queries are stateful).
 
-Interactions
-- POST /events/:id/like and POST /events/:id/going are toggle endpoints.
+Interactions (see PRD Section 5.3)
+- POST /events/:id/interested is a toggle endpoint (see PRD Section 5.3 for terminology).
 - Request must include JWT; backend increments/decrements count and returns updated value.
-- No WebSockets; counts are not live-updated across clients in MVP.
+- Use transactions when toggling interested to ensure count consistency.
+- No WebSockets; counts are not live-updated across clients in TestFlight.
+- **Terminology:** Use "Interested" throughout codebase (not "Like" or "Going"). Update all variable names, API endpoints, database fields.
 
-Error Responses
+**Following System (see PRD Section 6):**
+- POST /api/users/:id/follow: Check if target is private → create FollowRequest if private, Follow if public
+- DELETE /api/users/:id/follow: Remove Follow relationship (or FollowRequest if pending)
+- Validate self-follow prevention: `followerId !== followingId`
+- Update denormalized counts (`followerCount`, `followingCount`) in same transaction
+- **Follow request notifications:** In-app only (see PRD Section 6.1), no push notifications for TestFlight
+
+**Plans Feature (see PRD Section 7):**
+- POST /api/plans: Check active plans count (limit 5); return friendly error if limit reached (see PRD Section 7.1)
+- POST /api/plans/:id/events/:eventId: Allow same event in multiple plans (no uniqueness constraint)
+- Plan archiving: Integrate with existing `cleanupExpiredEvents` cron job (check daily)
+- Archive logic: All events passed OR plan empty for 7+ days (see PRD Section 7.5)
+
+Error Responses (User-Facing + AI-Assistant Friendly)
+
+**CRITICAL: All error responses must include request ID for tracing and diagnostic details for AI assistants.**
+
+**Standard HTTP Status Codes:**
+- 400 Bad Request: Business rule violation (include details for AI assistant)
 - 401 Unauthorized: Invalid credentials. Try again.
-- 403 Forbidden: You don't have permission to delete this event.
-- 404 Not Found: Event not found.
+- 403 Forbidden: You don't have permission to perform this action.
+- 404 Not Found: Resource not found (include resource type in details).
 - 413 Payload Too Large: File too large. Max 10 MB for photos, 50 MB for videos.
-- 422 Unprocessable Entity: Videos must be 15 seconds or less.
-- 500 Internal Server Error: Something went wrong. Please try again.
-- Network timeout (client-side): Taking longer than usual. Retry?
+- 422 Unprocessable Entity: Validation failed (include field names and reasons in details).
+- 500 Internal Server Error: Something went wrong. Please try again. (Include request ID for tracing).
+
+**Error Response Format (Always Include Request ID):**
+```json
+{
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "User-friendly message",
+    "details": {
+      "requestId": "req_abc123xyz",
+      "field": "address",
+      "reason": "Address reverse geocoding failed",
+      "suggestion": "Check if pin position is valid"
+    }
+  }
+}
+```
+
+**Example Error Responses:**
+
+**Validation Error (422):**
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Please provide an event location",
+    "details": {
+      "requestId": "req_abc123xyz",
+      "field": "address",
+      "reason": "Address is required but was not provided"
+    }
+  }
+}
+```
+
+**Business Rule Error (400):**
+```json
+{
+  "error": {
+    "code": "BUSINESS_RULE_ERROR",
+    "message": "Maximum 5 active plans. Please archive a plan to create a new one.",
+    "details": {
+      "requestId": "req_abc123xyz",
+      "rule": "plan_limit",
+      "currentCount": 5,
+      "limit": 5
+    }
+  }
+}
+```
+
+**Internal Error (500):**
+```json
+{
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "Something went wrong. Please try again.",
+    "details": {
+      "requestId": "req_abc123xyz"
+    }
+  }
+}
+```
+
+**Network Timeout (Client-Side):**
+- Show user-friendly message: "Taking longer than usual. Retry?"
+- Log detailed error with request ID, timeout duration, endpoint URL.
+- Format: Copy-paste friendly with full context for AI assistant diagnosis.
 
 Observability
 - Health check endpoint: GET /health (returns 200 + DB connection status).
@@ -270,24 +651,129 @@ Commands
 - npm run seed (seed test data)
 - Backend API default: http://localhost:5000 (frontend runs in Xcode).
 
-Endpoints Reference
+Endpoints Reference (PRD-TestFlight.md Section 7)
+
+Authentication (PRD Section 1):
 POST /api/auth/signup
 POST /api/auth/login
-POST /api/auth/reset
+POST /api/auth/refresh (required for TestFlight)
+POST /api/auth/reset-password
 
-POST   /api/events
-GET    /api/events/nearby?lat=&lng= (filters WHERE endTime > NOW())
-GET    /api/events/:id
-DELETE /api/events/:id (ownership check required)
+Events (PRD Section 4):
+POST   /api/events (create - requires media, location with address, times)
+GET    /api/events/nearby?lat=&lng= (fixed 5km radius, filters WHERE endTime > NOW())
+GET    /api/events/:id (get detail)
+PATCH  /api/events/:id (update - ownership required, future/ongoing events only)
+DELETE /api/events/:id (delete - ownership required)
 
-POST /api/events/:id/like (toggle)
-POST /api/events/:id/going (toggle)
+Interactions (PRD Section 5.3):
+POST /api/events/:id/interested (toggle - PRD uses "Interested", not "Like")
 
-GET   /api/users/me
-GET   /api/users/me/events
-PATCH /api/users/me (update name only in MVP) - Status: Not yet implemented (backlog)
+Social Features (PRD Section 6):
+POST /api/users/:id/follow (create follow or follow request)
+DELETE /api/users/:id/follow (unfollow)
+GET /api/users/:id/followers (list)
+GET /api/users/:id/following (list)
+GET /api/users/me/feed (following-only feed)
+GET /api/users/me/follow-requests (pending requests - private accounts)
+POST /api/follow-requests/:id/approve
+POST /api/follow-requests/:id/deny
+PATCH /api/users/me/privacy (toggle public/private)
 
-Notes
-- Profile pictures removed from MVP scope.
-- Location permission denial handled client-side with manual address entry fallback.
-- Event lifecycle: visible until endTime passes; background job hard-deletes expired events daily.
+Plans (PRD Section 7):
+POST /api/plans (create)
+GET /api/plans (list user's plans)
+GET /api/plans/:id (get plan detail)
+PATCH /api/plans/:id (update name)
+DELETE /api/plans/:id (delete)
+POST /api/plans/:id/events/:eventId (add event to plan)
+DELETE /api/plans/:id/events/:eventId (remove event from plan)
+POST /api/plans/:id/archive (manual archive)
+
+Users (PRD Section 6.3, 6.4):
+GET /api/users/me (current user)
+GET /api/users/:id (other user profile)
+PATCH /api/users/me (update name)
+GET /api/users/me/events (my created events)
+GET /api/users/me/interested (my interested events)
+
+Media (PRD Section 4.1):
+GET /api/upload/signed-url (get signed URL for direct upload)
+
+Health:
+GET /api/health
+
+Implementation Best Practices (PRD-TestFlight.md Alignment)
+
+**Terminology Consistency:**
+- Use "Interested" throughout (not "Like" or "Going")
+- Update all variable names, API endpoints, database fields, UI labels
+- Migration: `Like` table → `Interested` table, `likesCount` → `interestedCount`
+
+**Feature Implementation Order (Recommended):**
+1. **Database Migration:** Add new fields/tables, migrate data, remove old tables
+2. **Terminology Update:** Update all "Like/Going" → "Interested" references
+3. **Core Features:** Event edit, address field, isFree toggle
+4. **Social Features:** Following system (public accounts first), user profiles
+5. **Plans Feature:** Plan creation, add events, plan management
+6. **Advanced Social:** Private accounts, follow requests
+7. **UI Polish:** Story viewer, text overlay, live camera, pulsating pins
+
+**Address Storage Pattern:**
+- User searches address OR drops pin OR uses GPS
+- Always reverse-geocode final pin position to get address string
+- Store address as PRIMARY field in Event model
+- Derive coordinates (lat/lng) from address for PostGIS queries
+- Address updates in real-time as pin moves (reverse geocoding)
+
+**Edit Permissions Pattern:**
+```typescript
+// Event can be edited if:
+const canEdit = event.startTime > NOW() || 
+                (event.startTime <= NOW() && event.endTime && event.endTime > NOW());
+// Past events (endTime < NOW()) cannot be edited
+```
+
+**Plan Limit Enforcement Pattern:**
+```typescript
+// Before creating plan:
+const activePlansCount = await prisma.plan.count({
+  where: { userId, isArchived: false }
+});
+if (activePlansCount >= 5) {
+  throw ApiError.badRequest('Maximum 5 active plans. Please archive a plan to create a new one.');
+}
+```
+
+**Follow Request Notification Pattern:**
+- Store pending request count in user profile (denormalized or computed)
+- Show badge/count in ProfileView when pending requests exist
+- User discovers requests when viewing profile (no push notifications for TestFlight)
+
+**Story Viewer Pattern (iOS):**
+- Manual swipe only (no auto-advance for TestFlight)
+- Use `TabView` or custom swipe gesture recognizer
+- Progress bars are visual indicators only (don't auto-advance)
+
+**Text Overlay Pattern (iOS):**
+- Basic features: Text, color picker, font size slider, drag to position
+- Apply overlay to UIImage before upload (use Core Graphics)
+- No advanced features (shadows, backgrounds, multiple layers) for TestFlight
+
+**Self-Follow Prevention Pattern:**
+```typescript
+if (followerId === followingId) {
+  throw ApiError.badRequest('Cannot follow yourself');
+}
+```
+
+**Plan Archiving Integration:**
+- Add plan archiving logic to existing `cleanupExpiredEvents` cron job
+- Check daily: Archive plans where all events passed OR plan empty for 7+ days
+- Keep same cron schedule (daily check)
+
+**Notes:**
+- See PRD-TestFlight.md for complete feature requirements and scope
+- Profile pictures: Not in TestFlight scope (see PRD Section 9 Out of Scope)
+- Deep links/web preview: Post-TestFlight (text format only for TestFlight)
+- Event lifecycle: visible until endTime passes; background job hard-deletes expired events daily
