@@ -47,18 +47,18 @@ This runs both agents and generates `quality-control-report.txt`.
 ./quality-control/verify-after-work.sh 3
 ```
 
-Review `quality-control-report.txt` for issues.
+Review `quality-control-report.txt` in the project root. It is written by `verify-after-work` and by the post-commit hook (Tier 1).
 
 ### Individual Agents
 
 ```bash
-# Quality Agent only (PRD + Guidelines)
+# Quality Agent only (PRD + Guidelines) – output to console only
 tsx quality-control/quality-agent.ts
 
 # Implementation Verifier only
 tsx quality-control/implementation-verifier.ts
 
-# Combined (recommended)
+# Combined (recommended) – writes quality-control-report.txt
 tsx quality-control/auto-verify.ts
 ```
 

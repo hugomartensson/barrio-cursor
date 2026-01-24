@@ -21,11 +21,19 @@ TIER="${1:-2}"
 
 cd "$PROJECT_ROOT"
 
+# Use tsx or npx tsx so it works in CI and git hooks where tsx may not be on PATH
+if command -v tsx &> /dev/null; then
+  RUNNER="tsx"
+else
+  RUNNER="npx tsx"
+  [ -t 1 ] && echo "ℹ️  Using npx to run tsx..."
+fi
+
 echo "🚀 Running Automated Quality Control (Tier $TIER)..."
 echo ""
 
-# Run the combined verification process
-tsx "$SCRIPT_DIR/auto-verify.ts" --tier="$TIER"
+# Run the combined verification process (writes quality-control-report.txt)
+$RUNNER "$SCRIPT_DIR/auto-verify.ts" --tier="$TIER"
 
 echo ""
 echo "✅ Quality control complete!"

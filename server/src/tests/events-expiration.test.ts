@@ -54,6 +54,7 @@ describe('Events API - Expiration Filtering', () => {
           title: 'Expired Event',
           description: 'This event has ended',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
           startTime: new Date(pastDate.getTime() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -71,6 +72,7 @@ describe('Events API - Expiration Filtering', () => {
           title: 'Active Event',
           description: 'This event is upcoming',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
           startTime: new Date(),
@@ -91,21 +93,22 @@ describe('Events API - Expiration Filtering', () => {
       expect(eventTitles).not.toContain('Expired Event');
     });
 
-    it('should not return events with past startTime when endTime is null', async () => {
-      // Create expired event (no endTime, but startTime in the past)
+    it('should not return events with past startTime when endTime is in the past', async () => {
+      // Create expired event (endTime in the past, event has ended)
       const pastDate = new Date();
       pastDate.setHours(pastDate.getHours() - 1);
 
       await prisma.event.create({
         data: {
           userId,
-          title: 'Expired No EndTime Event',
-          description: 'This event started in the past',
+          title: 'Expired Event',
+          description: 'This event started and ended in the past',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
-          startTime: pastDate,
-          endTime: null,
+          startTime: new Date(pastDate.getTime() - 2 * 60 * 60 * 1000), // 2 hours before endTime
+          endTime: pastDate, // PRD: endTime is required
         },
       });
 
@@ -118,24 +121,27 @@ describe('Events API - Expiration Filtering', () => {
 
       // Should not return expired event
       const eventTitles = response.body.data.map((e: { title: string }) => e.title);
-      expect(eventTitles).not.toContain('Expired No EndTime Event');
+      expect(eventTitles).not.toContain('Expired Event');
     });
 
-    it('should return events with future startTime when endTime is null', async () => {
-      // Create future event (no endTime, startTime in the future)
+    it('should return events with future startTime', async () => {
+      // Create future event (startTime and endTime in the future)
       const futureDate = new Date();
       futureDate.setHours(futureDate.getHours() + 2);
+      const futureEndDate = new Date();
+      futureEndDate.setHours(futureEndDate.getHours() + 4);
 
       await prisma.event.create({
         data: {
           userId,
-          title: 'Future No EndTime Event',
+          title: 'Future Event',
           description: 'This event is in the future',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
           startTime: futureDate,
-          endTime: null,
+          endTime: futureEndDate, // PRD: endTime is required
         },
       });
 
@@ -148,7 +154,7 @@ describe('Events API - Expiration Filtering', () => {
 
       // Should return future event
       const eventTitles = response.body.data.map((e: { title: string }) => e.title);
-      expect(eventTitles).toContain('Future No EndTime Event');
+      expect(eventTitles).toContain('Future Event');
     });
   });
 
@@ -163,6 +169,7 @@ describe('Events API - Expiration Filtering', () => {
           title: 'Expired Event for Get',
           description: 'This event has ended',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
           startTime: new Date(pastDate.getTime() - 2 * 60 * 60 * 1000),
@@ -178,20 +185,21 @@ describe('Events API - Expiration Filtering', () => {
       expect((response.body as ApiErrorResponse).error.code).toBe('NOT_FOUND');
     });
 
-    it('should return 404 for event with past startTime when endTime is null', async () => {
+    it('should return 404 for event with past endTime', async () => {
       const pastDate = new Date();
       pastDate.setHours(pastDate.getHours() - 1);
 
       const expiredEvent = await prisma.event.create({
         data: {
           userId,
-          title: 'Expired No EndTime Event for Get',
-          description: 'This event started in the past',
+          title: 'Expired Event for Get',
+          description: 'This event ended in the past',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
-          startTime: pastDate,
-          endTime: null,
+          startTime: new Date(pastDate.getTime() - 2 * 60 * 60 * 1000), // 2 hours before endTime
+          endTime: pastDate, // PRD: endTime is required
         },
       });
 
@@ -213,6 +221,7 @@ describe('Events API - Expiration Filtering', () => {
           title: 'Active Event for Get',
           description: 'This event is upcoming',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
           startTime: new Date(),

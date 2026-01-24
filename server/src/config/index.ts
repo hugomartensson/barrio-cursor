@@ -7,9 +7,10 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z
     .string()
-    .default('5000')
+    .default('3000')
     .transform((val) => parseInt(val, 10)),
   DATABASE_URL: z.string(),
+  DIRECT_URL: z.string().optional(), // Phase 10: Optional direct connection URL for tests
   JWT_SECRET: z.string().min(32),
   JWT_EXPIRES_IN: z.string().default('7d'),
   SUPABASE_URL: z.string().url(),

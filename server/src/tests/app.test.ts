@@ -25,9 +25,11 @@ describe('App', () => {
       const response = await request(app).get('/api/health');
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('status', 'healthy');
+      // Health status can be 'healthy' or 'degraded' depending on service connectivity
+      expect(['healthy', 'degraded']).toContain(response.body.status);
       expect(response.body).toHaveProperty('timestamp');
       expect(response.body).toHaveProperty('uptime');
+      expect(response.body).toHaveProperty('services');
     });
   });
 

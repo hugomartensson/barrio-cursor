@@ -6,6 +6,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
   extensions = [postgis]
 }
 
@@ -15,37 +16,45 @@ model User {
   passwordHash      String   @map("password_hash")
   name              String
   profilePictureUrl String?  @map("profile_picture_url")
+  isPrivate         Boolean  @default(false) @map("is_private")
+  followerCount     Int      @default(0) @map("follower_count")
+  followingCount    Int      @default(0) @map("following_count")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   // Relations
-  events Event[]
-  likes  Like[]
-  going  Going[]
+  events      Event[]
+  interested  Interested[]
+  followers   Follow[]        @relation("following") // users who follow this user
+  following   Follow[]        @relation("follower")  // users this user follows
+  requestsSent     FollowRequest[] @relation("FollowRequestsSent")
+  requestsReceived FollowRequest[] @relation("FollowRequestsReceived")
+  plans       Plan[]
 
   @@map("users")
 }
 
 model Event {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
-  title       String
-  description String
-  category    Category
-  latitude    Float
-  longitude   Float
-  startTime   DateTime  @map("start_time")
-  endTime     DateTime? @map("end_time")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  likesCount  Int       @default(0) @map("likes_count")
-  goingCount  Int       @default(0) @map("going_count")
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  title          String
+  description    String
+  category       Category
+  address        String
+  latitude       Float
+  longitude      Float
+  startTime      DateTime  @map("start_time")
+  endTime        DateTime? @map("end_time")
+  isFree         Boolean   @default(true) @map("is_free")
+  interestedCount Int      @default(0) @map("interested_count")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   // Relations
-  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  media MediaItem[]
-  likes Like[]
-  going Going[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  media       MediaItem[]
+  interested  Interested[]
+  planEvents  PlanEvent[]
 
   @@index([userId])
   @@index([category])
@@ -56,12 +65,13 @@ model Event {
 }
 
 model MediaItem {
-  id        String    @id @default(uuid())
-  eventId   String    @map("event_id")
-  url       String
-  type      MediaType
-  order     Int       @default(0)
-  createdAt DateTime  @default(now()) @map("created_at")
+  id           String    @id @default(uuid())
+  eventId      String    @map("event_id")
+  url          String
+  type         MediaType
+  order        Int       @default(0)
+  thumbnailUrl String?   @map("thumbnail_url")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   // Relations
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -70,7 +80,8 @@ model MediaItem {
   @@map("media_items")
 }
 
-model Like {
+/// PRD: Interested endpoint replaces Like/Going
+model Interested {
   userId    String   @map("user_id")
   eventId   String   @map("event_id")
   createdAt DateTime @default(now()) @map("created_at")
@@ -80,20 +91,64 @@ model Like {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@id([userId, eventId])
-  @@map("likes")
+  @@map("interested")
 }
 
-model Going {
-  userId    String   @map("user_id")
-  eventId   String   @map("event_id")
-  createdAt DateTime @default(now()) @map("created_at")
+/// PRD: Following system (public & private accounts)
+model Follow {
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  // Relations
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@map("follows")
+}
+
+model FollowRequest {
+  id          String              @id @default(uuid())
+  fromUserId  String              @map("from_user_id")
+  toUserId    String              @map("to_user_id")
+  status      FollowRequestStatus @default(pending)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  fromUser User @relation("FollowRequestsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("FollowRequestsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([toUserId])
+  @@map("follow_requests")
+}
+
+/// PRD: Plans feature
+model Plan {
+  id          String     @id @default(uuid())
+  userId      String     @map("user_id")
+  name        String
+  description String?
+  isArchived  Boolean    @default(false) @map("is_archived")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planEvents PlanEvent[]
+
+  @@index([userId])
+  @@map("plans")
+}
+
+model PlanEvent {
+  planId     String   @map("plan_id")
+  eventId    String   @map("event_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  plan  Plan  @relation(fields: [planId], references: [id], onDelete: Cascade)
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  @@id([userId, eventId])
-  @@map("going")
+  @@id([planId, eventId])
+  @@map("plan_events")
 }
 
 enum Category {
@@ -108,6 +163,12 @@ enum Category {
 enum MediaType {
   photo
   video
+}
+
+enum FollowRequestStatus {
+  pending
+  accepted
+  declined
 }
 
 

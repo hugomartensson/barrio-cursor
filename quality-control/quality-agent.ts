@@ -1109,26 +1109,9 @@ if (isMainModule) {
       const report = await agent.run();
       const reportText = agent.generateReport(report);
       console.log(reportText);
-      
-      // Write to file - use __dirname which points to quality-control/, so go up one level
-      const fs = await import('fs/promises');
-      const reportPath = join(__dirname, '..', 'quality-report.txt');
-      await fs.writeFile(reportPath, reportText, 'utf-8');
-      console.log(`\n📄 Report saved to: ${reportPath}`);
-      
       process.exit(report.summary.overall === 'fail' ? 1 : 0);
     } catch (error) {
       console.error('❌ Quality Agent Error:', error);
-      // Still try to write error to file so user knows something went wrong
-      try {
-        const fs = await import('fs/promises');
-        const reportPath = join(__dirname, '..', 'quality-report.txt');
-        const errorMessage = `❌ Quality Agent Error: ${error instanceof Error ? error.message : String(error)}\n\nCheck console output for details.\n\nTimestamp: ${new Date().toISOString()}`;
-        await fs.writeFile(reportPath, errorMessage, 'utf-8');
-        console.log(`\n⚠️  Error saved to: ${reportPath}`);
-      } catch {
-        // Ignore write errors
-      }
       process.exit(1);
     }
   })();

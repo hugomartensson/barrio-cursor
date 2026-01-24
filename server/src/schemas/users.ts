@@ -2,10 +2,12 @@ import { z } from 'zod';
 
 /**
  * Schema for updating user profile
- * Per PRD Section 7.5: Users can edit their name
+ * PRD Section 7.2: Profile Editing - name, profile picture, privacy toggle
  */
 export const updateUserSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
+  name: z.string().min(1, 'Name is required').max(100, 'Name too long').optional(),
+  profilePictureUrl: z.string().url('Invalid URL').optional().nullable(),
+  isPrivate: z.boolean().optional(),
 });
 
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;

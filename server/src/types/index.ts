@@ -55,6 +55,7 @@ export interface MediaItem {
   url: string;
   type: 'photo' | 'video';
   order: number;
+  thumbnailUrl?: string; // PRD: Thumbnail for videos
 }
 
 // Event type
@@ -64,14 +65,14 @@ export interface Event {
   title: string;
   description: string;
   category: Category;
+  address: string; // PRD: Address is primary, coordinates derived
   media: MediaItem[];
   latitude: number;
   longitude: number;
   startTime: Date;
   endTime: Date | null;
   createdAt: Date;
-  likesCount: number;
-  goingCount: number;
+  interestedCount: number; // PRD: Replaces likesCount/goingCount
   distance?: number; // Calculated field
 }
 

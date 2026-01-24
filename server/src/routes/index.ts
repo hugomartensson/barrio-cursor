@@ -5,6 +5,8 @@ import usersRouter from './users.js';
 import eventsRouter from './events.js';
 import interactionsRouter from './interactions.js';
 import uploadRouter from './upload.js';
+import socialRouter from './social.js';
+import plansRouter from './plans.js';
 
 const router = Router();
 
@@ -20,8 +22,14 @@ router.use('/users', usersRouter);
 // Events routes (protected)
 router.use('/events', eventsRouter);
 
-// Interactions routes (like/going) - mounted on /events/:id/*
+// Interactions routes (interested) - mounted on /events/:id/*
 router.use('/events', interactionsRouter);
+
+// Social routes (following, follow requests) - mounted on root
+router.use('/', socialRouter);
+
+// Plans routes (protected)
+router.use('/plans', plansRouter);
 
 // Upload routes (protected)
 router.use('/upload', uploadRouter);

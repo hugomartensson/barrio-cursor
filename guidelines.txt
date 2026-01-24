@@ -3,7 +3,8 @@ Product Requirements: See PRD-TestFlight.md (TestFlight Release Version)
 
 This document provides development guidelines for the Barrio hyperlocal events app,
 aligned with the PRD-TestFlight.md requirements. These guidelines ensure code quality,
-security, and alignment with product requirements.
+security, and alignment with product requirements. For reusable principles and
+learnings drawn from this project (useful in future work), see LEARNINGS.txt.
 
 Workflow
 - Initialize Git repo: git init
@@ -23,7 +24,7 @@ Workflow
 - Review `quality-control-report.txt` for issues
 - Copy-paste error messages to AI assistant for diagnosis if needed
 - Fix issues before continuing development
-- See `quality-control/AUTOMATED-QC-GUIDE.md` for details
+- See `quality-control/README.md` for details
 
 AI Coding Tool Guidelines
 
@@ -76,6 +77,63 @@ See PRD-TestFlight.md for feature requirements. Common implementation mistakes:
 ❌ **Don't:** Use push notifications for follow requests  
 ✅ **Do:** In-app notifications only (see PRD Section 6.1)
 
+**iOS/Swift Type & Function Organization:**
+
+❌ **Don't:** Define the same enum/struct/function multiple times (causes "ambiguous" or "invalid redeclaration" errors)
+✅ **Do:** Define shared types in `Models/SharedTypes.swift`, keep functions in appropriate files
+
+**SwiftUI Complexity Management:**
+
+❌ **Don't:** Create massive `body` properties with hundreds of lines (causes "unable to type-check this expression in reasonable time" errors)
+✅ **Do:** Break up complex views using `@ViewBuilder` computed properties:
+   - Extract main content: `private var mainContent: some View { ... }`
+   - Extract toolbars: `@ToolbarContentBuilder private var toolbarContent: some ToolbarContent { ... }`
+   - Extract overlays: `@ViewBuilder private var loadingOverlay: some View { ... }`
+   - Keep `body` simple: `var body: some View { NavigationStack { mainContent.toolbar { toolbarContent } } }`
+
+**SwiftUI Type Requirements:**
+
+❌ **Don't:** Use `.onChange(of: CLLocationCoordinate2D?)` without Equatable conformance
+✅ **Do:** Add `extension CLLocationCoordinate2D: Equatable` in `Models/SharedTypes.swift`:
+   ```swift
+   extension CLLocationCoordinate2D: Equatable {
+       public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
+           lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
+       }
+   }
+   ```
+
+**ViewModel Property Verification:**
+
+❌ **Don't:** Assume property names without checking ViewModel definition
+✅ **Do:** Always verify actual property names in ViewModel class before using:
+   - Check: `grep "var error\|@Published.*error" ViewModel.swift`
+   - Common: `errorMessage: String?` not `error: Error?`
+   - Wrap String errors in NSError for ErrorView: `NSError(domain: "...", code: -1, userInfo: [NSLocalizedDescriptionKey: errorMessage])`
+
+**Error Handling Pattern:**
+
+❌ **Don't:** Use `catch { error = ... }` (error is immutable)
+✅ **Do:** Always use `catch let err { error = err }` pattern for proper error handling
+
+**Type Definition Rules:**
+- **Shared enums/types** (used by 2+ views): `Models/SharedTypes.swift`
+  - Examples: `TimeFilter`, `SortOption`, shared filter enums
+- **API response types**: `Services/APIService.swift` (with the API methods that use them)
+  - Examples: `UserProfileResponse`, `EventResponse`, `PlansResponse`
+- **Domain models**: `Models/` directory
+  - Examples: `Event`, `User`, `Plan` (core domain entities)
+- **View-specific types**: In the view file (only if used by that view alone)
+  - Examples: Local helper structs, preview data
+
+**Function Definition Rules:**
+- **API methods**: `Services/APIService.swift` (check for existing similar methods before adding)
+- **View helpers**: In view file or separate helper file
+- **Before adding a function**: Search for existing similar functions to avoid duplicates
+  ```bash
+  grep -r "func functionName" ios/
+  ```
+
 **Before accepting AI suggestions - REQUIRED CHECKLIST:**
 
 1. **For Swift/iOS code:**
@@ -83,6 +141,9 @@ See PRD-TestFlight.md for feature requirements. Common implementation mistakes:
    - ✅ Does Xcode autocomplete show the properties/methods? (If not → they don't exist)
    - ✅ Are there compilation errors? (If yes → fix before committing)
    - ✅ Verified API usage against Apple documentation?
+   - ✅ **No duplicate definitions?** (Check for "ambiguous" or "invalid redeclaration" errors)
+   - ✅ **Shared types in SharedTypes.swift?** (If used by multiple views)
+   - ✅ **No duplicate functions?** (Search before adding new API methods)
    
 2. **For all code:**
    - ✅ Does it pass linting?
@@ -104,7 +165,40 @@ See PRD-TestFlight.md for feature requirements. Common implementation mistakes:
 3. Result: Compilation error
 4. Prevention: Always verify in Xcode/Apple docs before using
 
+**Avoiding Troubleshooting Loops - When to Use Alternative Approaches**
+
+**CRITICAL: If the same error persists after 2-3 attempts, consider alternative tools/approaches instead of repeating the same troubleshooting steps.**
+
+**Pattern to Recognize:**
+- Same error message appears multiple times (e.g., "authentication failed", "connection refused")
+- Same troubleshooting steps attempted repeatedly (e.g., resetting password, checking connection strings)
+- No progress after 3+ attempts with the same approach
+
+**When This Happens:**
+1. **Stop and assess:** Are we in a troubleshooting loop?
+2. **Consider alternative tools:**
+   - MCP servers (e.g., Supabase MCP for direct database access)
+   - Admin interfaces (e.g., Supabase Dashboard SQL Editor)
+   - Alternative authentication methods (service role keys, OAuth, etc.)
+   - Different connection methods (pooler vs direct, different ports)
+3. **Ask the user:** "Do you have access to [alternative tool] that might bypass this issue?"
+4. **Document the solution:** Once found, add to LEARNINGS.txt
+
+**Example (Database Connection Issues):**
+- ❌ **Don't:** Keep resetting passwords and trying connection strings 10+ times
+- ✅ **Do:** After 2-3 failed attempts, ask: "Can you give me MCP access to Supabase so I can apply migrations directly?"
+
+**Takeaway:** Alternative tools/interfaces often bypass authentication/connection issues that block standard CLI tools. Recognize loops early and pivot to better approaches.
+
 iOS/Swift Specific Guidelines (PRD-TestFlight.md Section 2-5)
+
+**Key Principles (see BUILD PREVENTION RULES below):**
+- ✅ ALWAYS verify properties/functions exist before using them (use view tool)
+- ✅ NEVER assume singleton pattern - check for `static let shared` first
+- ✅ Work in small increments - ask user to build after each change
+- ✅ Match types exactly in ternary expressions
+- ✅ Use `catch let error` for error handling
+- ✅ Verify property wrapper types (@EnvironmentObject vs @StateObject)
 
 **CRITICAL: Always verify Swift/SwiftUI API usage against Apple documentation when AI suggests properties/methods**
 - AI frequently hallucinates property/method names that don't exist (e.g., `PhotosPickerItem.identifier` → should be `itemIdentifier` or `supportedContentTypes`)
@@ -777,3 +871,336 @@ if (followerId === followingId) {
 - Profile pictures: Not in TestFlight scope (see PRD Section 9 Out of Scope)
 - Deep links/web preview: Post-TestFlight (text format only for TestFlight)
 - Event lifecycle: visible until endTime passes; background job hard-deletes expired events daily
+
+================================================================================
+XCODE BUILD & TESTING GUIDE
+================================================================================
+
+**CORE PRINCIPLE: NEVER ASSUME. ALWAYS VERIFY.**
+
+Before writing ANY Swift code, verify properties exist, functions exist with correct signatures, and patterns match.
+
+PRE-BUILD VERIFICATION:
+
+1. **Project Structure:**
+   - ✅ All Swift files in Xcode project
+   - ✅ Files organized (Models, Services, Views)
+   - ✅ No missing file references
+
+2. **Configuration:**
+   - ✅ `AppConfig.swift`: API URL set (localhost for simulator, Mac IP for device)
+   - ✅ `Info.plist`: Location, Photo Library, Camera permissions
+
+3. **Backend:**
+   - ✅ Server running: `cd server && npm run dev`
+   - ✅ Health check: `curl http://localhost:5000/api/health`
+
+BUILD PREVENTION RULES (10 Rules):
+
+**Rule 1: Verify .shared Singletons**
+- Before using `ServiceName.shared`, check: `grep "static let shared" ios/path/to/ServiceName.swift`
+- If NOT found → Use `@EnvironmentObject` or injected instance
+- Example: `AuthManager` uses `@EnvironmentObject`, NOT `.shared`
+
+**Rule 2: Verify Property Names**
+- Use `view` tool to read service/model file before using properties
+- Look for `@Published var propertyName` or `var propertyName`
+- Common mistake: `authManager.user` → actual is `authManager.currentUser`
+
+**Rule 3: Verify Function Signatures**
+- Use `view` tool to read file containing function
+- Find exact signature: `func functionName(param1: Type1, param2: Type2)`
+- Provide ALL required parameters with correct names/types
+
+**Rule 4: ViewModel Properties Must Exist**
+- Use `view` tool to read ViewModel file
+- Search for `@Published var propertyName`
+- If NOT found → Add it first, THEN use it
+- Common mistake: `viewModel.error` → actual is `viewModel.errorMessage`
+
+**Rule 5: Small Increments - User Must Build**
+- Make ONE small change
+- Ask user: "Please build in Xcode (⌘B) to verify this compiles"
+- WAIT for user confirmation before proceeding
+- Fix errors before adding more code
+
+**Rule 6: Match Types in Ternary Expressions**
+- Both branches must return SAME type
+- If types differ, wrap in `AnyShapeStyle()` or `AnyView()`
+- Example: `Color` vs `LinearGradient` → wrap both in `AnyShapeStyle`
+
+**Rule 7: Modern Swift Error Handling**
+- Always use `catch let err` (not `catch { error = ... }`)
+- Pattern: `catch let err { errorMessage = err.localizedDescription }`
+
+**Rule 8: Verify Property Wrappers**
+- `@EnvironmentObject`: Injected from parent/app level
+- `@StateObject`: View OWNS the object (creates it)
+- `@ObservedObject`: Passed from parent as parameter
+- Use `view` tool to check how object is used elsewhere
+
+**Rule 8.5: @EnvironmentObject Not Available in init()**
+- Cannot access `@EnvironmentObject` in `init()`
+- Initialize `@State` with defaults, use `.task` or `.onAppear` to load from `@EnvironmentObject`
+
+**Rule 9: Read Error Messages Fully**
+- Ask user for FULL error message with line numbers
+- Use `view` tool to see actual code at that line
+- Understand error before suggesting fix
+
+**Rule 10: Verify Code Before Declaring Complete**
+- Use `view` tool to re-read modified files
+- Verify all properties/functions exist
+- Check all parameters match function signatures
+- THEN ask user to build (⌘B)
+
+COMMON BUILD ERROR PATTERNS:
+
+**Pattern 1: Duplicate Definitions**
+- Error: `'TypeName' is ambiguous` or `Invalid redeclaration`
+- Fix: Move shared types to `Models/SharedTypes.swift`
+- Prevention: Search before adding: `grep -r "enum TypeName\|struct TypeName" ios/`
+
+**Pattern 2: Missing Required Parameters**
+- Error: `Missing argument for parameter 'paramName' in call`
+- Fix: Use Xcode autocomplete to see all required parameters
+- Prevention: Build frequently, search for all initializations when updating structs
+
+**Pattern 3: Structural/Syntax Errors**
+- Error: `Attribute 'private' can only be used in a non-local scope`
+- Fix: Match braces carefully, ensure all code is inside struct
+- Prevention: Use Xcode's brace matching (⌘⇧P), verify structure
+
+**Pattern 4: Missing Import Statements**
+- Error: `Cannot find type 'Combine' in scope`
+- Fix: Add `import Combine` when using `@Published` or `ObservableObject`
+- Prevention: Always add imports when using framework features
+
+**Pattern 5: Name Conflicts**
+- Error: `Invalid redeclaration of 'functionName()'`
+- Fix: Rename function or property to avoid conflict
+- Prevention: Search before adding: `grep -r "func functionName" ios/`
+
+**Pattern 6: Variable Shadowing in Catch Blocks**
+- Error: `Cannot assign to value: 'error' is immutable`
+- Fix: Use `catch let err` instead of `catch { error = ... }`
+- Prevention: Always use `catch let err` pattern
+
+**Pattern 7: Type Mismatch in Date Formatting**
+- Error: `Cannot convert value of type 'String' to expected argument type 'Date'`
+- Fix: Parse ISO8601 string to `Date` first, then format
+- Prevention: Check API response types (String vs Date)
+
+**Pattern 8: Optional Binding on Non-Optional Values**
+- Error: `Initializer for conditional binding must have Optional type`
+- Fix: Check if value is actually optional, use index check instead
+- Prevention: Verify type before using optional binding
+
+**Pattern 9: Type Not in Scope (Nested Types)**
+- Error: `Cannot find type 'NestedType' in scope`
+- Fix: Use fully qualified name: `OuterType.NestedType`
+- Prevention: Check type definition location
+
+**Pattern 10: Wrong Property Name on ObservableObject**
+- Error: `Value of type 'Type' has no dynamic member 'propertyName'`
+- Fix: Verify actual property name in ViewModel class
+- Prevention: Use `view` tool to read ViewModel definition
+
+**Pattern 11: SwiftUI Type-Checking Timeout**
+- Error: `The compiler is unable to type-check this expression in reasonable time`
+- Fix: Break up complex `body` into smaller `@ViewBuilder` computed properties
+- Pattern:
+  ```swift
+  var body: some View {
+      NavigationStack {
+          mainContent.toolbar { toolbarContent }
+      }
+  }
+  
+  @ViewBuilder
+  private var mainContent: some View { ... }
+  
+  @ToolbarContentBuilder
+  private var toolbarContent: some ToolbarContent { ... }
+  ```
+
+**Pattern 12: CLLocationCoordinate2D onChange Error**
+- Error: `Referencing instance method 'onChange(of:initial:_:)' requires that 'CLLocationCoordinate2D' conform to 'Equatable'`
+- Fix: Add extension in `Models/SharedTypes.swift`:
+  ```swift
+  extension CLLocationCoordinate2D: Equatable {
+      public static func == (lhs: CLLocationCoordinate2D, rhs: CLLocationCoordinate2D) -> Bool {
+          lhs.latitude == rhs.latitude && lhs.longitude == rhs.longitude
+      }
+  }
+  ```
+
+**Pattern 13: Switch Must Be Exhaustive**
+- Error: `switch must be exhaustive` or `add missing case: '.caseName'`
+- Fix: Add all enum cases to switch statement, including any new cases added to enum
+- Prevention: When adding new enum cases, search for all switch statements using that enum:
+  ```bash
+  grep -r "switch.*EnumName" ios/
+  ```
+- Example: `TimeFilter` enum has `.custom` case → all switches must include `.custom`
+- Common locations: Filter logic in FeedView, MapView, CreateEventView
+
+**Pattern 14: Optional Binding on Non-Optional**
+- Error: `Initializer for conditional binding must have Optional type, not 'Type'`
+- Fix: Check if value is actually optional. If not, use direct assignment or check for empty/nil differently
+- Prevention: Verify return type before using `if let`:
+  ```swift
+  // ❌ Wrong: formatAddressForDisplay returns String, not String?
+  if let address = formatAddressForDisplay(from: item) { ... }
+  
+  // ✅ Correct: Check if empty instead
+  let address = formatAddressForDisplay(from: item)
+  if !address.isEmpty { ... }
+  ```
+- Common mistake: Functions returning `String` vs `String?` - always check return type
+
+**Pattern 15: Main Actor Isolation in Closures**
+- Error: `main actor-isolated property 'propertyName' can not be mutated from a Sendable closure`
+- Fix: Wrap closure body in `Task { @MainActor in ... }` to ensure UI updates happen on main actor
+- Prevention: When mutating `@Published` or `@State` properties from async closures (completion handlers, callbacks), wrap in `Task { @MainActor in ... }`
+- Example:
+  ```swift
+  // ❌ Wrong: Mutating from Sendable closure
+  geocoder.geocodeAddressString(text) { placemarks, error in
+      viewModel.cameraPosition = ... // Error: main actor isolation
+  }
+  
+  // ✅ Correct: Wrap in Task with @MainActor
+  geocoder.geocodeAddressString(text) { placemarks, error in
+      Task { @MainActor in
+          viewModel.cameraPosition = ... // OK: on main actor
+      }
+  }
+  ```
+
+**Pattern 16: DatePicker Parameter Order**
+- Error: `argument 'in' must precede argument 'displayedComponents'`
+- Fix: `in:` parameter must come before `displayedComponents:` in DatePicker initializer
+- Prevention: Always use correct parameter order:
+  ```swift
+  // ❌ Wrong: displayedComponents before in
+  DatePicker("End", selection: $date, displayedComponents: .date, in: startDate...)
+  
+  // ✅ Correct: in before displayedComponents
+  DatePicker("End", selection: $date, in: startDate..., displayedComponents: .date)
+  ```
+- Common when: Using both date range (`in:`) and component selection (`displayedComponents:`)
+
+**Pattern 17: Deprecated API Usage (iOS 26+)**
+- Warning: `'placemark' was deprecated in iOS 26.0: Use location, address and addressRepresentations instead`
+- Fix: For now, continue using `placemark` (still functional). New API structure differs from expected
+- Prevention: When using deprecated APIs:
+  - Check if replacement API is available and documented
+  - If replacement is unclear or doesn't work as expected, use deprecated API with comment
+  - Add TODO comment for future migration
+- Note: Deprecation warnings are acceptable if API still works and replacement is not clearly documented
+
+TYPE ORGANIZATION GUIDELINES:
+
+| Type Category | Location | Example |
+|--------------|----------|---------|
+| **Shared Enums** (2+ views) | `Models/SharedTypes.swift` | `TimeFilter`, `SortOption` |
+| **API Response Types** | `Services/APIService.swift` | `UserProfileResponse`, `EventResponse` |
+| **Domain Models** | `Models/` directory | `Event.swift`, `User.swift` |
+| **View-Specific Helpers** | In view file | Local preview data, view helpers |
+| **Error Types** | `Models/APIError.swift` | `APIError` enum |
+
+**Before adding a new type:**
+1. Search: `grep -r "enum TypeName\|struct TypeName" ios/`
+2. If found → Use existing (don't duplicate)
+3. If not found → Choose location based on usage (see table above)
+
+BUILD STEPS:
+
+1. **Open Project:** `open ios/BarrioCursor/BarrioCursor/BarrioCursor.xcodeproj`
+2. **Select Target:** iPhone simulator (iPhone 15 Pro) or physical device
+3. **Build:** Press **⌘B** (or **⌘R** to build and run)
+4. **Verify:** App launches, no crashes, network works
+
+COMMON BUILD ISSUES & SOLUTIONS:
+
+**Issue 1: "Cannot find type 'X' in scope"**
+- Check file is in Xcode target (Right-click → Target Membership)
+- Clean build folder: **Product → Clean Build Folder** (⇧⌘K)
+
+**Issue 2: "Missing Info.plist keys"**
+- Verify all permission keys in Info.plist
+- Check Info.plist is in project and target
+
+**Issue 3: "Cannot connect to server"**
+- Verify backend running: `cd server && npm run dev`
+- Check API URL in `AppConfig.swift`
+- For physical device, use Mac's IP (not localhost)
+
+**Issue 4: "Build errors with SwiftUI"**
+- Ensure iOS 17+ deployment target
+- Clean build folder, restart Xcode
+- Check for missing imports
+
+**Issue 5: "Location/Camera permissions not working"**
+- Verify Info.plist has permission descriptions
+- Check Settings → Privacy → Location Services
+- Reset simulator if needed
+
+POST-BUILD VERIFICATION:
+
+✅ **App Launches** - Opens without crashes, MainTabView displays
+✅ **Authentication** - Can navigate to login/signup, create account, log in
+✅ **Location** - Permission prompt appears, map shows location, events load
+✅ **Network** - Can fetch events, API calls succeed, error handling works
+
+QUICK TROUBLESHOOTING:
+
+**Check Backend:**
+```bash
+cd server && npm run dev
+# Should see: "Server running on port 5000"
+```
+
+**Test API:**
+```bash
+curl http://localhost:5000/api/health
+# Should return: {"status":"healthy",...}
+```
+
+**Find Mac IP (for physical device):**
+```bash
+ipconfig getifaddr en0
+# Use this IP in AppConfig.swift
+```
+
+**Clean Xcode Build:**
+1. **Product → Clean Build Folder** (⇧⌘K)
+2. Close Xcode
+3. Delete `~/Library/Developer/Xcode/DerivedData/BarrioCursor-*`
+4. Reopen Xcode and rebuild
+
+ENFORCEMENT CHECKLIST (Before Presenting Swift Code):
+
+- [ ] Used `view`/`grep` to verify `.shared` exists before using it
+- [ ] Used `view` tool to verify all properties exist in source files
+- [ ] Used `view` tool to verify all function signatures match
+- [ ] Used `view` tool to verify ViewModel properties exist
+- [ ] Asked user to build after each significant change
+- [ ] Ternary types match (or wrapped in AnyShapeStyle)
+- [ ] Error handling uses `catch let err`
+- [ ] Used `view` tool to verify correct property wrapper pattern
+- [ ] Read actual error messages before suggesting fixes
+- [ ] Re-read modified files to verify correctness
+
+EXPECTED BUILD TIME:
+- First build: ~30-60 seconds
+- Incremental builds: ~5-10 seconds
+- Clean build: ~30-60 seconds
+
+SUCCESS INDICATORS:
+✅ Build succeeds (no errors in Xcode)
+✅ App launches (opens in simulator/device)
+✅ No crashes (app runs without errors)
+✅ Network works (can connect to backend)
+✅ UI displays (views render correctly)

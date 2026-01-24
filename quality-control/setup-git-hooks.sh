@@ -39,8 +39,10 @@ echo "Setting up post-commit hook..."
 cat > "$GIT_HOOKS_DIR/post-commit-quality" << 'EOF'
 #!/bin/sh
 # Quality Control - Post-commit Hook
-# Runs Tier 1 (quick check) after each commit and writes a report.
-cd "$(git rev-parse --show-toplevel)" && ./quality-control/verify-after-work.sh 1 > quality-control-report.txt 2>&1 || true
+# Runs Tier 1 (quick check) after each commit. verify-after-work runs auto-verify,
+# which writes quality-control-report.txt in the project root.
+export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+cd "$(git rev-parse --show-toplevel)" && ./quality-control/verify-after-work.sh 1 || true
 EOF
 
 chmod +x "$GIT_HOOKS_DIR/post-commit-quality"
@@ -83,7 +85,7 @@ echo "✅ Git hooks set up successfully!"
 echo ""
 echo "📝 Hooks installed:"
 echo "   • .git/hooks/pre-commit-quality (optional - Tier 2, currently disabled)"
-echo "   • .git/hooks/post-commit-quality (active - Tier 1 after each commit)"
+echo "   • .git/hooks/post-commit-quality (active - Tier 1 after each commit → quality-control-report.txt)"
 echo ""
 echo "💡 To enable pre-commit blocking (blocks commits on quality failures):"
 echo "   1. Edit .git/hooks/pre-commit-quality"

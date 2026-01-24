@@ -30,4 +30,5 @@ export default {
   verbose: true,
   testTimeout: 30000,
   injectGlobals: true,
+  setupFiles: ['<rootDir>/src/tests/setup.ts'], // Phase 10: Use DIRECT_URL for tests
 };

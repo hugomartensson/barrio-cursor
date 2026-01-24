@@ -68,6 +68,7 @@ describe('Events API - Delete Event', () => {
           title: 'Event to Delete',
           description: 'This event will be deleted',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
           startTime: new Date(),
@@ -75,7 +76,7 @@ describe('Events API - Delete Event', () => {
         },
       });
 
-      // Add media, likes, and going to test cascade deletion
+      // Add media and interested to test cascade deletion
       await prisma.mediaItem.create({
         data: {
           eventId: event.id,
@@ -85,14 +86,7 @@ describe('Events API - Delete Event', () => {
         },
       });
 
-      await prisma.like.create({
-        data: {
-          userId: otherUserId,
-          eventId: event.id,
-        },
-      });
-
-      await prisma.going.create({
+      await prisma.interested.create({
         data: {
           userId: otherUserId,
           eventId: event.id,
@@ -119,15 +113,10 @@ describe('Events API - Delete Event', () => {
       });
       expect(media).toHaveLength(0);
 
-      const likes = await prisma.like.findMany({
+      const interested = await prisma.interested.findMany({
         where: { eventId: event.id },
       });
-      expect(likes).toHaveLength(0);
-
-      const going = await prisma.going.findMany({
-        where: { eventId: event.id },
-      });
-      expect(going).toHaveLength(0);
+      expect(interested).toHaveLength(0);
     });
   });
 
@@ -143,6 +132,7 @@ describe('Events API - Delete Event', () => {
           title: 'Event Not Owned by Other User',
           description: 'This event belongs to owner',
           category: 'music',
+          address: '123 Test St, New York, NY 10001', // PRD: Address is primary
           latitude: 40.7128,
           longitude: -74.006,
           startTime: new Date(),
