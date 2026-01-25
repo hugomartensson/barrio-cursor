@@ -188,18 +188,19 @@ router.get(
         orderBy: { createdAt: 'desc' },
       });
 
-      res.json({
-        data: plans.map((plan) => ({
-          id: plan.id,
-          userId: plan.userId,
-          name: plan.name,
-          description: plan.description,
-          isArchived: plan.isArchived,
-          createdAt: plan.createdAt.toISOString(),
-          updatedAt: plan.updatedAt.toISOString(),
-          eventCount: plan._count.planEvents,
-        })),
-      });
+      const data = plans.map((plan) => ({
+        id: plan.id,
+        userId: plan.userId,
+        name: plan.name,
+        description: plan.description,
+        isArchived: plan.isArchived,
+        createdAt: plan.createdAt.toISOString(),
+        updatedAt: plan.updatedAt.toISOString(),
+        eventCount: plan._count.planEvents,
+      }));
+
+      logger.info({ count: data.length }, 'GET /plans returning plans');
+      res.json({ data });
     }
   )
 );
@@ -273,12 +274,15 @@ router.get(
             longitude: pe.event.longitude,
             startTime: pe.event.startTime.toISOString(),
             endTime: pe.event.endTime?.toISOString() ?? null,
+            createdAt: pe.event.createdAt.toISOString(),
             interestedCount: pe.event.interestedCount,
+            distance: null,
             media: pe.event.media.map((m) => ({
               id: m.id,
               url: m.url,
               type: m.type,
               order: m.order,
+              thumbnailUrl: m.thumbnailUrl ?? null,
             })),
             user: { id: pe.event.user.id, name: pe.event.user.name },
           })),
