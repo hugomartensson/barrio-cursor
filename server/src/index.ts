@@ -3,8 +3,11 @@ import { config, isTest } from './config/index.js';
 import { runCleanupWithLogging } from './jobs/cleanupExpiredEvents.js';
 import { logger } from './services/logger.js';
 import cron from 'node-cron';
+import { Bonjour } from 'bonjour-service';
 
 const app = createApp();
+
+let bonjourInstance: InstanceType<typeof Bonjour> | null = null;
 
 // Bind to 0.0.0.0 to allow connections from iOS Simulator and physical devices
 const server = app.listen(config.PORT, '0.0.0.0', () => {
@@ -18,12 +21,26 @@ const server = app.listen(config.PORT, '0.0.0.0', () => {
     '🚀 Server running'
   );
 
-  // Start cron job for cleaning up expired events (daily at 2 AM)
-  // Skip in test environment
+  // Advertise via Bonjour/mDNS so iOS devices can discover us instantly
   if (!isTest) {
-    // Schedule: '0 2 * * *' = Every day at 2:00 AM
-    cron.schedule('0 2 * * *', async () => {
-      await runCleanupWithLogging();
+    try {
+      bonjourInstance = new Bonjour();
+      bonjourInstance.publish({
+        name: 'Barrio Dev Server',
+        type: 'barrioapi',
+        port: config.PORT,
+        txt: { path: '/api' },
+      });
+      logger.info(
+        { port: config.PORT, type: '_barrioapi._tcp' },
+        '📡 Bonjour service advertised'
+      );
+    } catch (err) {
+      logger.warn({ error: err }, 'Bonjour advertisement failed (non-fatal)');
+    }
+
+    cron.schedule('0 2 * * *', () => {
+      void runCleanupWithLogging();
     });
     logger.info({ schedule: '0 2 * * *' }, '🕐 Cleanup job scheduled: Daily at 2:00 AM');
   }
@@ -32,12 +49,15 @@ const server = app.listen(config.PORT, '0.0.0.0', () => {
 // Graceful shutdown
 const gracefulShutdown = (signal: string): void => {
   logger.info({ signal }, 'Shutting down gracefully...');
+  if (bonjourInstance) {
+    bonjourInstance.unpublishAll();
+    bonjourInstance.destroy();
+  }
   server.close(() => {
     logger.info('Server closed');
     process.exit(0);
   });
 
-  // Force close after 10s
   setTimeout(() => {
     logger.error('Forcing shutdown...');
     process.exit(1);

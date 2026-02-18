@@ -17,9 +17,10 @@ describe('Events API - Delete Event', () => {
 
     // Create owner user
     const ownerEmail = `owner-delete-${Date.now()}@example.com`;
+    const ownerPassword = 'SecurePass123';
     const { data: ownerData, error: ownerError } = await supabaseAdmin.auth.signUp({
       email: ownerEmail,
-      password: 'SecurePass123',
+      password: ownerPassword,
       options: { data: { name: 'Owner User' } },
     });
 
@@ -30,11 +31,20 @@ describe('Events API - Delete Event', () => {
     ownerId = ownerData.user.id;
     ownerToken = ownerData.session.access_token;
 
+    // Login via API to sync owner to local DB
+    const ownerLoginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: ownerEmail, password: ownerPassword });
+    if (ownerLoginRes.status === 200 && ownerLoginRes.body.data?.token) {
+      ownerToken = ownerLoginRes.body.data.token;
+    }
+
     // Create other user
     const otherEmail = `other-delete-${Date.now()}@example.com`;
+    const otherPassword = 'SecurePass123';
     const { data: otherData, error: otherError } = await supabaseAdmin.auth.signUp({
       email: otherEmail,
-      password: 'SecurePass123',
+      password: otherPassword,
       options: { data: { name: 'Other User' } },
     });
 
@@ -44,6 +54,14 @@ describe('Events API - Delete Event', () => {
 
     otherUserId = otherData.user.id;
     otherUserToken = otherData.session.access_token;
+
+    // Login via API to sync other user to local DB
+    const otherLoginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ email: otherEmail, password: otherPassword });
+    if (otherLoginRes.status === 200 && otherLoginRes.body.data?.token) {
+      otherUserToken = otherLoginRes.body.data.token;
+    }
   });
 
   afterAll(async () => {

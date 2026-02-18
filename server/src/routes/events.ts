@@ -97,8 +97,17 @@ router.post(
           longitude: input.longitude,
           startTime: new Date(input.startTime),
           endTime: input.endTime ? new Date(input.endTime) : null,
+          sourceUrl: input.sourceUrl,
+          sourceType: input.sourceType,
+          venueName: input.venueName,
+          ticketUrl: input.ticketUrl,
           media: {
-            create: input.media.map((m, i) => ({ url: m.url, type: m.type, order: i })),
+            create: input.media.map((m, i) => ({
+              url: m.url,
+              type: m.type,
+              order: i,
+              thumbnailUrl: m.thumbnailUrl ?? null,
+            })),
           },
         },
         include: {
@@ -284,11 +293,12 @@ router.patch(
     // Handle media updates (replace all media if provided)
     if (input.media !== undefined) {
       updateData.media = {
-        deleteMany: {}, // Delete all existing media
+        deleteMany: {},
         create: input.media.map((m, i) => ({
           url: m.url,
           type: m.type,
           order: i,
+          thumbnailUrl: m.thumbnailUrl ?? null,
         })),
       };
     }

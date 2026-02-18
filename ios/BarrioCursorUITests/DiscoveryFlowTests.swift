@@ -288,8 +288,8 @@ class DiscoveryFlowTests: BaseTestCase {
             
             // Look for story viewer indicators
             let hasStoryView = app.images.count > 0 || // Media visible
-                             app.buttons.matching(NSPredicate(format: "identifier CONTAINS 'close' OR identifier == 'X' OR label == 'X'")).exists || // Close button
-                             app.otherElements.matching(NSPredicate(format: "identifier CONTAINS 'story' OR identifier CONTAINS 'viewer'")).exists // Story container
+                             app.buttons.matching(NSPredicate(format: "identifier CONTAINS 'close' OR identifier == 'X' OR label == 'X'")).firstMatch.exists || // Close button
+                             app.otherElements.matching(NSPredicate(format: "identifier CONTAINS 'story' OR identifier CONTAINS 'viewer'")).firstMatch.exists // Story container
             
             if hasStoryView {
                 print("✅ Story viewer appears to be open")
@@ -318,7 +318,7 @@ class DiscoveryFlowTests: BaseTestCase {
                 captureScreenshot(name: "story_media_visible")
             } else {
                 // Check for video players
-                let hasVideo = app.otherElements.matching(NSPredicate(format: "identifier CONTAINS 'video' OR identifier CONTAINS 'player'")).exists
+                let hasVideo = app.otherElements.matching(NSPredicate(format: "identifier CONTAINS 'video' OR identifier CONTAINS 'player'")).firstMatch.exists
                 
                 if hasVideo {
                     print("✅ Video player found")
@@ -372,7 +372,7 @@ class DiscoveryFlowTests: BaseTestCase {
             
             // Verify details sheet appeared
             let hasDetails = app.staticTexts.matching(NSPredicate(format: "label.length > 5")).count > 0 ||
-                           app.buttons.matching(NSPredicate(format: "identifier CONTAINS 'interested' OR identifier CONTAINS 'plan'")).exists
+                           app.buttons.matching(NSPredicate(format: "identifier CONTAINS 'interested' OR identifier CONTAINS 'plan'")).firstMatch.exists
             
             if hasDetails {
                 print("✅ Event details sheet visible")

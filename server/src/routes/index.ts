@@ -7,6 +7,7 @@ import interactionsRouter from './interactions.js';
 import uploadRouter from './upload.js';
 import socialRouter from './social.js';
 import plansRouter from './plans.js';
+import importRouter from './import.js';
 
 const router = Router();
 
@@ -33,5 +34,8 @@ router.use('/plans', plansRouter);
 
 // Upload routes (protected)
 router.use('/upload', uploadRouter);
+
+// Import routes (protected - event curation tool)
+router.use('/import', importRouter);
 
 export default router;

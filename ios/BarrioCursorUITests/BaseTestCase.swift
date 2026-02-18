@@ -170,10 +170,15 @@ class BaseTestCase: XCTestCase {
             app.tabBars.buttons["Profile"].tap()
         }
         
-        // Look for logout button (implementation depends on your UI)
-        // This is a placeholder - adjust based on your actual UI
-        if app.buttons["Logout"].exists {
-            app.buttons["Logout"].tap()
+        // Look for logout button by accessibility identifier or label
+        let logoutButton = app.buttons.matching(NSPredicate(format: "identifier == 'logout' OR label CONTAINS[c] 'log out'")).firstMatch
+        if logoutButton.exists {
+            logoutButton.tap()
+            // Confirm logout if alert appears
+            let confirmButton = app.alerts.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'log out'")).firstMatch
+            if confirmButton.waitForExistence(timeout: 2.0) {
+                confirmButton.tap()
+            }
         }
     }
     

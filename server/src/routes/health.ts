@@ -103,7 +103,9 @@ router.get('/network', (_req: Request, res: Response): void => {
   // Collect all IPv4 addresses (excluding localhost)
   for (const name of Object.keys(interfaces)) {
     const nets = interfaces[name];
-    if (!nets) continue;
+    if (!nets) {
+      continue;
+    }
 
     for (const net of nets) {
       // Skip internal (loopback) and non-IPv4 addresses
@@ -127,5 +129,4 @@ router.get('/network', (_req: Request, res: Response): void => {
     ],
   });
 });
-
 export default router;

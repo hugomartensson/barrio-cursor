@@ -4,6 +4,8 @@
 
 This error occurs when your iPhone cannot connect to the Mac running the server.
 
+**Guest WiFi / client isolation?** See [docs/GUEST-WIFI-WORKAROUND.md](docs/GUEST-WIFI-WORKAROUND.md) for the ngrok tunnel solution.
+
 ## Quick Fix Steps
 
 ### 1. Find Your Mac's Current IP Address

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabaseAdmin } from '../services/supabase.js';
+import { syncUserToDatabase } from '../services/userSync.js';
 import { ApiError } from '../utils/ApiError.js';
 import { createLogger } from '../services/logger.js';
 import type {
@@ -58,9 +59,33 @@ export const requireAuth = async (
       return;
     }
 
+    // Ensure user exists in local DB (handles token restore, DB reset, etc.)
+    const email = user.email ?? '';
+    const name =
+      (user.user_metadata?.['name'] as string) ?? email.split('@')[0] ?? 'User';
+    try {
+      await syncUserToDatabase(user.id, email, name);
+    } catch (syncErr) {
+      logger.error(
+        {
+          error: syncErr,
+          userId: user.id,
+          requestId: requestWithId.id || 'unknown',
+        },
+        'Failed to sync user to database'
+      );
+      res.status(503).json({
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Unable to sync user session. Please try logging in again.',
+        },
+      });
+      return;
+    }
+
     (req as AuthenticatedRequest).user = {
       userId: user.id,
-      email: user.email ?? '',
+      email,
     };
 
     next();

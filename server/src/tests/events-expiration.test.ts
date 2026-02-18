@@ -30,6 +30,12 @@ describe('Events API - Expiration Filtering', () => {
 
     userId = authData.user.id;
     authToken = authData.session.access_token;
+
+    // Login via API to sync user to local DB (required for Prisma FK constraints)
+    const loginRes = await request(app).post('/api/auth/login').send({ email, password });
+    if (loginRes.status === 200 && loginRes.body.data?.token) {
+      authToken = loginRes.body.data.token;
+    }
   });
 
   afterAll(async () => {

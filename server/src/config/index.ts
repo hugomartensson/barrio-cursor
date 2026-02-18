@@ -18,6 +18,8 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string(),
   SUPABASE_STORAGE_BUCKET: z.string().default('media'),
   CORS_ORIGIN: z.string().default('*'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
 });
 
 const parseEnv = (): z.infer<typeof envSchema> => {

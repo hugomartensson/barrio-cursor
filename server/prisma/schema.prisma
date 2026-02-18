@@ -47,6 +47,10 @@ model Event {
   endTime        DateTime? @map("end_time")
   isFree         Boolean   @default(true) @map("is_free")
   interestedCount Int      @default(0) @map("interested_count")
+  sourceUrl      String?   @map("source_url")
+  sourceType     String?   @map("source_type")
+  venueName      String?   @map("venue_name")
+  ticketUrl      String?   @map("ticket_url")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 

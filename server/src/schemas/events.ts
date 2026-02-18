@@ -34,11 +34,16 @@ export const createEventSchema = z.object({
       z.object({
         url: z.string().url('Invalid media URL'),
         type: z.enum(['photo', 'video']),
+        thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
       })
     )
     .max(3, 'Maximum 3 media items allowed')
     .optional()
     .default([]),
+  sourceUrl: z.string().url('Invalid source URL').optional(),
+  sourceType: z.string().max(50).optional(),
+  venueName: z.string().max(200).optional(),
+  ticketUrl: z.string().url('Invalid ticket URL').optional(),
 });
 
 /**
@@ -65,6 +70,7 @@ export const updateEventSchema = z.object({
       z.object({
         url: z.string().url('Invalid media URL'),
         type: z.enum(['photo', 'video']),
+        thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
       })
     )
     .max(3, 'Maximum 3 media items allowed')
