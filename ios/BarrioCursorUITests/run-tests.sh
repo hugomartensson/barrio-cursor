@@ -6,8 +6,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-REPORTS_DIR="$PROJECT_DIR/test-reports"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../BarrioCursor/BarrioCursor" && pwd)"
+REPORTS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/test-reports"
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 REPORT_DIR="$REPORTS_DIR/$TIMESTAMP"
 
@@ -29,7 +29,7 @@ echo -e "${YELLOW}📦 Building test target...${NC}"
 xcodebuild test \
     -project "$PROJECT_DIR/BarrioCursor.xcodeproj" \
     -scheme BarrioCursor \
-    -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+    -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2' \
     -only-testing:BarrioCursorUITests \
     -resultBundlePath "$REPORT_DIR/TestResults.xcresult" \
     2>&1 | tee "$REPORT_DIR/build.log"

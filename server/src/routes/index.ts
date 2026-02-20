@@ -5,7 +5,7 @@ import usersRouter from './users.js';
 import eventsRouter from './events.js';
 import interactionsRouter from './interactions.js';
 import uploadRouter from './upload.js';
-import socialRouter from './social.js';
+import socialRouter from './social/index.js';
 import plansRouter from './plans.js';
 import importRouter from './import.js';
 

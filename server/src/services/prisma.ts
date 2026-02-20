@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
+import { logger } from './logger.js';
 
 // Load environment variables (needed for DIRECT_URL override in tests)
 dotenv.config();
@@ -20,7 +21,7 @@ if (process.env['NODE_ENV'] === 'test' && process.env['DIRECT_URL']) {
       url: process.env['DIRECT_URL'],
     },
   };
-  console.log('✅ Prisma: Using DIRECT_URL for test environment (bypassing pooler)');
+  logger.info('✅ Prisma: Using DIRECT_URL for test environment (bypassing pooler)');
 }
 // Note: If not in test mode, Prisma uses DATABASE_URL (pooled connection) from schema.prisma
 

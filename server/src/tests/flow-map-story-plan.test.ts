@@ -18,6 +18,8 @@ import { supabaseAdmin } from '../services/supabase.js';
 import { createApp } from '../app.js';
 import supertest from 'supertest';
 import type { Express } from 'express';
+import type { EventData, EventsListResponse } from '../types/responses.js';
+import type { PlanDetailData } from '../routes/plans.js';
 
 let app: Express;
 let testUser: { userId: string; token: string; email: string };
@@ -141,7 +143,7 @@ afterAll(async () => {
 // STEP 1: GET /events/nearby — Map loads nearby events
 // ============================================================
 describe('Step 1: Map loads nearby events (GET /events/nearby)', () => {
-  let nearbyEvents: any[];
+  let nearbyEvents: EventData[];
 
   it('should return events near the test location', async () => {
     const res = await supertest(app)
@@ -156,7 +158,7 @@ describe('Step 1: Map loads nearby events (GET /events/nearby)', () => {
   });
 
   it('should include the test event in results', () => {
-    const found = nearbyEvents.find((e: any) => e.id === createdEventId);
+    const found = nearbyEvents.find((e) => e.id === createdEventId);
     expect(found).toBeDefined();
     console.log(`✅ Test event found in nearby results`);
   });
@@ -244,7 +246,7 @@ describe('Step 1: Map loads nearby events (GET /events/nearby)', () => {
 // STEP 2: GET /events/:id — Tap pin → Story viewer loads event
 // ============================================================
 describe('Step 2: Tap pin opens story viewer (GET /events/:id)', () => {
-  let eventDetail: any;
+  let eventDetail: EventData;
 
   it('should return event details', async () => {
     const res = await supertest(app)
@@ -432,7 +434,7 @@ describe('Step 5: Add event to plan (POST /plans/:planId/events/:eventId)', () =
 // STEP 6: GET /plans/:id — Verify plan has event (PlanDetailView)
 // ============================================================
 describe('Step 6: Verify plan detail (GET /plans/:id)', () => {
-  let planDetail: any;
+  let planDetail: PlanDetailData;
 
   it('should return plan with events', async () => {
     const res = await supertest(app)
@@ -468,6 +470,10 @@ describe('Step 6: Verify plan detail (GET /plans/:id)', () => {
     expect(planDetail.events.length).toBe(1);
 
     const event = planDetail.events[0];
+    expect(event).toBeDefined();
+    if (!event) {
+      return;
+    } // Type guard
     expect(event.id).toBe(createdEventId);
     expect(event.title).toBe('Jazz Night at Blue Note');
 
@@ -507,6 +513,10 @@ describe('Step 6: Verify plan detail (GET /plans/:id)', () => {
     // This is a known potential issue: PlanDetailData in plans.ts
     // may not include createdAt in the event response
     const event = planDetail.events[0];
+    expect(event).toBeDefined();
+    if (!event) {
+      return;
+    } // Type guard
     expect(event).toHaveProperty('createdAt');
     expect(typeof event.createdAt).toBe('string');
     console.log(`✅ Event in plan has createdAt: ${event.createdAt}`);
@@ -515,6 +525,10 @@ describe('Step 6: Verify plan detail (GET /plans/:id)', () => {
   it('plan detail events should have distance field (nullable)', () => {
     // iOS Event model has distance: Int? — should be present even if null
     const event = planDetail.events[0];
+    expect(event).toBeDefined();
+    if (!event) {
+      return;
+    } // Type guard
     // distance might be null for plan events (no user location context)
     if (event.distance !== undefined) {
       if (event.distance !== null) {

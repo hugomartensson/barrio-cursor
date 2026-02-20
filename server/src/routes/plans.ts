@@ -5,23 +5,22 @@ import { validateRequest } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../services/logger.js';
-import {
-  createPlanSchema,
-  updatePlanSchema,
-  planIdSchema,
-  eventIdParamSchema,
-} from '../schemas/plans.js';
+import { createPlanSchema, updatePlanSchema, planIdSchema } from '../schemas/plans.js';
 import type { CreatePlanInput, UpdatePlanInput } from '../schemas/plans.js';
 import type {
   AuthenticatedRequest,
   ApiErrorResponse,
   RequestWithId,
 } from '../types/index.js';
+import planEventsRouter from './plans/events.js';
 
 const router = Router();
 
+// Mount plan events routes
+router.use(planEventsRouter);
+
 // Response types
-interface PlanData {
+export interface PlanData {
   id: string;
   userId: string;
   name: string;
@@ -32,7 +31,7 @@ interface PlanData {
   eventCount: number;
 }
 
-interface PlanDetailData extends PlanData {
+export interface PlanDetailData extends PlanData {
   events: {
     id: string;
     title: string;
@@ -43,7 +42,9 @@ interface PlanDetailData extends PlanData {
     longitude: number;
     startTime: string;
     endTime: string | null;
+    createdAt: string;
     interestedCount: number;
+    distance?: number | null;
     media: { id: string; url: string; type: string; order: number }[];
     user: { id: string; name: string };
   }[];
@@ -276,7 +277,7 @@ router.get(
             endTime: pe.event.endTime?.toISOString() ?? null,
             createdAt: pe.event.createdAt.toISOString(),
             interestedCount: pe.event.interestedCount,
-            distance: null,
+            distance: null, // Plan events don't have user location context
             media: pe.event.media.map((m) => ({
               id: m.id,
               url: m.url,
@@ -412,174 +413,6 @@ router.delete(
   )
 );
 
-/**
- * POST /plans/:planId/events/:eventId - Add event to plan
- * PRD Section 7.2: Adding Events to Plans
- */
-router.post(
-  '/:planId/events/:eventId',
-  requireAuth,
-  validateRequest({ params: eventIdParamSchema }),
-  asyncHandler(
-    async (
-      req: Request<{ planId: string; eventId: string }>,
-      res: Response<{ data: { message: string } } | ApiErrorResponse>
-    ) => {
-      const authReq = req as unknown as AuthenticatedRequest;
-      const requestId = (req as unknown as RequestWithId).id;
-      const currentUserId = authReq.user.userId;
-      const planId = req.params['planId'];
-      const eventId = req.params['eventId'];
-
-      logger.info(
-        {
-          requestId,
-          userId: currentUserId,
-          planId,
-          eventId,
-        },
-        '📋 Adding event to plan'
-      );
-
-      // Verify plan ownership
-      const plan = await prisma.plan.findUnique({
-        where: { id: planId },
-        select: { id: true, userId: true },
-      });
-
-      if (!plan) {
-        throw ApiError.notFound('Plan');
-      }
-
-      if (plan.userId !== currentUserId) {
-        throw ApiError.forbidden('You can only add events to your own plans');
-      }
-
-      // Verify event exists
-      const event = await prisma.event.findUnique({
-        where: { id: eventId },
-        select: { id: true },
-      });
-
-      if (!event) {
-        throw ApiError.notFound('Event');
-      }
-
-      // Check if event is already in plan
-      const existingPlanEvent = await prisma.planEvent.findUnique({
-        where: {
-          planId_eventId: {
-            planId,
-            eventId,
-          },
-        },
-      });
-
-      if (existingPlanEvent) {
-        throw ApiError.badRequest('Event is already in this plan');
-      }
-
-      // Add event to plan
-      await prisma.planEvent.create({
-        data: {
-          planId,
-          eventId,
-        },
-      });
-
-      logger.info(
-        {
-          requestId,
-          planId,
-          eventId,
-        },
-        '✅ Event added to plan'
-      );
-
-      res.json({ data: { message: 'Event added to plan successfully' } });
-    }
-  )
-);
-
-/**
- * DELETE /plans/:planId/events/:eventId - Remove event from plan
- * PRD Section 7.2: Adding Events to Plans
- */
-router.delete(
-  '/:planId/events/:eventId',
-  requireAuth,
-  validateRequest({ params: eventIdParamSchema }),
-  asyncHandler(
-    async (
-      req: Request<{ planId: string; eventId: string }>,
-      res: Response<{ data: { message: string } } | ApiErrorResponse>
-    ) => {
-      const authReq = req as unknown as AuthenticatedRequest;
-      const requestId = (req as unknown as RequestWithId).id;
-      const currentUserId = authReq.user.userId;
-      const planId = req.params['planId'];
-      const eventId = req.params['eventId'];
-
-      logger.info(
-        {
-          requestId,
-          userId: currentUserId,
-          planId,
-          eventId,
-        },
-        '📋 Removing event from plan'
-      );
-
-      // Verify plan ownership
-      const plan = await prisma.plan.findUnique({
-        where: { id: planId },
-        select: { id: true, userId: true },
-      });
-
-      if (!plan) {
-        throw ApiError.notFound('Plan');
-      }
-
-      if (plan.userId !== currentUserId) {
-        throw ApiError.forbidden('You can only remove events from your own plans');
-      }
-
-      // Check if event is in plan
-      const planEvent = await prisma.planEvent.findUnique({
-        where: {
-          planId_eventId: {
-            planId,
-            eventId,
-          },
-        },
-      });
-
-      if (!planEvent) {
-        throw ApiError.notFound('Event is not in this plan');
-      }
-
-      // Remove event from plan
-      await prisma.planEvent.delete({
-        where: {
-          planId_eventId: {
-            planId,
-            eventId,
-          },
-        },
-      });
-
-      logger.info(
-        {
-          requestId,
-          planId,
-          eventId,
-        },
-        '✅ Event removed from plan'
-      );
-
-      res.json({ data: { message: 'Event removed from plan successfully' } });
-    }
-  )
-);
+// Plan events endpoints are now in plans/events.ts
 
 export default router;

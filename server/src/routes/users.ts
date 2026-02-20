@@ -7,13 +7,15 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { updateUserSchema } from '../schemas/users.js';
 import type { UpdateUserInput } from '../schemas/users.js';
-import type {
-  AuthenticatedRequest,
-  ApiErrorResponse,
-  RequestWithId,
-} from '../types/index.js';
+import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
+import type { EventsListResponse } from '../types/responses.js';
+import { formatEvent } from '../utils/eventFormatters.js';
+import userEventsRouter from './users/events.js';
 
 const router = Router();
+
+// Mount user events routes
+router.use(userEventsRouter);
 
 interface UserProfileResponse {
   data: {
@@ -43,31 +45,7 @@ type PatchRequest = Request<
   UpdateUserInput
 >;
 
-interface EventData {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  address: string; // PRD: Address is primary
-  latitude: number;
-  longitude: number;
-  startTime: string;
-  endTime: string | null;
-  createdAt: string;
-  interestedCount: number; // PRD: Replaces likesCount/goingCount
-  media: {
-    id: string;
-    url: string;
-    type: string;
-    order: number;
-    thumbnailUrl?: string;
-  }[];
-  user: { id: string; name: string };
-}
-
-interface EventsListResponse {
-  data: EventData[];
-}
+// EventData and EventsListResponse are now imported from shared types
 
 /**
  * GET /users/me - Get current user profile (protected)
@@ -398,49 +376,6 @@ router.get(
   )
 );
 
-// Helper: Format event for response
-function formatEvent(event: {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  address: string; // PRD: Address is primary
-  latitude: number;
-  longitude: number;
-  startTime: Date;
-  endTime: Date | null;
-  createdAt: Date;
-  interestedCount: number; // PRD: Replaces likesCount/goingCount
-  media: {
-    id: string;
-    url: string;
-    type: string;
-    order: number;
-    thumbnailUrl?: string | null;
-  }[];
-  user: { id: string; name: string };
-}): EventData {
-  return {
-    id: event.id,
-    title: event.title,
-    description: event.description,
-    category: event.category,
-    address: event.address,
-    latitude: event.latitude,
-    longitude: event.longitude,
-    startTime: event.startTime.toISOString(),
-    endTime: event.endTime?.toISOString() ?? null,
-    createdAt: event.createdAt.toISOString(),
-    interestedCount: event.interestedCount,
-    media: event.media.map((m) => ({
-      id: m.id,
-      url: m.url,
-      type: m.type,
-      order: m.order,
-      thumbnailUrl: m.thumbnailUrl ?? undefined,
-    })),
-    user: { id: event.user.id, name: event.user.name },
-  };
-}
+// formatEvent is now imported from utils/eventFormatters.ts via users/events.ts
 
 export default router;

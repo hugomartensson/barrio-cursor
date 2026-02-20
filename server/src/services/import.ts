@@ -34,6 +34,22 @@ export interface ExtractedEvent {
 }
 
 /**
+ * Structure of Claude API response when extracting event data
+ */
+interface ClaudeEventResponse {
+  title?: string;
+  description?: string;
+  category?: string;
+  address?: string;
+  venueName?: string | null;
+  startTime?: string;
+  endTime?: string | null;
+  isFree?: boolean;
+  ticketUrl?: string | null;
+  mediaUrls?: string[];
+}
+
+/**
  * Scrape a URL and extract useful content for event extraction.
  * Grabs og: meta tags, JSON-LD structured data, and visible text.
  */
@@ -213,15 +229,14 @@ ${pageContent}`,
     throw new Error('Claude returned no text response');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let parsed: any;
+  let parsed: ClaudeEventResponse;
   try {
     // Try to parse the response, stripping any markdown code fences if present
     let jsonStr = textBlock.text.trim();
     if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
     }
-    parsed = JSON.parse(jsonStr);
+    parsed = JSON.parse(jsonStr) as ClaudeEventResponse;
   } catch (e) {
     logger.error({ response: textBlock.text }, 'Failed to parse Claude response as JSON');
     throw new Error(`Claude returned invalid JSON: ${(e as Error).message}`);
@@ -317,14 +332,13 @@ ${text}`,
     throw new Error('Claude returned no text response');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let parsed: any;
+  let parsed: ClaudeEventResponse;
   try {
     let jsonStr = textBlock.text.trim();
     if (jsonStr.startsWith('```')) {
       jsonStr = jsonStr.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
     }
-    parsed = JSON.parse(jsonStr);
+    parsed = JSON.parse(jsonStr) as ClaudeEventResponse;
   } catch (e) {
     logger.error({ response: textBlock.text }, 'Failed to parse Claude response as JSON');
     throw new Error(`Claude returned invalid JSON: ${(e as Error).message}`);
