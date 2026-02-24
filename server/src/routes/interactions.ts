@@ -6,82 +6,90 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { eventIdSchema } from '../schemas/events.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
+import { getOrCreateDefaultSavedCollectionId } from '../services/collectionService.js';
 
 const router = Router();
 
-interface InterestedResponse {
+interface SaveResponse {
   data: {
-    interested: boolean;
-    interestedCount: number;
+    saved: boolean;
+    saveCount: number;
   };
 }
 
-type InterestedReq = Request<{ id: string }, InterestedResponse | ApiErrorResponse>;
+type SaveReq = Request<{ id: string }, SaveResponse | ApiErrorResponse>;
 
 /**
- * POST /events/:id/interested - Toggle interested status on an event
- * PRD Section 5.3: Interested endpoint replaces Like/Going
+ * POST /events/:id/save — Toggle save on an event.
+ * Uses Save model with the user's default "Saved" collection.
  */
 router.post(
-  '/:id/interested',
+  '/:id/save',
   requireAuth,
   validateRequest({ params: eventIdSchema }),
-  asyncHandler(
-    async (req: InterestedReq, res: Response<InterestedResponse | ApiErrorResponse>) => {
-      const authReq = req as unknown as AuthenticatedRequest;
-      const eventId = req.params.id;
-      const userId = authReq.user.userId;
+  asyncHandler(async (req: SaveReq, res: Response<SaveResponse | ApiErrorResponse>) => {
+    const authReq = req as unknown as AuthenticatedRequest;
+    const eventId = req.params.id;
+    const userId = authReq.user.userId;
 
-      // Check event exists
-      const event = await prisma.event.findUnique({ where: { id: eventId } });
-      if (!event) {
-        throw ApiError.notFound('Event');
-      }
-
-      // Check if already interested
-      const existingInterested = await prisma.interested.findUnique({
-        where: { userId_eventId: { userId, eventId } },
-      });
-
-      if (existingInterested) {
-        // Remove interested: delete and decrement count
-        await prisma.$transaction([
-          prisma.interested.delete({
-            where: { userId_eventId: { userId, eventId } },
-          }),
-          prisma.event.update({
-            where: { id: eventId },
-            data: { interestedCount: { decrement: 1 } },
-          }),
-        ]);
-      } else {
-        // Add interested: create and increment count
-        await prisma.$transaction([
-          prisma.interested.create({ data: { userId, eventId } }),
-          prisma.event.update({
-            where: { id: eventId },
-            data: { interestedCount: { increment: 1 } },
-          }),
-        ]);
-      }
-
-      // Get updated count and user status
-      const updated = await prisma.event.findUnique({
-        where: { id: eventId },
-        select: { interestedCount: true },
-      });
-      const isInterested = await prisma.interested.findUnique({
-        where: { userId_eventId: { userId, eventId } },
-      });
-
-      res.json({
-        data: {
-          interested: !!isInterested,
-          interestedCount: updated?.interestedCount ?? 0,
-        },
-      });
+    const event = await prisma.event.findUnique({ where: { id: eventId } });
+    if (!event) {
+      throw ApiError.notFound('Event');
     }
-  )
+
+    const collectionId = await getOrCreateDefaultSavedCollectionId(userId);
+    const existing = await prisma.save.findUnique({
+      where: {
+        userId_collectionId_itemId: { userId, collectionId, itemId: eventId },
+      },
+    });
+
+    if (existing) {
+      await prisma.$transaction([
+        prisma.save.delete({
+          where: {
+            userId_collectionId_itemId: { userId, collectionId, itemId: eventId },
+          },
+        }),
+        prisma.event.update({
+          where: { id: eventId },
+          data: { saveCount: { decrement: 1 } },
+        }),
+      ]);
+    } else {
+      await prisma.$transaction([
+        prisma.save.create({
+          data: {
+            userId,
+            collectionId,
+            itemType: 'event',
+            itemId: eventId,
+          },
+        }),
+        prisma.event.update({
+          where: { id: eventId },
+          data: { saveCount: { increment: 1 } },
+        }),
+      ]);
+    }
+
+    const updated = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { saveCount: true },
+    });
+    const isSaved = await prisma.save.findUnique({
+      where: {
+        userId_collectionId_itemId: { userId, collectionId, itemId: eventId },
+      },
+    });
+
+    res.json({
+      data: {
+        saved: !!isSaved,
+        saveCount: updated?.saveCount ?? 0,
+      },
+    });
+  })
 );
 
 export default router;

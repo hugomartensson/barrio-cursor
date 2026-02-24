@@ -11,8 +11,7 @@ const RADIUS_KM = 5;
 const RADIUS_METERS = RADIUS_KM * 1000;
 
 /**
- * Fetch nearby events with PostGIS
- * Uses location geometry column with GIST index for optimal performance
+ * Fetch nearby events using latitude/longitude (PostGIS for distance)
  * PRD 5.1: Filters expired events - events visible until endTime > NOW() (or startTime > NOW() if no endTime)
  * PRD Section 6.2: Following filter - when followingOnly=true, only show events from followed users
  * PRD Section 6.1: Private account visibility - non-followers can't see private account events
@@ -24,42 +23,50 @@ export async function fetchNearbyEvents(
   currentUserId: string,
   followingOnly: boolean
 ): Promise<NearbyEventRow[]> {
-  // All SQL queries use Prisma's template literal syntax which automatically parameterizes queries
-  // This prevents SQL injection - ${variables} are safely parameterized
+  // Event point from columns (location column was removed; use latitude/longitude)
+  const eventPointSql = `ST_SetSRID(ST_MakePoint(e.longitude, e.latitude), 4326)::geography`;
 
   if (followingOnly) {
-    // PRD Section 6.2: Following filter - only show events from followed users
-    // Private account visibility is automatically respected (you can only see private account events if you follow them)
-    return prisma.$queryRaw<NearbyEventRow[]>`
+    return prisma.$queryRawUnsafe<NearbyEventRow[]>(
+      `
       SELECT e.id, e.title, e.description, e.category, e.address, e.latitude, e.longitude,
-             e.start_time, e.end_time, e.created_at, e.interested_count,
-             ST_Distance(e.location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography) as distance,
+             e.start_time, e.end_time, e.created_at, e.save_count,
+             ST_Distance(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) as distance,
              e.user_id, u.name as user_name
       FROM events e
       JOIN users u ON e.user_id = u.id
-      JOIN follows f ON e.user_id = f.following_id AND f.follower_id = ${currentUserId}
-      WHERE e.location IS NOT NULL
-        AND ST_DWithin(e.location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography, ${RADIUS_METERS})
+      JOIN follows f ON e.user_id = f.following_id AND f.follower_id = $3
+      WHERE ST_DWithin(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $4)
         AND ((e.end_time IS NULL AND e.start_time > NOW()) OR (e.end_time IS NOT NULL AND e.end_time > NOW()))
-      ORDER BY e.created_at DESC LIMIT ${limit}
-    `;
+      ORDER BY e.created_at DESC LIMIT $5
+    `,
+      lat,
+      lng,
+      currentUserId,
+      RADIUS_METERS,
+      limit
+    );
   } else {
-    // PRD Section 6.1: Private account visibility
-    // Show all public account events, but only show private account events if current user follows them
-    return prisma.$queryRaw<NearbyEventRow[]>`
+    return prisma.$queryRawUnsafe<NearbyEventRow[]>(
+      `
       SELECT e.id, e.title, e.description, e.category, e.address, e.latitude, e.longitude,
-             e.start_time, e.end_time, e.created_at, e.interested_count,
-             ST_Distance(e.location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography) as distance,
+             e.start_time, e.end_time, e.created_at, e.save_count,
+             ST_Distance(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) as distance,
              e.user_id, u.name as user_name
       FROM events e
       JOIN users u ON e.user_id = u.id
-      LEFT JOIN follows f ON e.user_id = f.following_id AND f.follower_id = ${currentUserId}
-      WHERE e.location IS NOT NULL
-        AND ST_DWithin(e.location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography, ${RADIUS_METERS})
+      LEFT JOIN follows f ON e.user_id = f.following_id AND f.follower_id = $3
+      WHERE ST_DWithin(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $4)
         AND ((e.end_time IS NULL AND e.start_time > NOW()) OR (e.end_time IS NOT NULL AND e.end_time > NOW()))
         AND (u.is_private = false OR f.follower_id IS NOT NULL)
-      ORDER BY e.created_at DESC LIMIT ${limit}
-    `;
+      ORDER BY e.created_at DESC LIMIT $5
+    `,
+      lat,
+      lng,
+      currentUserId,
+      RADIUS_METERS,
+      limit
+    );
   }
 }
 
@@ -78,10 +85,14 @@ export async function fetchMediaForEvents(
   });
   const result: Record<string, EventMedia[]> = {};
   for (const m of media) {
-    if (!result[m.eventId]) {
-      result[m.eventId] = [];
+    const eid = m.eventId;
+    if (eid === null || eid === undefined) {
+      continue;
     }
-    result[m.eventId]?.push({
+    if (!result[eid]) {
+      result[eid] = [];
+    }
+    result[eid].push({
       id: m.id,
       url: m.url,
       type: m.type,

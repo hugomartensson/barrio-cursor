@@ -11,11 +11,7 @@ import { validateRequest } from '../../middleware/validateRequest.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { userIdSchema } from '../../schemas/social.js';
-import type {
-  AuthenticatedRequest,
-  ApiErrorResponse,
-  RequestWithId,
-} from '../../types/index.js';
+import type { AuthenticatedRequest, ApiErrorResponse } from '../../types/index.js';
 import type {
   FollowersReq,
   FollowingReq,

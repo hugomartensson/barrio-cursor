@@ -53,7 +53,7 @@ class LoginFlowTests: BaseTestCase {
             // Wait for main app interface (tab bar or main content)
             let tabBar = app.tabBars.firstMatch
             let mapTab = app.tabBars.buttons["Map"]
-            let feedTab = app.tabBars.buttons["Feed"]
+            let feedTab = app.tabBars.buttons["Discover"]
             let profileTab = app.tabBars.buttons["Profile"]
             
             // Check if any tab bar element appears (indicates successful login)

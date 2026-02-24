@@ -78,9 +78,6 @@ router.post(
           longitude: input.longitude,
           startTime: new Date(input.startTime),
           endTime: input.endTime ? new Date(input.endTime) : null,
-          sourceUrl: input.sourceUrl,
-          sourceType: input.sourceType,
-          venueName: input.venueName,
           ticketUrl: input.ticketUrl,
           media: {
             create: input.media.map((m, i) => ({
@@ -267,10 +264,6 @@ router.patch(
     if (input.endTime !== undefined) {
       updateData.endTime = input.endTime ? new Date(input.endTime) : null;
     }
-    if (input.isFree !== undefined) {
-      updateData.isFree = input.isFree;
-    }
-
     // Handle media updates (replace all media if provided)
     if (input.media !== undefined) {
       updateData.media = {
@@ -303,27 +296,30 @@ router.patch(
     );
 
     res.json({
-      data: formatEvent({
-        id: updatedEvent.id,
-        title: updatedEvent.title,
-        description: updatedEvent.description,
-        category: updatedEvent.category as string,
-        address: updatedEvent.address,
-        latitude: updatedEvent.latitude,
-        longitude: updatedEvent.longitude,
-        startTime: updatedEvent.startTime,
-        endTime: updatedEvent.endTime,
-        createdAt: updatedEvent.createdAt,
-        interestedCount: updatedEvent.interestedCount,
-        media: updatedEvent.media.map((m) => ({
-          id: m.id,
-          url: m.url,
-          type: m.type as string,
-          order: m.order,
-          thumbnailUrl: m.thumbnailUrl,
-        })),
-        user: updatedEvent.user,
-      }),
+      data: formatEvent(
+        {
+          id: updatedEvent.id,
+          title: updatedEvent.title,
+          description: updatedEvent.description,
+          category: updatedEvent.category as string,
+          address: updatedEvent.address,
+          latitude: updatedEvent.latitude,
+          longitude: updatedEvent.longitude,
+          startTime: updatedEvent.startTime,
+          endTime: updatedEvent.endTime,
+          createdAt: updatedEvent.createdAt,
+          saveCount: updatedEvent.saveCount,
+          media: updatedEvent.media.map((m) => ({
+            id: m.id,
+            url: m.url,
+            type: m.type as string,
+            order: m.order,
+            thumbnailUrl: m.thumbnailUrl,
+          })),
+          user: updatedEvent.user,
+        },
+        undefined
+      ),
     });
   })
 );
@@ -367,7 +363,10 @@ router.delete(
         throw ApiError.forbidden("You don't have permission to delete this event");
       }
 
-      // Hard delete event (cascades to media, likes, going via Prisma schema)
+      // Portal: remove saves pointing to this event (no FK cascade)
+      await prisma.save.deleteMany({
+        where: { itemType: 'event', itemId: eventId },
+      });
       await prisma.event.delete({
         where: { id: eventId },
       });

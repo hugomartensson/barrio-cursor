@@ -1,46 +1,35 @@
-/**
- * Event formatting utilities
- * Converts database models to API response format
- */
-
 import type { EventData, EventMedia } from '../types/responses.js';
 
-/**
- * Raw query result type for nearby events
- */
 export interface NearbyEventRow {
   id: string;
   title: string;
   description: string;
   category: string;
-  address: string; // PRD: Address is primary
+  address: string;
   latitude: number;
   longitude: number;
   start_time: Date;
   end_time: Date | null;
   created_at: Date;
-  interested_count: number; // PRD: Replaces likes_count/going_count
+  save_count: number;
   distance: number;
   user_id: string;
   user_name: string;
 }
 
-/**
- * Format event for response
- */
 export function formatEvent(
   event: {
     id: string;
     title: string;
     description: string;
     category: string;
-    address: string; // PRD: Address is primary
+    address: string;
     latitude: number;
     longitude: number;
     startTime: Date;
     endTime: Date | null;
     createdAt: Date;
-    interestedCount: number; // PRD: Replaces likesCount/goingCount
+    saveCount: number;
     media: {
       id: string;
       url: string;
@@ -63,7 +52,7 @@ export function formatEvent(
     startTime: event.startTime.toISOString(),
     endTime: event.endTime?.toISOString() ?? null,
     createdAt: event.createdAt.toISOString(),
-    interestedCount: event.interestedCount,
+    saveCount: event.saveCount,
     distance,
     media: event.media.map((m) => ({
       id: m.id,
@@ -76,9 +65,6 @@ export function formatEvent(
   };
 }
 
-/**
- * Format nearby event row (from raw SQL query)
- */
 export function formatNearbyEvent(
   e: NearbyEventRow,
   mediaMap: Record<string, EventMedia[]>
@@ -94,7 +80,7 @@ export function formatNearbyEvent(
     startTime: e.start_time.toISOString(),
     endTime: e.end_time?.toISOString() ?? null,
     createdAt: e.created_at.toISOString(),
-    interestedCount: e.interested_count,
+    saveCount: e.save_count,
     distance: Math.round(e.distance),
     media: (mediaMap[e.id] ?? []).map((m) => ({
       id: m.id,

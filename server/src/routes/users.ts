@@ -7,25 +7,84 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { updateUserSchema } from '../schemas/users.js';
 import type { UpdateUserInput } from '../schemas/users.js';
+import { suggestedUsersQuerySchema } from '../schemas/suggestedUsers.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
 import type { EventsListResponse } from '../types/responses.js';
 import { formatEvent } from '../utils/eventFormatters.js';
-import userEventsRouter from './users/events.js';
 
 const router = Router();
 
-// Mount user events routes
-router.use(userEventsRouter);
+interface SuggestedUserSummary {
+  id: string;
+  handle: string | null;
+  initials: string | null;
+  followerCount: number;
+  cities: string[];
+}
+
+router.get(
+  '/suggested',
+  requireAuth,
+  validateRequest({ query: suggestedUsersQuerySchema }),
+  asyncHandler(
+    async (
+      req: Request,
+      res: Response<{ data: SuggestedUserSummary[] } | ApiErrorResponse>
+    ) => {
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user.userId;
+      const query = req.query as unknown as { city?: string; limit?: number };
+      const city = query.city;
+      const limit = query.limit ?? 20;
+
+      const where: { id?: { not: string }; cities?: { has: string } } = {
+        id: { not: userId },
+      };
+      if (city) {
+        where.cities = { has: city };
+      }
+
+      const users = await prisma.user.findMany({
+        where,
+        orderBy: { followerCount: 'desc' },
+        take: limit,
+        select: {
+          id: true,
+          handle: true,
+          initials: true,
+          followerCount: true,
+          cities: true,
+        },
+      });
+
+      res.json({
+        data: users.map((u) => ({
+          id: u.id,
+          handle: u.handle,
+          initials: u.initials,
+          followerCount: u.followerCount,
+          cities: u.cities,
+        })),
+      });
+    }
+  )
+);
 
 interface UserProfileResponse {
   data: {
     id: string;
     email: string;
     name: string;
+    handle?: string | null;
+    initials?: string | null;
     profilePictureUrl?: string | null;
     isPrivate?: boolean;
     followerCount?: number;
     followingCount?: number;
+    savedCount?: number;
+    collectionsCount?: number;
+    followedCount?: number;
+    selectedCity?: string | null;
   };
 }
 
@@ -36,6 +95,7 @@ interface UpdateUserResponse {
     name: string;
     profilePictureUrl?: string | null;
     isPrivate?: boolean;
+    selectedCity?: string | null;
   };
 }
 
@@ -45,10 +105,8 @@ type PatchRequest = Request<
   UpdateUserInput
 >;
 
-// EventData and EventsListResponse are now imported from shared types
-
 /**
- * GET /users/me - Get current user profile (protected)
+ * GET /users/me
  */
 router.get(
   '/me',
@@ -56,24 +114,216 @@ router.get(
   asyncHandler(
     async (req: Request, res: Response<UserProfileResponse | ApiErrorResponse>) => {
       const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user.userId;
 
       const user = await prisma.user.findUnique({
-        where: { id: authReq.user.userId },
-        select: { id: true, email: true, name: true },
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          handle: true,
+          initials: true,
+          profilePictureUrl: true,
+          isPrivate: true,
+          followerCount: true,
+          followingCount: true,
+          selectedCity: true,
+        },
       });
 
       if (!user) {
-        throw ApiError.notFound('User'); // This shouldn't happen if auth is working
+        throw ApiError.notFound('User');
       }
 
-      res.json({ data: { id: user.id, email: user.email, name: user.name } });
+      const [savedCount, collectionsCount] = await Promise.all([
+        prisma.save.count({ where: { userId } }),
+        prisma.collection.count({ where: { userId } }),
+      ]);
+
+      res.json({
+        data: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          handle: user.handle ?? undefined,
+          initials: user.initials ?? undefined,
+          profilePictureUrl: user.profilePictureUrl ?? undefined,
+          isPrivate: user.isPrivate,
+          followerCount: user.followerCount,
+          followingCount: user.followingCount,
+          savedCount,
+          collectionsCount,
+          followedCount: user.followingCount,
+          selectedCity: user.selectedCity ?? undefined,
+        },
+      });
+    }
+  )
+);
+
+interface SavedSpotItem {
+  id: string;
+  name: string;
+  description: string | null;
+  address: string;
+  neighborhood: string | null;
+  latitude: number;
+  longitude: number;
+  categoryTag: string | null;
+  priceRange: string | null;
+  imageUrl: string | null;
+  collectionId: string;
+  collectionName: string;
+  savedAt: string;
+}
+
+interface SavedEventItem {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  startTime: string;
+  endTime: string | null;
+  createdAt: string;
+  saveCount: number;
+  media: {
+    id: string;
+    url: string;
+    type: string;
+    order: number;
+    thumbnailUrl: string | null;
+  }[];
+  user: { id: string; name: string };
+  collectionId: string;
+  collectionName: string;
+  savedAt: string;
+}
+
+/**
+ * GET /users/me/saved-spots
+ */
+router.get(
+  '/me/saved-spots',
+  requireAuth,
+  asyncHandler(
+    async (req: Request, res: Response<{ data: SavedSpotItem[] } | ApiErrorResponse>) => {
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user.userId;
+
+      const saves = await prisma.save.findMany({
+        where: { userId, itemType: 'spot' },
+        include: { collection: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const spotIds = saves.map((s) => s.itemId);
+      const spots = await prisma.spot.findMany({
+        where: { id: { in: spotIds } },
+        include: { media: { orderBy: { order: 'asc' }, take: 1 } },
+      });
+      const spotMap = new Map(spots.map((s) => [s.id, s]));
+
+      const data: SavedSpotItem[] = saves
+        .map((s) => {
+          const spot = spotMap.get(s.itemId);
+          if (!spot) {
+            return null;
+          }
+          return {
+            id: spot.id,
+            name: spot.name,
+            description: spot.description,
+            address: spot.address,
+            neighborhood: spot.neighborhood,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            categoryTag: spot.categoryTag,
+            priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
+            imageUrl: spot.media[0]?.url ?? null,
+            collectionId: s.collection.id,
+            collectionName: s.collection.name,
+            savedAt: s.createdAt.toISOString(),
+          };
+        })
+        .filter((x): x is SavedSpotItem => x !== null);
+
+      res.json({ data });
     }
   )
 );
 
 /**
- * GET /users/:id - Get user profile by ID
- * PRD Section 6.3: User Profiles
+ * GET /users/me/saved-events
+ */
+router.get(
+  '/me/saved-events',
+  requireAuth,
+  asyncHandler(
+    async (
+      req: Request,
+      res: Response<{ data: SavedEventItem[] } | ApiErrorResponse>
+    ) => {
+      const authReq = req as AuthenticatedRequest;
+      const userId = authReq.user.userId;
+
+      const saves = await prisma.save.findMany({
+        where: { userId, itemType: 'event' },
+        include: { collection: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const eventIds = saves.map((s) => s.itemId);
+      const events = await prisma.event.findMany({
+        where: { id: { in: eventIds } },
+        include: {
+          media: { orderBy: { order: 'asc' } },
+          user: { select: { id: true, name: true } },
+        },
+      });
+      const eventMap = new Map(events.map((e) => [e.id, e]));
+
+      const data: SavedEventItem[] = saves
+        .map((s) => {
+          const event = eventMap.get(s.itemId);
+          if (!event) {
+            return null;
+          }
+          return {
+            id: event.id,
+            title: event.title,
+            description: event.description,
+            category: String(event.category),
+            address: event.address,
+            latitude: event.latitude,
+            longitude: event.longitude,
+            startTime: event.startTime.toISOString(),
+            endTime: event.endTime?.toISOString() ?? null,
+            createdAt: event.createdAt.toISOString(),
+            saveCount: event.saveCount,
+            media: event.media.map((m) => ({
+              id: m.id,
+              url: m.url,
+              type: String(m.type),
+              order: m.order,
+              thumbnailUrl: m.thumbnailUrl,
+            })),
+            user: { id: event.user.id, name: event.user.name },
+            collectionId: s.collection.id,
+            collectionName: s.collection.name,
+            savedAt: s.createdAt.toISOString(),
+          };
+        })
+        .filter((x): x is SavedEventItem => x !== null);
+
+      res.json({ data });
+    }
+  )
+);
+
+/**
+ * GET /users/:id
  */
 router.get(
   '/:id',
@@ -101,8 +351,6 @@ router.get(
         throw ApiError.notFound('User');
       }
 
-      // PRD Section 6.1: Private account visibility
-      // If private account, only show profile to followers (or self)
       if (user.isPrivate && userId !== authReq.user.userId) {
         const isFollowing = await prisma.follow.findUnique({
           where: {
@@ -134,8 +382,7 @@ router.get(
 );
 
 /**
- * PATCH /users/me - Update current user profile (protected)
- * PRD Section 7.2: Profile Editing - name, profile picture, privacy toggle
+ * PATCH /users/me
  */
 router.patch(
   '/me',
@@ -144,13 +391,13 @@ router.patch(
   asyncHandler(
     async (req: PatchRequest, res: Response<UpdateUserResponse | ApiErrorResponse>) => {
       const authReq = req as AuthenticatedRequest;
-      const { name, profilePictureUrl, isPrivate } = req.body;
+      const { name, profilePictureUrl, isPrivate, selectedCity } = req.body;
 
-      // Build update data object (only include fields that are provided)
       const updateData: {
         name?: string;
         profilePictureUrl?: string | null;
         isPrivate?: boolean;
+        selectedCity?: string | null;
       } = {};
 
       if (name !== undefined) {
@@ -162,6 +409,9 @@ router.patch(
       if (isPrivate !== undefined) {
         updateData.isPrivate = isPrivate;
       }
+      if (selectedCity !== undefined) {
+        updateData.selectedCity = selectedCity;
+      }
 
       const updatedUser = await prisma.user.update({
         where: { id: authReq.user.userId },
@@ -172,6 +422,7 @@ router.patch(
           name: true,
           profilePictureUrl: true,
           isPrivate: true,
+          selectedCity: true,
         },
       });
 
@@ -182,6 +433,7 @@ router.patch(
           name: updatedUser.name,
           profilePictureUrl: updatedUser.profilePictureUrl,
           isPrivate: updatedUser.isPrivate ?? false,
+          selectedCity: updatedUser.selectedCity ?? undefined,
         },
       });
     }
@@ -189,7 +441,7 @@ router.patch(
 );
 
 /**
- * GET /users/me/events - Get events created by current user (protected)
+ * GET /users/me/events
  */
 router.get(
   '/me/events',
@@ -215,36 +467,40 @@ router.get(
 );
 
 /**
- * GET /users/me/interested - Get events current user is interested in (protected)
- * PRD Section 7.1: Profile View - Interested Events section
+ * GET /users/me/saved — saved events for current user
  */
 router.get(
-  '/me/interested',
+  '/me/saved',
   requireAuth,
   asyncHandler(
     async (req: Request, res: Response<EventsListResponse | ApiErrorResponse>) => {
       const authReq = req as AuthenticatedRequest;
 
-      // Get all events the user is interested in
-      const interestedRecords = await prisma.interested.findMany({
-        where: { userId: authReq.user.userId },
-        include: {
-          event: {
-            include: {
-              media: { orderBy: { order: 'asc' } },
-              user: { select: { id: true, name: true } },
-            },
-          },
-        },
+      const saves = await prisma.save.findMany({
+        where: { userId: authReq.user.userId, itemType: 'event' },
         orderBy: { createdAt: 'desc' },
+        select: { itemId: true },
       });
-
-      // Filter out expired events (PRD: Only show active events)
+      const eventIds = saves.map((s) => s.itemId);
+      if (eventIds.length === 0) {
+        res.json({ data: [] });
+        return;
+      }
+      const events = await prisma.event.findMany({
+        where: { id: { in: eventIds } },
+        include: {
+          media: { orderBy: { order: 'asc' } },
+          user: { select: { id: true, name: true } },
+        },
+      });
+      const eventMap = new Map(events.map((e) => [e.id, e]));
       const now = new Date();
-      const activeEvents = interestedRecords
-        .map((ir) => ir.event)
-        .filter((event) => {
-          // Event is active if: endTime > NOW() OR (endTime IS NULL AND startTime > NOW())
+      const activeEvents = eventIds
+        .map((id) => eventMap.get(id))
+        .filter((event): event is NonNullable<typeof event> => {
+          if (!event) {
+            return false;
+          }
           return event.endTime ? event.endTime > now : event.startTime > now;
         });
 
@@ -256,8 +512,7 @@ router.get(
 );
 
 /**
- * GET /users/:id/events - Get events created by a specific user (protected)
- * PRD Section 6.3: User Profiles - Show user's events
+ * GET /users/:id/events
  */
 router.get(
   '/:id/events',
@@ -268,8 +523,6 @@ router.get(
       const authReq = req as unknown as AuthenticatedRequest;
       const userId = req.params['id'] as string;
 
-      // PRD Section 6.1: Private account visibility
-      // If private account, only show events to followers (or self)
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { id: true, isPrivate: true },
@@ -313,12 +566,10 @@ router.get(
 );
 
 /**
- * GET /users/:id/interested - Get events a user is interested in (protected)
- * PRD Section 8: Profile carousels - "Interested" for other users
- * Same privacy as /users/:id/events (private → followers only).
+ * GET /users/:id/saved — saved events for another user (respects privacy)
  */
 router.get(
-  '/:id/interested',
+  '/:id/saved',
   requireAuth,
   validateRequest({ params: z.object({ id: z.string().uuid('Invalid user ID') }) }),
   asyncHandler(
@@ -346,28 +597,38 @@ router.get(
         });
         if (!isFollowing) {
           throw ApiError.forbidden(
-            'Interested events are only visible to followers of private accounts'
+            'Saved events are only visible to followers of private accounts'
           );
         }
       }
 
-      const interestedRecords = await prisma.interested.findMany({
-        where: { userId },
-        include: {
-          event: {
-            include: {
-              media: { orderBy: { order: 'asc' } },
-              user: { select: { id: true, name: true } },
-            },
-          },
-        },
+      const saves = await prisma.save.findMany({
+        where: { userId, itemType: 'event' },
         orderBy: { createdAt: 'desc' },
+        select: { itemId: true },
       });
-
+      const eventIds = saves.map((s) => s.itemId);
+      if (eventIds.length === 0) {
+        res.json({ data: [] });
+        return;
+      }
+      const events = await prisma.event.findMany({
+        where: { id: { in: eventIds } },
+        include: {
+          media: { orderBy: { order: 'asc' } },
+          user: { select: { id: true, name: true } },
+        },
+      });
+      const eventMap = new Map(events.map((e) => [e.id, e]));
       const now = new Date();
-      const activeEvents = interestedRecords
-        .map((ir) => ir.event)
-        .filter((e) => (e.endTime ? e.endTime > now : e.startTime > now));
+      const activeEvents = eventIds
+        .map((id) => eventMap.get(id))
+        .filter((e): e is NonNullable<typeof e> => {
+          if (!e) {
+            return false;
+          }
+          return e.endTime ? e.endTime > now : e.startTime > now;
+        });
 
       res.json({
         data: activeEvents.map((event) => formatEvent(event)),
@@ -375,7 +636,5 @@ router.get(
     }
   )
 );
-
-// formatEvent is now imported from utils/eventFormatters.ts via users/events.ts
 
 export default router;

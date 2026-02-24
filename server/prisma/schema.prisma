@@ -11,10 +11,16 @@ datasource db {
 }
 
 model User {
-  id                String   @id // ID comes from Supabase Auth, no default needed
+  id                String   @id // ID comes from Supabase Auth
   email             String   @unique
   passwordHash      String   @map("password_hash")
   name              String
+  handle            String?  @unique
+  initials          String?
+  color             String?
+  bio               String?
+  cities            String[]
+  selectedCity      String?  @map("selected_city")
   profilePictureUrl String?  @map("profile_picture_url")
   isPrivate         Boolean  @default(false) @map("is_private")
   followerCount     Int      @default(0) @map("follower_count")
@@ -22,83 +28,163 @@ model User {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  events      Event[]
-  interested  Interested[]
-  followers   Follow[]        @relation("following") // users who follow this user
-  following   Follow[]        @relation("follower")  // users this user follows
+  events           Event[]
+  spots            Spot[]
+  hostedEvents     Event[]         @relation("EventHost")
+  saves            Save[]
+  collections      Collection[]
+  savedCollections SavedCollection[]
+  followers        Follow[]        @relation("following")
+  following        Follow[]        @relation("follower")
   requestsSent     FollowRequest[] @relation("FollowRequestsSent")
   requestsReceived FollowRequest[] @relation("FollowRequestsReceived")
-  plans       Plan[]
 
+  @@index([handle])
   @@map("users")
 }
 
-model Event {
-  id             String    @id @default(uuid())
-  userId         String    @map("user_id")
-  title          String
-  description    String
-  category       Category
-  address        String
-  latitude       Float
-  longitude      Float
-  startTime      DateTime  @map("start_time")
-  endTime        DateTime? @map("end_time")
-  isFree         Boolean   @default(true) @map("is_free")
-  interestedCount Int      @default(0) @map("interested_count")
-  sourceUrl      String?   @map("source_url")
-  sourceType     String?   @map("source_type")
-  venueName      String?   @map("venue_name")
-  ticketUrl      String?   @map("ticket_url")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+model Spot {
+  id           String      @id @default(uuid())
+  ownerId      String      @map("owner_id")
+  name         String
+  description  String?
+  address      String
+  latitude     Float
+  longitude    Float
+  categoryTag  String?     @map("category_tag")
+  neighborhood String?
+  priceRange   PriceRange? @map("price_range")
+  tags         String[]
+  saveCount    Int         @default(0) @map("save_count")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  // Relations
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  media       MediaItem[]
-  interested  Interested[]
-  planEvents  PlanEvent[]
+  owner User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  media MediaItem[]
+
+  @@index([ownerId])
+  @@index([categoryTag])
+  // location geometry column with GIST index managed via migration
+  @@map("spots")
+}
+
+model Event {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  hostId       String?     @map("host_id")
+  title        String
+  description  String
+  category     Category
+  categoryTag  String?     @map("category_tag")
+  address      String
+  neighborhood String?
+  latitude     Float
+  longitude    Float
+  startTime    DateTime    @map("start_time")
+  endTime      DateTime?   @map("end_time")
+  priceRange   PriceRange? @map("price_range")
+  tags         String[]
+  saveCount    Int         @default(0) @map("save_count")
+  ticketUrl    String?     @map("ticket_url")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  host  User?       @relation("EventHost", fields: [hostId], references: [id], onDelete: SetNull)
+  media MediaItem[]
 
   @@index([userId])
+  @@index([hostId])
   @@index([category])
+  @@index([categoryTag])
   @@index([startTime])
-  // Note: location geometry column exists in DB with GIST index (managed via migration)
-  // location column is automatically populated via trigger when latitude/longitude change
+  // location geometry column with GIST index managed via migration
   @@map("events")
 }
 
 model MediaItem {
-  id           String    @id @default(uuid())
-  eventId      String    @map("event_id")
+  id           String   @id @default(uuid())
+  eventId      String?  @map("event_id")
+  spotId       String?  @map("spot_id")
   url          String
   type         MediaType
-  order        Int       @default(0)
-  thumbnailUrl String?   @map("thumbnail_url")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  order        Int      @default(0)
+  thumbnailUrl String?  @map("thumbnail_url")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  // Relations
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  spot  Spot?  @relation(fields: [spotId], references: [id], onDelete: Cascade)
 
   @@index([eventId])
+  @@index([spotId])
   @@map("media_items")
 }
 
-/// PRD: Interested endpoint replaces Like/Going
-model Interested {
-  userId    String   @map("user_id")
-  eventId   String   @map("event_id")
-  createdAt DateTime @default(now()) @map("created_at")
+model Save {
+  userId       String   @map("user_id")
+  collectionId String   @map("collection_id")
+  itemType     ItemType @map("item_type")
+  itemId       String   @map("item_id")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  // Relations
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
-  @@id([userId, eventId])
-  @@map("interested")
+  @@id([userId, collectionId, itemId])
+  @@index([userId])
+  @@index([collectionId])
+  @@index([itemId])
+  @@map("saves")
 }
 
-/// PRD: Following system (public & private accounts)
+model Collection {
+  id          String               @id @default(uuid())
+  userId      String               @map("user_id")
+  name        String
+  description String?
+  visibility  CollectionVisibility @default(private)
+  createdAt   DateTime             @default(now()) @map("created_at")
+  updatedAt   DateTime             @updatedAt @map("updated_at")
+
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items   CollectionItem[]
+  saves   Save[]
+  savedBy SavedCollection[]
+
+  @@index([userId])
+  @@index([visibility])
+  @@map("collections")
+}
+
+model SavedCollection {
+  userId       String   @map("user_id")
+  collectionId String   @map("collection_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, collectionId])
+  @@index([userId])
+  @@index([collectionId])
+  @@map("saved_collections")
+}
+
+model CollectionItem {
+  id           String   @id @default(uuid())
+  collectionId String   @map("collection_id")
+  itemType     ItemType @map("item_type")
+  itemId       String   @map("item_id")
+  order        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@index([collectionId])
+  @@index([itemId])
+  @@map("collection_items")
+}
+
 model Follow {
   followerId  String   @map("follower_id")
   followingId String   @map("following_id")
@@ -112,12 +198,12 @@ model Follow {
 }
 
 model FollowRequest {
-  id          String              @id @default(uuid())
-  fromUserId  String              @map("from_user_id")
-  toUserId    String              @map("to_user_id")
-  status      FollowRequestStatus @default(pending)
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
+  id         String              @id @default(uuid())
+  fromUserId String              @map("from_user_id")
+  toUserId   String              @map("to_user_id")
+  status     FollowRequestStatus @default(pending)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
 
   fromUser User @relation("FollowRequestsSent", fields: [fromUserId], references: [id], onDelete: Cascade)
   toUser   User @relation("FollowRequestsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
@@ -126,47 +212,18 @@ model FollowRequest {
   @@map("follow_requests")
 }
 
-/// PRD: Plans feature
-model Plan {
-  id          String     @id @default(uuid())
-  userId      String     @map("user_id")
-  name        String
-  description String?
-  isArchived  Boolean    @default(false) @map("is_archived")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planEvents PlanEvent[]
-
-  @@index([userId])
-  @@map("plans")
-}
-
-model PlanEvent {
-  planId     String   @map("plan_id")
-  eventId    String   @map("event_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  plan  Plan  @relation(fields: [planId], references: [id], onDelete: Cascade)
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  @@id([planId, eventId])
-  @@map("plan_events")
-}
-
+// PRD categories: Food, Drinks, Music, Art, Markets, Community
 enum Category {
-  food_drink
-  arts_culture
+  food
+  drinks
   music
-  nightlife
-  sports_outdoors
+  art
+  markets
   community
 }
 
 enum MediaType {
   photo
-  video
 }
 
 enum FollowRequestStatus {
@@ -175,5 +232,20 @@ enum FollowRequestStatus {
   declined
 }
 
+enum CollectionVisibility {
+  private
+  friends
+  public
+}
 
+enum ItemType {
+  spot
+  event
+}
 
+enum PriceRange {
+  free
+  low
+  medium
+  high
+}

@@ -94,7 +94,7 @@ describe('Events API - Delete Event', () => {
         },
       });
 
-      // Add media and interested to test cascade deletion
+      // Add media and saves to test cascade deletion
       await prisma.mediaItem.create({
         data: {
           eventId: event.id,
@@ -104,10 +104,19 @@ describe('Events API - Delete Event', () => {
         },
       });
 
-      await prisma.interested.create({
+      const collection = await prisma.collection.create({
         data: {
           userId: otherUserId,
-          eventId: event.id,
+          name: 'Saved',
+          visibility: 'private',
+        },
+      });
+      await prisma.save.create({
+        data: {
+          userId: otherUserId,
+          collectionId: collection.id,
+          itemType: 'event',
+          itemId: event.id,
         },
       });
 
@@ -131,10 +140,10 @@ describe('Events API - Delete Event', () => {
       });
       expect(media).toHaveLength(0);
 
-      const interested = await prisma.interested.findMany({
-        where: { eventId: event.id },
+      const saves = await prisma.save.findMany({
+        where: { itemId: event.id, itemType: 'event' },
       });
-      expect(interested).toHaveLength(0);
+      expect(saves).toHaveLength(0);
     });
   });
 

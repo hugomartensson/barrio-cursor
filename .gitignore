@@ -41,6 +41,7 @@ coverage/
 *.xcworkspace/
 xcuserdata/
 DerivedData/
+ios/test-reports/
 
 # Misc
 *.tgz

@@ -40,7 +40,7 @@ router.get(
       res: Response<FollowRequestResponse | ApiErrorResponse>
     ) => {
       const authReq = req as unknown as AuthenticatedRequest;
-      const requestId = (req as unknown as RequestWithId).id;
+      const _requestId = (req as unknown as RequestWithId).id;
       const currentUserId = authReq.user.userId;
 
       const requests = await prisma.followRequest.findMany({

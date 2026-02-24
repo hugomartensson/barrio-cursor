@@ -1,16 +1,15 @@
 /**
- * Fake Data Seed Script - Barcelona Hyperlocal Events
- * 
- * Creates realistic test data for the Barrio app with:
- * - User types: Organizers, Curators, Selective Planners, Lurkers, Social Connectors
- * - Barcelona-based events across neighborhoods
- * - Category-specific media (images/videos)
- * - Realistic timing distribution
- * 
+ * Fake Data Seed Script - Barcelona Portal
+ *
+ * Creates realistic test data with:
+ * - User types: Organizers, Connectors, Selective Planners, Lurkers, Social Connectors
+ * - Barcelona-based events and spots across neighborhoods
+ * - Category-specific photos (Picsum)
+ * - Collections (public, friends, private) with saved items
+ * - Follow relationships
+ *
  * Usage:
  *   npm run seed:fake
- * 
- * Note: This script uploads media to Supabase Storage for realistic testing.
  */
 
 import { PrismaClient, Category } from '@prisma/client';
@@ -19,327 +18,508 @@ import { supabaseAdmin, STORAGE_BUCKET } from '../src/services/supabase.js';
 
 const prisma = new PrismaClient();
 
-// Configuration
 const USE_EXTERNAL_URLS = process.env.SEED_USE_EXTERNAL_URLS === 'true';
 
+// ---------------------------------------------------------------------------
 // Barcelona neighborhoods with coordinates
+// ---------------------------------------------------------------------------
+
 const BARCELONA_NEIGHBORHOODS = [
   { name: 'Gràcia', lat: 41.4026, lng: 2.1564 },
-  { name: 'Eixample', lat: 41.3936, lng: 2.1630 },
+  { name: 'Eixample', lat: 41.3936, lng: 2.163 },
   { name: 'Barceloneta', lat: 41.3802, lng: 2.1897 },
-  { name: 'Raval', lat: 41.3800, lng: 2.1700 },
-  { name: 'Poblenou', lat: 41.4020, lng: 2.2030 },
-  { name: 'Born', lat: 41.3840, lng: 2.1830 },
+  { name: 'Raval', lat: 41.38, lng: 2.17 },
+  { name: 'Poblenou', lat: 41.402, lng: 2.203 },
+  { name: 'Born', lat: 41.384, lng: 2.183 },
 ];
 
-// Category-specific image sources (using Picsum Photos - reliable, no key needed)
-// Using random seeds to get different images for each category
+// ---------------------------------------------------------------------------
+// Category-specific image sources (Picsum Photos — no API key needed)
+// ---------------------------------------------------------------------------
+
 const CATEGORY_IMAGE_SOURCES: Record<Category, string[]> = {
-  sports_outdoors: [
-    'https://picsum.photos/seed/sports1/800/600',
-    'https://picsum.photos/seed/football/800/600',
-    'https://picsum.photos/seed/yoga/800/600',
-    'https://picsum.photos/seed/running/800/600',
-    'https://picsum.photos/seed/climbing/800/600',
-    'https://picsum.photos/seed/fitness/800/600',
-    'https://picsum.photos/seed/athletics/800/600',
-  ],
-  food_drink: [
+  food: [
     'https://picsum.photos/seed/food1/800/600',
     'https://picsum.photos/seed/restaurant/800/600',
-    'https://picsum.photos/seed/market/800/600',
-    'https://picsum.photos/seed/wine/800/600',
-    'https://picsum.photos/seed/brunch/800/600',
     'https://picsum.photos/seed/tapas/800/600',
-    'https://picsum.photos/seed/cafe/800/600',
+    'https://picsum.photos/seed/brunch/800/600',
+    'https://picsum.photos/seed/paella/800/600',
+    'https://picsum.photos/seed/bakery/800/600',
   ],
-  arts_culture: [
-    'https://picsum.photos/seed/art1/800/600',
-    'https://picsum.photos/seed/gallery/800/600',
-    'https://picsum.photos/seed/concert/800/600',
-    'https://picsum.photos/seed/theater/800/600',
-    'https://picsum.photos/seed/cinema/800/600',
-    'https://picsum.photos/seed/streetart/800/600',
-    'https://picsum.photos/seed/museum/800/600',
-  ],
-  nightlife: [
-    'https://picsum.photos/seed/nightlife1/800/600',
-    'https://picsum.photos/seed/nightclub/800/600',
-    'https://picsum.photos/seed/dj/800/600',
+  drinks: [
+    'https://picsum.photos/seed/wine/800/600',
+    'https://picsum.photos/seed/cocktail/800/600',
     'https://picsum.photos/seed/bar/800/600',
-    'https://picsum.photos/seed/dance/800/600',
-    'https://picsum.photos/seed/party/800/600',
-  ],
-  community: [
-    'https://picsum.photos/seed/community1/800/600',
-    'https://picsum.photos/seed/community/800/600',
-    'https://picsum.photos/seed/park/800/600',
-    'https://picsum.photos/seed/games/800/600',
-    'https://picsum.photos/seed/volunteer/800/600',
-    'https://picsum.photos/seed/language/800/600',
-    'https://picsum.photos/seed/meetup/800/600',
+    'https://picsum.photos/seed/vermut/800/600',
+    'https://picsum.photos/seed/beer/800/600',
+    'https://picsum.photos/seed/cafe/800/600',
   ],
   music: [
     'https://picsum.photos/seed/music1/800/600',
     'https://picsum.photos/seed/concert/800/600',
     'https://picsum.photos/seed/livemusic/800/600',
     'https://picsum.photos/seed/guitar/800/600',
-    'https://picsum.photos/seed/dj/800/600',
+    'https://picsum.photos/seed/djset/800/600',
+    'https://picsum.photos/seed/flamenco/800/600',
   ],
-};
-
-// Category-specific video sources (short clips)
-const CATEGORY_VIDEO_SOURCES: Record<Category, string[]> = {
-  sports_outdoors: [
-    'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4', // Placeholder - replace with sports videos
+  art: [
+    'https://picsum.photos/seed/art1/800/600',
+    'https://picsum.photos/seed/gallery/800/600',
+    'https://picsum.photos/seed/streetart/800/600',
+    'https://picsum.photos/seed/museum/800/600',
+    'https://picsum.photos/seed/theater/800/600',
+    'https://picsum.photos/seed/cinema/800/600',
   ],
-  food_drink: [
-    'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
-  ],
-  arts_culture: [
-    'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
-  ],
-  nightlife: [
-    'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
+  markets: [
+    'https://picsum.photos/seed/market1/800/600',
+    'https://picsum.photos/seed/flea/800/600',
+    'https://picsum.photos/seed/vintage/800/600',
+    'https://picsum.photos/seed/farmstand/800/600',
+    'https://picsum.photos/seed/bazaar/800/600',
+    'https://picsum.photos/seed/crafts/800/600',
   ],
   community: [
-    'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
-  ],
-  music: [
-    'https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4',
+    'https://picsum.photos/seed/community1/800/600',
+    'https://picsum.photos/seed/park/800/600',
+    'https://picsum.photos/seed/games/800/600',
+    'https://picsum.photos/seed/volunteer/800/600',
+    'https://picsum.photos/seed/language/800/600',
+    'https://picsum.photos/seed/meetup/800/600',
   ],
 };
 
+// ---------------------------------------------------------------------------
 // Event templates by category
+// ---------------------------------------------------------------------------
+
 const EVENT_TEMPLATES: Record<Category, string[]> = {
-  sports_outdoors: [
-    '5-a-side football @ {location}',
-    'Yoga in the Park - {neighborhood}',
-    'Morning Running Club - {neighborhood}',
-    'Rock Climbing Session',
-    'Beach Volleyball @ Barceloneta',
-    'Cycling Group Ride',
-  ],
-  food_drink: [
-    'Vermut at {location}',
-    'Restaurant Opening: {location}',
-    'Mercat de la Llibertat Food Tour',
-    'Wine Tasting Evening',
-    'Brunch Meetup @ {location}',
+  food: [
     'Tapas Crawl - {neighborhood}',
+    'Restaurant Opening: {location}',
+    'Brunch Meetup @ {location}',
+    'Paella Workshop - {neighborhood}',
+    'Food Tour: {neighborhood}',
+    'Supper Club @ {location}',
   ],
-  arts_culture: [
-    'Gallery Opening: {location}',
-    'Live Concert @ {location}',
-    'Theater Performance',
-    'Film Screening: {location}',
-    'Street Art Walking Tour',
-    'Museum Night',
+  drinks: [
+    'Vermut at {location}',
+    'Wine Tasting Evening',
+    'Cocktail Masterclass - {neighborhood}',
+    'Natural Wine Pop-Up @ {location}',
+    'Craft Beer Tasting - {neighborhood}',
+    'Café Hopping - {neighborhood}',
   ],
-  nightlife: [
-    'Nit de Swing at Apolo',
+  music: [
+    'Live Jazz @ {location}',
+    'Acoustic Session - {neighborhood}',
+    'Flamenco Night @ {location}',
     'DJ Set @ {location}',
-    'Bar Crawl - {neighborhood}',
-    'Club Night: {location}',
-    'Electronic Music Night',
+    'Vinyl Listening Session',
+    'Open Mic Night - {neighborhood}',
+  ],
+  art: [
+    'Gallery Opening: {location}',
+    'Street Art Walking Tour - {neighborhood}',
+    'Museum Night',
+    'Theater Performance @ {location}',
+    'Film Screening - {neighborhood}',
+    'Ceramics Workshop @ {location}',
+  ],
+  markets: [
+    'Flea Market - {neighborhood}',
+    'Vintage Pop-Up @ {location}',
+    'Artisan Market - {neighborhood}',
+    'Local Farmers Market',
+    'Design Market @ {location}',
+    'Book Fair - {neighborhood}',
   ],
   community: [
     'Neighborhood Clean-up - {neighborhood}',
     'Language Exchange Meetup',
-    'Board Game Night',
+    'Board Game Night - {neighborhood}',
     'Community Garden Workshop',
-    'Local Market Visit',
     'Café Meetup - {neighborhood}',
-  ],
-  music: [
-    'Live Jazz @ {location}',
-    'Acoustic Session',
-    'Electronic Music Night',
-    'Flamenco Performance',
+    'Yoga in the Park - {neighborhood}',
   ],
 };
 
-// User type definitions
-type UserType = 'organizer' | 'curator' | 'selective_planner' | 'lurker' | 'social_connector';
+// ---------------------------------------------------------------------------
+// Spot templates by category
+// ---------------------------------------------------------------------------
+
+const SPOT_TEMPLATES: Record<Category, { names: string[]; tagSets: string[][] }> = {
+  food: {
+    names: [
+      'Cal Pep',
+      'Can Culleretes',
+      'La Boqueria',
+      'Bar Mut',
+      'Tickets Bar',
+      'Cervecería Catalana',
+      'Els Quatre Gats',
+    ],
+    tagSets: [
+      ['tapas', 'local'],
+      ['seafood', 'traditional'],
+      ['market', 'fresh'],
+      ['wine', 'pintxos'],
+    ],
+  },
+  drinks: {
+    names: [
+      'Paradiso',
+      'Bobby Gin',
+      'Bar Marsella',
+      'Dry Martini',
+      'Two Schmucks',
+      'El Xampanyet',
+      'La Vinateria del Call',
+    ],
+    tagSets: [
+      ['cocktails', 'speakeasy'],
+      ['gin', 'classic'],
+      ['vermut', 'terrace'],
+      ['wine', 'cozy'],
+    ],
+  },
+  music: {
+    names: [
+      'Jamboree Jazz Club',
+      'Razzmatazz',
+      'Sala Apolo',
+      'Harlem Jazz Club',
+      'Sidecar Factory Club',
+      'Moog',
+      'La [2] de Apolo',
+    ],
+    tagSets: [
+      ['jazz', 'live'],
+      ['electronic', 'club'],
+      ['indie', 'live'],
+      ['flamenco', 'authentic'],
+    ],
+  },
+  art: {
+    names: [
+      'MACBA',
+      'Fundació Joan Miró',
+      'CCCB',
+      'Museu Picasso',
+      'Arts Santa Mònica',
+      'Galería Marlborough',
+      'La Virreina',
+    ],
+    tagSets: [
+      ['contemporary', 'museum'],
+      ['gallery', 'exhibitions'],
+      ['photography', 'installations'],
+      ['street art', 'murals'],
+    ],
+  },
+  markets: {
+    names: [
+      'Mercat de Sant Antoni',
+      'Encants Flea Market',
+      'Mercat de la Boqueria',
+      'Mercat de Santa Caterina',
+      'Palo Alto Market',
+      'Lost & Found Market',
+    ],
+    tagSets: [
+      ['vintage', 'flea'],
+      ['food', 'fresh'],
+      ['design', 'artisan'],
+      ['antiques', 'books'],
+    ],
+  },
+  community: {
+    names: [
+      'Parc de la Ciutadella',
+      'Espai Jove La Fontana',
+      'Ateneu Popular 9 Barris',
+      'Can Batlló',
+      'Fabra i Coats',
+      'Centre Cívic Cotxeres de Sants',
+    ],
+    tagSets: [
+      ['coworking', 'community'],
+      ['garden', 'green'],
+      ['social', 'events'],
+      ['workshop', 'creative'],
+    ],
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Collection templates
+// ---------------------------------------------------------------------------
+
+const COLLECTION_TEMPLATES: {
+  name: string;
+  description: string;
+  visibility: 'private' | 'friends' | 'public';
+}[] = [
+  { name: 'Favorites', description: 'My favorite spots and events', visibility: 'private' },
+  { name: 'Date Night', description: 'Romantic spots for date nights', visibility: 'private' },
+  { name: 'Best of Barcelona', description: 'Top picks in the city', visibility: 'public' },
+  { name: 'Hidden Gems', description: 'Off the beaten path', visibility: 'public' },
+  { name: 'Weekend Plans', description: 'Things to do this weekend', visibility: 'friends' },
+  { name: 'With Visitors', description: 'Places to take friends visiting', visibility: 'friends' },
+];
+
+// ---------------------------------------------------------------------------
+// User type definitions & behavior profiles
+// ---------------------------------------------------------------------------
+
+type UserType = 'organizer' | 'connector' | 'selective_planner' | 'lurker' | 'social_connector';
 
 interface UserTypeConfig {
   count: number;
   eventsToCreate: number;
-  interestedMarks: number;
+  spotsToCreate: number;
+  saves: number;
   follows: number;
+  collections: number;
 }
 
 const USER_TYPES: Record<UserType, UserTypeConfig> = {
-  organizer: { count: 4, eventsToCreate: 7, interestedMarks: 5, follows: 3 },
-  curator: { count: 5, eventsToCreate: 0, interestedMarks: 12, follows: 4 },
-  selective_planner: { count: 4, eventsToCreate: 0, interestedMarks: 3, follows: 2 },
-  lurker: { count: 3, eventsToCreate: 0, interestedMarks: 1, follows: 1 },
-  social_connector: { count: 3, eventsToCreate: 1, interestedMarks: 6, follows: 10 },
+  organizer: { count: 4, eventsToCreate: 7, spotsToCreate: 3, saves: 5, follows: 3, collections: 2 },
+  connector: { count: 5, eventsToCreate: 0, spotsToCreate: 2, saves: 12, follows: 4, collections: 3 },
+  selective_planner: { count: 4, eventsToCreate: 0, spotsToCreate: 1, saves: 3, follows: 2, collections: 1 },
+  lurker: { count: 3, eventsToCreate: 0, spotsToCreate: 0, saves: 1, follows: 1, collections: 1 },
+  social_connector: { count: 3, eventsToCreate: 1, spotsToCreate: 1, saves: 6, follows: 10, collections: 2 },
 };
 
-/**
- * Upload media to Supabase Storage
- */
-async function uploadToSupabaseStorage(
-  sourceUrl: string,
-  userId: string,
-  contentType: 'image' | 'video'
-): Promise<string> {
+const PRICE_RANGES = ['free', 'low', 'medium', 'high'] as const;
+const EVENT_TAGS = ['outdoor', 'family-friendly', 'free', 'local', 'popular', 'new', 'late-night', 'daytime'];
+
+// ---------------------------------------------------------------------------
+// Category distribution for random selection
+// ---------------------------------------------------------------------------
+
+const CATEGORY_WEIGHTS: { category: Category; weight: number }[] = [
+  { category: 'food', weight: 0.2 },
+  { category: 'drinks', weight: 0.15 },
+  { category: 'music', weight: 0.15 },
+  { category: 'art', weight: 0.15 },
+  { category: 'markets', weight: 0.15 },
+  { category: 'community', weight: 0.2 },
+];
+
+function getRandomCategory(): Category {
+  const rand = Math.random();
+  let cumulative = 0;
+  for (const { category, weight } of CATEGORY_WEIGHTS) {
+    cumulative += weight;
+    if (rand <= cumulative) return category;
+  }
+  return 'community';
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+async function uploadToSupabaseStorage(sourceUrl: string, userId: string): Promise<string> {
   try {
     const response = await fetch(sourceUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch: ${response.statusText}`);
-    }
+    if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
-    const extension = contentType === 'image' ? 'jpg' : 'mp4';
-    const filename = `${faker.string.uuid()}.${extension}`;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const filename = `${faker.string.uuid()}.jpg`;
     const filePath = `seed-data/${userId}/${filename}`;
 
-    const { data, error } = await supabaseAdmin.storage
+    const { error } = await supabaseAdmin.storage
       .from(STORAGE_BUCKET)
-      .upload(filePath, buffer, {
-        contentType: contentType === 'image' ? 'image/jpeg' : 'video/mp4',
-        upsert: false,
-      });
+      .upload(filePath, buffer, { contentType: 'image/jpeg', upsert: false });
 
     if (error) throw error;
 
     const {
       data: { publicUrl },
     } = supabaseAdmin.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
-
     return publicUrl;
-  } catch (error) {
+  } catch {
     console.warn(`⚠️  Upload failed for ${sourceUrl}, using direct URL`);
     return sourceUrl;
   }
 }
 
-/**
- * Get category-specific image URL
- */
 async function getCategoryImageUrl(category: Category, userId: string): Promise<string> {
-  const sources = CATEGORY_IMAGE_SOURCES[category];
-  const sourceUrl = faker.helpers.arrayElement(sources);
-
+  const sourceUrl = faker.helpers.arrayElement(CATEGORY_IMAGE_SOURCES[category]);
   if (USE_EXTERNAL_URLS) return sourceUrl;
-  return uploadToSupabaseStorage(sourceUrl, userId, 'image');
+  return uploadToSupabaseStorage(sourceUrl, userId);
 }
 
-/**
- * Get category-specific video URL
- * Note: Using direct URLs for videos (not uploading to Supabase Storage)
- */
-async function getCategoryVideoUrl(category: Category, userId: string): Promise<string> {
-  const sources = CATEGORY_VIDEO_SOURCES[category];
-  const sourceUrl = faker.helpers.arrayElement(sources);
-  
-  // Always use direct URLs for videos (not uploading to Supabase Storage)
-  return sourceUrl;
-}
-
-/**
- * Get avatar URL
- */
 function getAvatarUrl(): string {
   return `https://api.dicebear.com/7.x/avataaars/svg?seed=${faker.string.uuid()}`;
 }
 
-/**
- * Generate Barcelona location
- */
 function generateBarcelonaLocation() {
   const neighborhood = faker.helpers.arrayElement(BARCELONA_NEIGHBORHOODS);
-  const offset = 0.01; // ~1km radius
-  const latOffset = (Math.random() - 0.5) * offset;
-  const lngOffset = (Math.random() - 0.5) * offset;
-
+  const offset = 0.01; // ~1 km radius jitter
   return {
     neighborhood: neighborhood.name,
     address: `${faker.location.street()}, ${neighborhood.name}, Barcelona`,
-    latitude: neighborhood.lat + latOffset,
-    longitude: neighborhood.lng + lngOffset,
+    latitude: neighborhood.lat + (Math.random() - 0.5) * offset,
+    longitude: neighborhood.lng + (Math.random() - 0.5) * offset,
   };
 }
 
-/**
- * Generate event timing based on distribution
- */
 function generateEventTiming(): { startTime: Date; endTime: Date | null } {
   const now = new Date();
+  const hours = (h: number) => h * 60 * 60 * 1000;
+  const days = (d: number) => d * 24 * hours(1);
   const rand = Math.random();
 
   let startTime: Date;
   let endTime: Date | null;
 
   if (rand < 0.1) {
-    // 10% past events
-    startTime = faker.date.past({ years: 1 });
-    endTime = faker.date.soon({ days: 1, refDate: startTime });
+    // 10 % past events (up to 3 months ago)
+    startTime = new Date(now.getTime() - faker.number.int({ min: 1, max: 90 }) * days(1));
+    endTime = new Date(startTime.getTime() + hours(faker.number.int({ min: 1, max: 4 })));
   } else if (rand < 0.25) {
-    // 15% today/tonight
-    const hoursFromNow = faker.number.int({ min: 0, max: 12 });
-    startTime = new Date(now.getTime() + hoursFromNow * 60 * 60 * 1000);
-    endTime = new Date(startTime.getTime() + faker.number.int({ min: 1, max: 4 }) * 60 * 60 * 1000);
+    // 15 % today / tonight
+    startTime = new Date(now.getTime() + hours(faker.number.int({ min: 0, max: 12 })));
+    endTime = new Date(startTime.getTime() + hours(faker.number.int({ min: 1, max: 4 })));
   } else if (rand < 0.55) {
-    // 30% this week
-    startTime = faker.date.soon({ days: 7 });
-    endTime = faker.date.soon({ days: 1, refDate: startTime });
+    // 30 % this week
+    startTime = new Date(now.getTime() + days(faker.number.int({ min: 1, max: 7 })));
+    endTime = new Date(startTime.getTime() + hours(faker.number.int({ min: 1, max: 5 })));
   } else if (rand < 0.8) {
-    // 25% next week
-    startTime = faker.date.future({ days: 14 });
-    endTime = faker.date.soon({ days: 1, refDate: startTime });
+    // 25 % next two weeks
+    startTime = new Date(now.getTime() + days(faker.number.int({ min: 8, max: 14 })));
+    endTime = new Date(startTime.getTime() + hours(faker.number.int({ min: 1, max: 5 })));
   } else {
-    // 20% 2-4 weeks out
-    startTime = faker.date.future({ days: 28 });
-    endTime = faker.date.soon({ days: 1, refDate: startTime });
+    // 20 % two-four weeks out
+    startTime = new Date(now.getTime() + days(faker.number.int({ min: 15, max: 28 })));
+    endTime = new Date(startTime.getTime() + hours(faker.number.int({ min: 2, max: 6 })));
   }
 
-  // 30% have no end time
-  if (Math.random() < 0.3) {
-    endTime = null;
-  }
+  if (Math.random() < 0.3) endTime = null;
 
   return { startTime, endTime };
 }
 
-/**
- * Generate event title from template
- */
-function generateEventTitle(category: Category, location: string, neighborhood: string): string {
-  const templates = EVENT_TEMPLATES[category];
-  const template = faker.helpers.arrayElement(templates);
-  return template.replace('{location}', location).replace('{neighborhood}', neighborhood);
+function generateEventTitle(category: Category, address: string, neighborhood: string): string {
+  const template = faker.helpers.arrayElement(EVENT_TEMPLATES[category]);
+  return template.replace('{location}', address).replace('{neighborhood}', neighborhood);
 }
 
-/**
- * Main seed function
- */
+// ---------------------------------------------------------------------------
+// Event creation helper
+// ---------------------------------------------------------------------------
+
+async function createEvent(userId: string) {
+  const category = getRandomCategory();
+  const location = generateBarcelonaLocation();
+  const { startTime, endTime } = generateEventTiming();
+  const title = generateEventTitle(category, location.address, location.neighborhood);
+
+  const event = await prisma.event.create({
+    data: {
+      userId,
+      title,
+      description: faker.lorem.paragraphs({ min: 1, max: 2 }),
+      category,
+      categoryTag: category,
+      address: location.address,
+      neighborhood: location.neighborhood,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      startTime,
+      endTime,
+      priceRange: faker.helpers.arrayElement([...PRICE_RANGES]),
+      tags: faker.helpers.arrayElements(EVENT_TAGS, { min: 1, max: 3 }),
+      saveCount: 0,
+    },
+  });
+
+
+  if (Math.random() < 0.9) {
+    const numImages = faker.number.int({ min: 1, max: 3 });
+    for (let j = 0; j < numImages; j++) {
+      const imageUrl = await getCategoryImageUrl(category, userId);
+      await prisma.mediaItem.create({
+        data: { eventId: event.id, url: imageUrl, type: 'photo', order: j },
+      });
+    }
+  }
+
+  return event;
+}
+
+// ---------------------------------------------------------------------------
+// Spot creation helper
+// ---------------------------------------------------------------------------
+
+async function createSpot(ownerId: string) {
+  const category = getRandomCategory();
+  const location = generateBarcelonaLocation();
+  const templates = SPOT_TEMPLATES[category];
+
+  const spot = await prisma.spot.create({
+    data: {
+      ownerId,
+      name: faker.helpers.arrayElement(templates.names),
+      description: faker.lorem.sentence(),
+      address: location.address,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      categoryTag: category,
+      neighborhood: location.neighborhood,
+      priceRange: faker.helpers.arrayElement([...PRICE_RANGES]),
+      tags: faker.helpers.arrayElement(templates.tagSets),
+      saveCount: 0,
+    },
+  });
+
+
+  if (Math.random() < 0.8) {
+    const numImages = faker.number.int({ min: 1, max: 2 });
+    for (let j = 0; j < numImages; j++) {
+      const imageUrl = await getCategoryImageUrl(category, ownerId);
+      await prisma.mediaItem.create({
+        data: { spotId: spot.id, url: imageUrl, type: 'photo', order: j },
+      });
+    }
+  }
+
+  return spot;
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
 async function main() {
   console.log('🌱 Starting Barcelona fake data seed...\n');
 
-  // Clean up existing seed data (optional - comment out if you want to keep existing data)
-  console.log('🧹 Cleaning up existing seed data...');
+  // -- Cleanup --
+  console.log('🧹 Cleaning up existing data...');
+  await prisma.save.deleteMany({});
+  await prisma.savedCollection.deleteMany({});
+  await prisma.collectionItem.deleteMany({});
+  await prisma.collection.deleteMany({});
   await prisma.mediaItem.deleteMany({});
-  await prisma.interested.deleteMany({});
   await prisma.follow.deleteMany({});
   await prisma.followRequest.deleteMany({});
-  await prisma.planEvent.deleteMany({});
-  await prisma.plan.deleteMany({});
   await prisma.event.deleteMany({});
+  await prisma.spot.deleteMany({});
   await prisma.user.deleteMany({});
   console.log('✅ Cleanup complete\n');
 
-  faker.seed(42); // Reproducible results
+  faker.seed(42);
 
-  // Create users by type
-  console.log('👥 Creating users by type...');
+  // ==========================================================================
+  // 1. Users
+  // ==========================================================================
+  console.log('👥 Creating users...');
+
   const usersByType: Record<UserType, any[]> = {
     organizer: [],
-    curator: [],
+    connector: [],
     selective_planner: [],
     lurker: [],
     social_connector: [],
@@ -348,7 +528,9 @@ async function main() {
   for (const [type, config] of Object.entries(USER_TYPES)) {
     for (let i = 0; i < config.count; i++) {
       const userId = faker.string.uuid();
-      const avatarUrl = USE_EXTERNAL_URLS ? getAvatarUrl() : await getCategoryImageUrl('community', userId);
+      const avatarUrl = USE_EXTERNAL_URLS
+        ? getAvatarUrl()
+        : await getCategoryImageUrl('community', userId);
 
       const user = await prisma.user.create({
         data: {
@@ -356,6 +538,10 @@ async function main() {
           email: faker.internet.email(),
           passwordHash: 'supabase-managed',
           name: faker.person.fullName(),
+          handle: faker.internet.userName().toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20) + i,
+          bio: faker.lorem.sentence(),
+          cities: ['Barcelona'],
+          selectedCity: 'Barcelona',
           profilePictureUrl: avatarUrl,
           isPrivate: faker.datatype.boolean({ probability: 0.15 }),
           followerCount: 0,
@@ -365,266 +551,210 @@ async function main() {
 
       usersByType[type as UserType].push(user);
     }
-    console.log(`   ✅ Created ${config.count} ${type} users`);
+    console.log(`   ✅ ${config.count} ${type} users`);
   }
 
   const allUsers = Object.values(usersByType).flat();
   console.log(`✅ Total users: ${allUsers.length}\n`);
 
-  // Create events with category distribution
+  // ==========================================================================
+  // 2. Events
+  // ==========================================================================
   console.log('🎉 Creating events...');
-  // Distribution: Sports 20%, Food 25%, Arts 20%, Nightlife 15%, Community 20%
-  // Note: Using 'music' category for some concerts (part of arts_culture conceptually)
-  const categoryDistribution: { category: Category; percentage: number }[] = [
-    { category: 'sports_outdoors', percentage: 0.20 },
-    { category: 'food_drink', percentage: 0.25 },
-    { category: 'arts_culture', percentage: 0.15 }, // Some concerts will use 'music'
-    { category: 'music', percentage: 0.05 }, // Concerts/music events
-    { category: 'nightlife', percentage: 0.15 },
-    { category: 'community', percentage: 0.20 },
-  ];
-
   const allEvents: any[] = [];
-  let eventIndex = 0;
 
-  // Helper to get category based on distribution
-  function getRandomCategory(): Category {
-    const rand = Math.random();
-    let cumulative = 0;
-    for (const catData of categoryDistribution) {
-      cumulative += catData.percentage;
-      if (rand <= cumulative) {
-        return catData.category;
-      }
-    }
-    return 'community'; // fallback
-  }
-
-  // Create events for organizers (5-8 events each)
   for (const organizer of usersByType.organizer) {
-    const eventsToCreate = faker.number.int({ min: 5, max: 8 });
-    for (let i = 0; i < eventsToCreate; i++) {
-      const category = getRandomCategory();
-
-      const location = generateBarcelonaLocation();
-      const { startTime, endTime } = generateEventTiming();
-      const title = generateEventTitle(category, location.address, location.neighborhood);
-
-      const event = await prisma.event.create({
-        data: {
-          userId: organizer.id,
-          title,
-          description: faker.lorem.paragraphs({ min: 1, max: 2 }),
-          category,
-          address: location.address,
-          latitude: location.latitude,
-          longitude: location.longitude,
-          startTime,
-          endTime,
-          isFree: faker.datatype.boolean({ probability: 0.75 }),
-          interestedCount: 0,
-        },
-      });
-
-      // Set location geometry
-      await prisma.$executeRaw`
-        UPDATE events
-        SET location = ST_SetSRID(ST_MakePoint(${location.longitude}, ${location.latitude}), 4326)
-        WHERE id = ${event.id}
-      `;
-
-      // Add media (60% images only, 30% videos, 10% no media)
-      const mediaRand = Math.random();
-      if (mediaRand < 0.6) {
-        // Images only
-        const numImages = faker.number.int({ min: 1, max: 3 });
-        for (let j = 0; j < numImages; j++) {
-          const imageUrl = await getCategoryImageUrl(category, organizer.id);
-          await prisma.mediaItem.create({
-            data: {
-              eventId: event.id,
-              url: imageUrl,
-              type: 'photo',
-              order: j,
-            },
-          });
-        }
-      } else if (mediaRand < 0.9) {
-        // Videos (with thumbnail)
-        const numVideos = faker.number.int({ min: 1, max: 2 });
-        for (let j = 0; j < numVideos; j++) {
-          const videoUrl = await getCategoryVideoUrl(category, organizer.id);
-          const thumbnailUrl = await getCategoryImageUrl(category, organizer.id);
-          await prisma.mediaItem.create({
-            data: {
-              eventId: event.id,
-              url: videoUrl,
-              type: 'video',
-              order: j,
-              thumbnailUrl,
-            },
-          });
-        }
-      }
-      // 10% no media
-
-      allEvents.push(event);
-      eventIndex++;
+    const count = faker.number.int({ min: 5, max: 8 });
+    for (let i = 0; i < count; i++) {
+      allEvents.push(await createEvent(organizer.id));
     }
   }
 
-  // Create additional events to reach 40-50 total
-  const targetTotal = faker.number.int({ min: 40, max: 50 });
-  const remainingEvents = Math.max(0, targetTotal - allEvents.length);
-  for (let i = 0; i < remainingEvents; i++) {
+  for (const user of usersByType.social_connector) {
+    allEvents.push(await createEvent(user.id));
+  }
+
+  // Fill up to 40-50 total
+  const targetEvents = faker.number.int({ min: 40, max: 50 });
+  while (allEvents.length < targetEvents) {
     const host = faker.helpers.arrayElement(allUsers);
-    const category = getRandomCategory();
-    const location = generateBarcelonaLocation();
-    const { startTime, endTime } = generateEventTiming();
-    const title = generateEventTitle(category, location.address, location.neighborhood);
-
-    const event = await prisma.event.create({
-      data: {
-        userId: host.id,
-        title,
-        description: faker.lorem.paragraphs({ min: 1, max: 2 }),
-        category,
-        address: location.address,
-        latitude: location.latitude,
-        longitude: location.longitude,
-        startTime,
-        endTime,
-        isFree: faker.datatype.boolean({ probability: 0.75 }),
-        interestedCount: 0,
-      },
-    });
-
-    await prisma.$executeRaw`
-      UPDATE events
-      SET location = ST_SetSRID(ST_MakePoint(${location.longitude}, ${location.latitude}), 4326)
-      WHERE id = ${event.id}
-    `;
-
-    // Add media
-    const mediaRand = Math.random();
-    if (mediaRand < 0.6) {
-      const numImages = faker.number.int({ min: 1, max: 3 });
-      for (let j = 0; j < numImages; j++) {
-        const imageUrl = await getCategoryImageUrl(category, host.id);
-        await prisma.mediaItem.create({
-          data: {
-            eventId: event.id,
-            url: imageUrl,
-            type: 'photo',
-            order: j,
-          },
-        });
-      }
-    } else if (mediaRand < 0.9) {
-      const videoUrl = await getCategoryVideoUrl(category, host.id);
-      const thumbnailUrl = await getCategoryImageUrl(category, host.id);
-      await prisma.mediaItem.create({
-        data: {
-          eventId: event.id,
-          url: videoUrl,
-          type: 'video',
-          order: 0,
-          thumbnailUrl,
-        },
-      });
-    }
-
-    allEvents.push(event);
+    allEvents.push(await createEvent(host.id));
   }
 
   console.log(`✅ Created ${allEvents.length} events\n`);
 
-  // Create follow relationships
-  console.log('👥 Creating follow relationships...');
+  // ==========================================================================
+  // 3. Spots
+  // ==========================================================================
+  console.log('📍 Creating spots...');
+  const allSpots: any[] = [];
+
   for (const [type, users] of Object.entries(usersByType)) {
     const config = USER_TYPES[type as UserType];
     for (const user of users) {
-      let followsToCreate: number;
-      if (type === 'social_connector') {
-        followsToCreate = faker.number.int({ min: 8, max: 12 });
-      } else {
-        followsToCreate = config.follows;
+      for (let i = 0; i < config.spotsToCreate; i++) {
+        allSpots.push(await createSpot(user.id));
       }
-      const targets = allUsers.filter((u) => u.id !== user.id);
-      const shuffled = faker.helpers.shuffle(targets).slice(0, followsToCreate);
+    }
+  }
 
-      for (const target of shuffled) {
+  console.log(`✅ Created ${allSpots.length} spots\n`);
+
+  // ==========================================================================
+  // 4. Follow relationships
+  // ==========================================================================
+  console.log('👥 Creating follow relationships...');
+
+  for (const [type, users] of Object.entries(usersByType)) {
+    const config = USER_TYPES[type as UserType];
+    for (const user of users) {
+      const followsToCreate =
+        type === 'social_connector'
+          ? faker.number.int({ min: 8, max: 12 })
+          : config.follows;
+
+      const targets = faker.helpers
+        .shuffle(allUsers.filter((u) => u.id !== user.id))
+        .slice(0, followsToCreate);
+
+      for (const target of targets) {
         await prisma.follow.upsert({
           where: {
-            followerId_followingId: {
-              followerId: user.id,
-              followingId: target.id,
-            },
+            followerId_followingId: { followerId: user.id, followingId: target.id },
           },
           update: {},
-          create: {
-            followerId: user.id,
-            followingId: target.id,
-          },
+          create: { followerId: user.id, followingId: target.id },
         });
       }
 
-      // Update following count
       await prisma.user.update({
         where: { id: user.id },
-        data: { followingCount: followsToCreate },
+        data: { followingCount: targets.length },
       });
     }
   }
-  console.log('✅ Created follow relationships\n');
 
-  // Create interested relationships
-  console.log('❤️  Creating interested relationships...');
+  for (const user of allUsers) {
+    const count = await prisma.follow.count({ where: { followingId: user.id } });
+    await prisma.user.update({ where: { id: user.id }, data: { followerCount: count } });
+  }
+
+  console.log('✅ Follow relationships created\n');
+
+  // ==========================================================================
+  // 5. Collections
+  // ==========================================================================
+  console.log('📚 Creating collections...');
+
+  const userCollections = new Map<string, any[]>();
+
   for (const [type, users] of Object.entries(usersByType)) {
     const config = USER_TYPES[type as UserType];
     for (const user of users) {
-      let interestedToCreate: number;
-      if (type === 'curator') {
-        interestedToCreate = faker.number.int({ min: 10, max: 15 });
-      } else if (type === 'selective_planner') {
-        interestedToCreate = faker.number.int({ min: 2, max: 4 });
-      } else if (type === 'lurker') {
-        interestedToCreate = faker.number.int({ min: 0, max: 1 });
-      } else {
-        interestedToCreate = config.interestedMarks;
-      }
-      const shuffled = faker.helpers.shuffle(allEvents).slice(0, interestedToCreate);
+      const templates = faker.helpers
+        .shuffle([...COLLECTION_TEMPLATES])
+        .slice(0, config.collections);
 
-      for (const event of shuffled) {
-        await prisma.interested.upsert({
-          where: {
-            userId_eventId: {
-              userId: user.id,
-              eventId: event.id,
-            },
-          },
-          update: {},
-          create: {
+      const collections: any[] = [];
+      for (const tmpl of templates) {
+        const collection = await prisma.collection.create({
+          data: {
             userId: user.id,
-            eventId: event.id,
+            name: tmpl.name,
+            description: tmpl.description,
+            visibility: tmpl.visibility,
           },
         });
+        collections.push(collection);
+      }
+      userCollections.set(user.id, collections);
+    }
+  }
 
-        // Update interested count
-        await prisma.event.update({
-          where: { id: event.id },
-          data: { interestedCount: { increment: 1 } },
-        });
+  const totalCollections = [...userCollections.values()].flat().length;
+  console.log(`✅ Created ${totalCollections} collections\n`);
+
+  // ==========================================================================
+  // 6. Saves (events & spots into user collections)
+  // ==========================================================================
+  console.log('💾 Creating saves...');
+
+  const allSaveables = [
+    ...allEvents.map((e) => ({ itemType: 'event' as const, itemId: e.id })),
+    ...allSpots.map((s) => ({ itemType: 'spot' as const, itemId: s.id })),
+  ];
+
+  let totalSaves = 0;
+
+  for (const [type, users] of Object.entries(usersByType)) {
+    const config = USER_TYPES[type as UserType];
+    for (const user of users) {
+      const savesToCreate =
+        type === 'connector'
+          ? faker.number.int({ min: 10, max: 15 })
+          : type === 'lurker'
+            ? faker.number.int({ min: 0, max: 1 })
+            : config.saves;
+
+      const collections = userCollections.get(user.id) ?? [];
+      if (collections.length === 0) continue;
+
+      const items = faker.helpers.shuffle([...allSaveables]).slice(0, savesToCreate);
+
+      for (const item of items) {
+        const collection = faker.helpers.arrayElement(collections);
+        try {
+          await prisma.save.create({
+            data: {
+              userId: user.id,
+              collectionId: collection.id,
+              itemType: item.itemType,
+              itemId: item.itemId,
+            },
+          });
+
+          await prisma.collectionItem.create({
+            data: {
+              collectionId: collection.id,
+              itemType: item.itemType,
+              itemId: item.itemId,
+              order: totalSaves,
+            },
+          });
+
+          if (item.itemType === 'event') {
+            await prisma.event.update({
+              where: { id: item.itemId },
+              data: { saveCount: { increment: 1 } },
+            });
+          } else {
+            await prisma.spot.update({
+              where: { id: item.itemId },
+              data: { saveCount: { increment: 1 } },
+            });
+          }
+
+          totalSaves++;
+        } catch {
+          // Duplicate save — skip silently
+        }
       }
     }
   }
-  console.log('✅ Created interested relationships\n');
 
+  console.log(`✅ Created ${totalSaves} saves\n`);
+
+  // ==========================================================================
+  // Done
+  // ==========================================================================
   console.log('🎉 Seed completed successfully!');
-  console.log(`\n📊 Summary:`);
-  console.log(`   - Users: ${allUsers.length}`);
-  console.log(`   - Events: ${allEvents.length}`);
-  console.log(`   - User types: ${Object.keys(USER_TYPES).join(', ')}`);
+  console.log('\n📊 Summary:');
+  console.log(`   Users:       ${allUsers.length}`);
+  console.log(`   Events:      ${allEvents.length}`);
+  console.log(`   Spots:       ${allSpots.length}`);
+  console.log(`   Collections: ${totalCollections}`);
+  console.log(`   Saves:       ${totalSaves}`);
+  console.log(`   User types:  ${Object.keys(USER_TYPES).join(', ')}`);
 }
 
 main()

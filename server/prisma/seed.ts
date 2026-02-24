@@ -49,12 +49,17 @@ async function main() {
     where: { userId: testUser.id },
   });
 
+  const defaultAddress = '123 Test St, New York, NY';
+  const defaultTags: string[] = [];
+
   const events = [
     // Event with past endTime (should NOT appear in queries)
     {
       title: 'Expired Event (Past EndTime)',
       description: 'This event has ended - should not appear in nearby events',
       category: 'music' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat,
       longitude: baseLng,
       startTime: twoHoursAgo,
@@ -64,7 +69,9 @@ async function main() {
     {
       title: 'Expired Event (No EndTime)',
       description: 'This event started in the past with no end time',
-      category: 'food_drink' as Category,
+      category: 'food' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat + 0.01,
       longitude: baseLng + 0.01,
       startTime: oneHourAgo,
@@ -75,6 +82,8 @@ async function main() {
       title: 'Upcoming Music Event',
       description: 'This event is happening soon',
       category: 'music' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat,
       longitude: baseLng,
       startTime: oneHourFromNow,
@@ -85,6 +94,8 @@ async function main() {
       title: 'Future Community Event',
       description: 'This event is in the future with no end time',
       category: 'community' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat - 0.01,
       longitude: baseLng - 0.01,
       startTime: oneDayFromNow,
@@ -94,7 +105,9 @@ async function main() {
     {
       title: 'Event at 5km Boundary',
       description: 'This event is exactly 5km away - edge case for testing',
-      category: 'sports_outdoors' as Category,
+      category: 'markets' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat + latOffset5km,
       longitude: baseLng,
       startTime: oneHourFromNow,
@@ -104,7 +117,9 @@ async function main() {
     {
       title: 'Event Just Inside 5km',
       description: 'This event is just inside the 5km radius',
-      category: 'arts_culture' as Category,
+      category: 'art' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat + latOffset5km * 0.9, // 90% of 5km
       longitude: baseLng,
       startTime: oneHourFromNow,
@@ -114,7 +129,9 @@ async function main() {
     {
       title: 'Event Just Outside 5km',
       description: 'This event is just outside the 5km radius',
-      category: 'nightlife' as Category,
+      category: 'drinks' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat + latOffset5km * 1.1, // 110% of 5km
       longitude: baseLng,
       startTime: oneHourFromNow,
@@ -122,9 +139,11 @@ async function main() {
     },
     // Multiple future events for variety
     {
-      title: 'Food & Drink Event',
+      title: 'Food Event',
       description: 'A great food event happening soon',
-      category: 'food_drink' as Category,
+      category: 'food' as Category,
+      address: defaultAddress,
+      tags: defaultTags,
       latitude: baseLat + 0.02,
       longitude: baseLng + 0.02,
       startTime: oneHourFromNow,
@@ -139,14 +158,6 @@ async function main() {
         ...eventData,
       },
     });
-
-    // Create location geometry for the event (trigger will handle this, but we can also set it)
-    // The trigger should handle it, but let's ensure it's set
-    await prisma.$executeRaw`
-      UPDATE events
-      SET location = ST_SetSRID(ST_MakePoint(${eventData.longitude}, ${eventData.latitude}), 4326)
-      WHERE id = ${event.id}
-    `;
 
     console.log(`✅ Created event: ${event.title}`);
   }

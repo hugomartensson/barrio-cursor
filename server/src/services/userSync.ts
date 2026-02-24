@@ -1,5 +1,6 @@
 import { prisma } from './prisma.js';
 import { createLogger } from './logger.js';
+import { generateHandle, generateInitials } from './handleService.js';
 
 const logger = createLogger({ component: 'user-sync' });
 
@@ -52,16 +53,23 @@ export async function syncUserToDatabase(
         );
       }
     } else {
-      // User doesn't exist - create it
+      // User doesn't exist - create it (portal: set handle and initials)
+      const handle = await generateHandle(name);
+      const initials = generateInitials(name);
       await prisma.user.create({
         data: {
           id,
           email,
           passwordHash: 'supabase-managed', // Password managed by Supabase Auth
           name,
+          handle,
+          initials: initials || null,
         },
       });
-      logger.debug({ userId: id, email, action: 'created' }, 'User created in database');
+      logger.debug(
+        { userId: id, email, handle, action: 'created' },
+        'User created in database'
+      );
     }
   } catch (error) {
     // Log detailed error information

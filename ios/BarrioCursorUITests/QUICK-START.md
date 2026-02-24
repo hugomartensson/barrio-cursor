@@ -34,7 +34,15 @@ struct TestAccounts {
 }
 ```
 
-### Step 4: Run Your First Test (1 minute)
+### Step 4: Backend / Database (if tests hit your API)
+
+From repo root, ensure the server DB is migrated and seeded so Discover and collections work:
+
+```bash
+cd server && npx prisma migrate deploy && npx prisma db seed
+```
+
+### Step 5: Run Your First Test (1 minute)
 
 ```bash
 cd ios/BarrioCursorUITests
@@ -50,7 +58,7 @@ Tests need identifiers to find UI elements. Add these to your SwiftUI views:
 ### Priority 1: Critical Elements
 
 ```swift
-// LoginView.swift
+// AuthView.swift
 Button("Log In") {
     // ...
 }
@@ -62,19 +70,32 @@ TextField("Email", text: $email)
 SecureField("Password", text: $password)
     .accessibilityIdentifier("Password")
 
+// ContentView.swift
+var body: some View {
+    Group {
+        if authManager.isAuthenticated {
+            MainTabView()
+                .accessibilityIdentifier("main_tab_view")
+        } else {
+            AuthView()
+                .accessibilityIdentifier("auth_view")
+        }
+    }
+}
+
 // MainTabView.swift
-TabView {
-    MapView()
-        .tabItem { ... }
-        .accessibilityIdentifier("Map")
-    
-    FeedView()
-        .tabItem { ... }
-        .accessibilityIdentifier("Feed")
-    
-    ProfileView()
-        .tabItem { ... }
-        .accessibilityIdentifier("Profile")
+private func portalTabItem(icon: String, label: String, tag: Int) -> some View {
+    let isActive = selectedTab == tag
+    return Button {
+        selectedTab = tag
+    } label: {
+        VStack {
+            Image(systemName: icon)
+            Text(label)
+        }
+    }
+    .buttonStyle(.plain)
+    .accessibilityIdentifier(label) // "Discover", "Map", "Profile"
 }
 ```
 
@@ -94,17 +115,20 @@ Button("Create Event") {
 .accessibilityIdentifier("Create Event")
 ```
 
-### Priority 3: Plans
+### Priority 3: Collections
 
 ```swift
-// CreatePlanView.swift
-TextField("Plan Name", text: $name)
-    .accessibilityIdentifier("Plan Name")
+// CreateCollectionSheet.swift
+TextField("Name", text: $name)
+    .accessibilityIdentifier("collection_name")
+
+TextField("Description (optional)", text: $description)
+    .accessibilityIdentifier("collection_description")
 
 Button("Create") {
     // ...
 }
-.accessibilityIdentifier("Create")
+.accessibilityIdentifier("create_collection")
 ```
 
 ## Running Tests

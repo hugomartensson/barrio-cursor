@@ -1,0 +1,476 @@
+portal. — Product Requirements Document (v1)
+
+**Last updated:** February 2026
+
+---
+
+## Product in one sentence
+
+portal. helps you find something worth doing, plan it, and share what you know — through people you trust, not algorithms.
+
+---
+
+## Core persona
+
+**The Intentional Explorer** — 25–38, urban, culturally active. Has strong taste in food, music, art, and nightlife. Travels regularly and has friends scattered across cities. Frustrated by generic recommendations on Google Maps, Yelp, and TripAdvisor. Trusts specific people over aggregate scores.
+
+Currently pieces plans together from Instagram stories, group chats, Google Maps saves, and screenshots. Most of the time, defaults to what they already know because the friction of finding something new is too high.
+
+**Primary job-to-be-done:** Go from "I have free time" to "I know exactly what I'm doing" in under two minutes.
+
+---
+
+## Three core flows
+
+Everything in v1 exists to serve one of these three flows. If a feature doesn't directly support one, it's not in the app.
+
+---
+
+### Flow 1: Find something worth doing
+
+**Trigger:** Weekend approaching, evening free, visiting a city, friend asks "what should we do?"
+
+**Outcome:** User goes from "no idea" to "I have a shortlist of good options" — or all the way to a shareable plan.
+
+**Steps:**
+
+**1. Express intent.**
+User opens the app. At the top of the discover feed, two rows of filter pills allow the user to express what they're looking for:
+
+- **Row 1 — Time:** `Tonight` · `Tomorrow` · `This Weekend` · `Sat` · `Sun` · `Pick a date`. Single-select — tapping one deselects the previous. Tapping the active pill again deselects it (returns to browse mode).
+- **Row 2 — Category:** `Food` · `Drinks` · `Music` · `Art` · `Markets` · `Community`. Multi-select — the user can combine categories (e.g., Food + Drinks). Tapping an active category deselects it.
+
+Every tap immediately reshapes the feed. There is no "apply" button — the content updates in real time as filters change.
+
+When no time filter is active, the feed is in **browse mode**: all content is visible, editorially mixed, optimized for casual exploration. When a time filter is selected, the feed enters **planning mode**: time-relevant events and spots surface to the top, and evergreen content (permanent spots, general collections) is deprioritized below.
+
+The time filter is the mode switch. There is no explicit toggle or tab — the user's expression of time intent reshapes the entire surface.
+
+**2. Browse.**
+The feed is a single scrollable surface with events and spots interleaved. There are no tabs separating content types — the user cares about "is this worth doing?", not whether it's technically a spot or an event.
+
+Each card shows:
+- Hero image filling the card frame
+- Name
+- Category
+- Neighborhood
+- Trust signal: who created or saved it (avatar + handle), save count
+- Events additionally show: date and time
+
+Cards are ordered by a combination of editorial quality, recency, and trust relevance (friend saves weighted higher than stranger saves). The feed also includes discovery sections interspersed with cards — see the Discover surface description below for full section breakdown.
+
+**3. Evaluate.**
+Tapping a card opens a detail screen. The top fold — visible without scrolling — answers four questions:
+
+- *What is it?* — Name + category + tags
+- *When?* — Date/time (events) or "Open" (spots)
+- *Where?* — Neighborhood + distance from user
+- *Why trust this?* — Who created it, who saved it, total save count
+
+Below the fold: full description, ticket link (if event), map showing location, and the hosts/owners attributed to the item.
+
+The primary action on this screen is **Save** — prominently placed, one tap.
+
+**4. Save.**
+One tap. No "which collection?" prompt. No confirmation dialog. The item goes to the user's unsorted personal saves list. This is the moment value is delivered for most users most of the time — they save 3–5 things over the course of browsing and go do 1–2 of them without ever formally organizing.
+
+The save action is available on every card surface: in the feed, in the map card preview, and on the detail screen. It behaves identically everywhere.
+
+**5. Organize (optional).**
+If the user wants to go beyond a loose shortlist, they can create a named collection and pull saved items into it. This step is never prompted or pushed — the user initiates it themselves from the Profile tab. See the Collections section below for full detail.
+
+For the majority of use cases — "I saved 3 things for Saturday, I'll pick one" — the unsorted saves list is the plan. Formal organization is for higher-stakes situations: multi-day trips, coordinating with friends, building a recommendation list for others.
+
+---
+
+### Flow 2: Share what you know
+
+**Trigger:** Friend is visiting my city. Someone asks "where should I eat in Barcelona?" User found something great and wants to share it more durably than an Instagram story that disappears in 24 hours.
+
+**Outcome:** A curated, named, shareable collection that works as a self-contained artifact — useful whether the recipient has the app or not.
+
+**Steps:**
+
+**1. Save things over time.**
+Identical to flow 1, step 4. The user has been saving spots and events for themselves through normal use of the app. Their accumulated saves represent their taste.
+
+**2. Organize into a collection.**
+The user creates a new collection from the Profile tab and names it with the audience in mind: "Barcelona Essentials", "Best Natural Wine Bars in Poblenou", "This Weekend's Picks." They then add items from their saves into this collection. See the Collections section for the full mechanics.
+
+**3. Set visibility.**
+Every collection has a visibility setting with three options:
+- **Private** (default) — only the creator sees it
+- **Friends** — visible to approved followers
+- **Public** — visible to everyone, appears on the user's profile, discoverable in the feed and through search
+
+Changing visibility is a single tap on the collection. The moment a collection is set to Public, it becomes part of the app's discovery ecosystem — other users can find it, save it, and follow the creator based on it.
+
+**4. Share.**
+Tapping share on any collection generates a link. The user sends this link through any messaging app (WhatsApp, iMessage, etc.). The link opens a read-only web view of the collection showing all items with their details — no account required to view it. If the recipient has the app, tapping an item opens it natively.
+
+Public collections additionally live on the creator's profile permanently, where anyone who visits the profile can browse them.
+
+**How flow 2 connects to flow 1:** Public collections from other users appear in the discover feed. When a user's public collections accumulate saves from others, that user becomes someone worth following. The path from casual user to influential curator is organic — it happens through the quality of their collections, not through any explicit status or verification.
+
+---
+
+### Flow 3: Put your thing on the map
+
+**Trigger:** Venue has a show Friday, restaurant just opened, promoter booked a lineup, pop-up market happening this weekend.
+
+**Outcome:** The event or spot is live in the app — visible on the map, in the discover feed for users filtering by matching time/area/category, and in the feeds of the creator's followers.
+
+**Steps:**
+
+**1. Create.**
+From the Profile tab, the user taps "+" next to My Events or My Spots. A single creation form adapts to the content type:
+
+**For events (things with a date):**
+- Required: name, category, location, date, time, one image, short description
+- Optional: end time, price, ticket link, tags, additional hosts
+
+**For spots (permanent places):**
+- Required: name, category, location, one image, short description
+- Optional: price range, tags, additional owners
+
+The form is short and focused — it asks only for what a potential visitor needs to decide whether to go. There is no rich text editor, no multi-image gallery, no complex scheduling.
+
+Secondary creation entry point: long-pressing on the map creates a new event or spot with the location pre-filled.
+
+**2. Publish.**
+The item goes live immediately upon submission. It appears:
+- As a pin on the map
+- In the discover feed for users whose active filters (time, category, location) match
+- In the feeds of anyone following the creator
+
+There is no review queue, no approval process. Content is live instantly.
+
+**3. See traction.**
+The creator sees the save count on their item — visible on the item's detail screen and on the card wherever it appears. "34 people saved your event" is the signal that the right audience found it. There are no other analytics in v1.
+
+---
+
+## Product surfaces
+
+The app has three tabs in a bottom navigation bar. These are the only top-level navigation destinations.
+
+### Discover (Tab 1 — Compass icon)
+
+The primary surface. This is where flow 1 and flow 2 play out for consumers.
+
+**Header:**
+- City name displayed prominently, tappable to open city switcher
+- Switching cities fully refreshes all content across all tabs
+
+**Filter rows:**
+- Row 1 (time) and Row 2 (category) as described in flow 1, step 1
+- Filters are sticky at the top as the user scrolls
+
+**Feed sections (browse mode — no time filter active):**
+
+The feed is a vertically scrollable page with content organized into sections. The sections are:
+
+1. **Events and spots** — the main content. Cards interleaved in a single stream, ordered by editorial quality and trust signals. This is not a separate section with a header — it is the primary body of the feed with other sections interspersed.
+
+2. **From Friends** — appears when the user has approved followers who have saved items in the current city. Shows a section header ("From people you trust"), then a horizontal scroll of cards with friend attribution: the friend's colored avatar, their name, and "saved this." Each card shows the spot or event they saved. Tapping a card opens the item detail. This section only appears if there are relevant friend saves to show.
+
+3. **Featured collection** — a hero-sized card showcasing a single public collection from a user with strong local presence. Shows the collection cover image, name, creator attribution, and item count. Tapping opens the collection.
+
+4. **People to follow** — horizontal scroll of user avatars with names and short context (e.g., "42 saves in Barcelona"). These are users with active public collections in the current city. Tapping an avatar opens their profile.
+
+5. **Public collections** — horizontal scroll of collection cards from various users. Each card shows cover image, name, creator, and save count. Tapping opens the collection.
+
+**Feed behavior (planning mode — time filter active):**
+When a time filter is selected, the same sections exist but their ordering and content changes:
+- Time-relevant events move to the top of the feed
+- Spots that are time-relevant (pop-ups, seasonal menus, limited-run exhibitions) also rise
+- The "From Friends" section filters to only show items relevant to the selected time
+- Evergreen content (permanent spots, general collections, people to follow) moves below or is deprioritized
+- The featured collection is shown if time-relevant, otherwise deprioritized
+
+**Search:**
+A search bar is accessible from the discover feed. Searching queries across users, spots, events, and collections simultaneously. Results are grouped by type. Minimum viable implementation: keyword matching on names and descriptions.
+
+---
+
+### Map (Tab 2 — Map icon)
+
+A spatial view of the same content available in the discover feed. The map is not a separate data source — it renders the same spots and events, filtered by the same active filters.
+
+**Map view:**
+- Full-screen map centered on the user's current city
+- Spots appear as dark-colored pins
+- Events appear as accent-colored (orange) pins
+- Live/ongoing events (start time ≤ now < end time) display a small "LIVE" badge on the pin
+- Layer toggle at the top: All / Spots / Events — allows the user to show only one content type
+
+**Filters:**
+The same time and category filters from the discover feed are available on the map. Filter state is shared across discover and map — changing a filter on one tab affects the other.
+
+**Interaction:**
+- Tap a pin → a card preview slides in at the top of the screen showing: name, neighborhood, time (if event), save count, and creator attribution
+- Tap the card preview → opens the full detail screen as an overlay
+- Save button is available directly on the card preview — one tap to save without opening the detail screen
+- Long-press anywhere on the map → opens the creation form with that location pre-filled (secondary entry point for flow 3)
+
+**Recenter:**
+A recenter button returns the map to the user's current location or the city center.
+
+---
+
+### Profile (Tab 3 — User icon)
+
+The user's home base. Where saves, collections, and created content live. Also the entry point for flow 3 (creation).
+
+**Own profile layout:**
+
+- **Header:** Avatar (initial letter on colored background), name, handle, current city
+- **Stats:** Saved count, collections count, following count
+
+- **My Saves:** A list of all items the user has saved, in reverse chronological order (most recent save first). Each item shows the same card treatment as the feed. Tapping opens the detail screen. This is the user's raw, unsorted shortlist — the output of flow 1, step 4.
+
+- **My Collections:** A list of the user's created collections. Each collection shows: name, visibility badge (Private / Friends / Public), item count, and cover image. Tapping a collection opens it to show its contents. A "Create collection" action is available here. See the Collections section below for full mechanics.
+
+- **My Spots:** A list of spots where this user is an owner. Each shows the spot card. A "+" button allows creating a new spot (flow 3 entry point).
+
+- **My Events:** A list of events where this user is a host. Each shows the event card. A "+" button allows creating a new event (flow 3 entry point).
+
+- **Following:** A horizontal scroll of users the current user follows, showing avatars and names. Tapping opens that user's profile.
+
+**Viewing another user's profile:**
+
+Accessible by tapping any user attribution (on a card, in a collection, in search results, in the "People to follow" section).
+
+- **Header:** Avatar, name, handle, follower count, bio
+- **Follow button:** Three states — "Follow" (not following), "Requested" (pending approval), "Following" (approved). Tapping "Follow" sends a request. Tapping "Following" unfollows.
+- **Public collections:** Displayed as cards, always visible to anyone regardless of follow status
+- **Spots owned:** Spots where this user is an owner. Visible to anyone.
+- **Events hosted:** Events where this user is a host. Visible to anyone.
+- **Saved items:** Visible only if the viewer is an approved follower. If not approved, this section shows a locked empty state with a brief explanation ("Follow [name] to see their saves").
+
+This unified profile structure means a restaurant, a food blogger, and a casual user all look the same. The content on their profile — owned spots, curated collections, or hosted events — communicates what kind of user they are without explicit labels or badges.
+
+---
+
+## One account type
+
+There are no verified accounts, no curator badges, no tiered account types. Every user has the same profile structure and the same capabilities: save items, create collections, follow others, create events, create spots.
+
+Trust emerges from behavior:
+- A user whose public collections accumulate saves becomes a de facto curator — others follow them for their taste
+- A venue that creates spots and hosts events becomes a direct source — followers get updates
+- A friend whose saves you can see (after approving their follow request) becomes a trusted personal recommender
+
+The platform never assigns status. The audience decides who matters.
+
+**Follow mechanic:**
+Follow requests require approval. Until a follow request is approved:
+- The requester cannot see the other user's saves
+- The requester cannot see the other user's friends-only collections
+- The requester can always see public collections, owned spots, and hosted events
+
+This approval gate makes the system trustworthy. No one's personal saves are visible without consent.
+
+---
+
+## Collections
+
+Collections are the single organizing type in portal. They are the connective tissue across all three flows:
+
+- In **flow 1**, a collection is how a user organizes saved items into a plan: "Date night Saturday" containing a restaurant and a bar, or "Prague April trip" containing a week's worth of spots and events.
+- In **flow 2**, a collection is the artifact a user shares: "Barcelona Essentials" sent to a friend who's visiting, or "Best Natural Wine Bars" published publicly for anyone to find.
+- In **flow 3**, a creator's events and spots get saved into other users' collections — that's how the content gets distributed and organized by the audience.
+
+**Creating a collection:**
+From Profile → My Collections → Create. The user provides:
+- **Name** (required) — the name communicates the point of view: "Saturday night", "Best second-hand in BCN", "Tokyo 2026"
+- **Description** (optional) — a short line of context
+- **Visibility** (required, defaults to Private):
+  - Private — only the creator sees it
+  - Friends — visible to approved followers
+  - Public — visible to everyone, appears on the creator's profile, discoverable in the discover feed and through search
+
+**Adding items to a collection:**
+Two paths:
+1. From within the collection: the user browses their saves and taps to add items
+2. From the save action: after saving an item, the user can optionally add it to an existing collection (but this is never required — the default save goes to unsorted saves)
+
+**Collection contents:**
+A collection contains a mixed list of spots and events. Each item shows the same card treatment as in the feed. Items are displayed in the order they were added (most recent first). Expired events (past their date) remain in the collection but are visually muted.
+
+**Collection card (how collections appear in the feed and on profiles):**
+- Cover image (auto-generated from the first item's image, or manually set)
+- Collection name
+- Creator attribution (avatar + handle)
+- Item count
+- Save count (for public collections — indicates how many other users have saved this collection)
+
+**Saving someone else's collection:**
+When a user encounters a public collection in the feed or on someone's profile, they can save the entire collection with one tap. This adds it to their saved collections for easy access. The save count on the collection increments.
+
+**Sharing a collection:**
+Tapping share on any collection generates a URL. The URL opens a read-only web view showing the collection name, creator, description, and all items with their details. No account is required to view it. If the recipient has the app, items within the shared view can be opened natively.
+
+---
+
+## Data model
+
+### Spot
+```
+id
+name
+category (food | drinks | music | art | markets | community)
+neighborhood
+description
+image
+location (lat, lng)
+priceRange (optional)
+tags[] (optional)
+owners[] — array of user references; first is the creator, additional can be added
+saveCount
+```
+
+### Event
+```
+id
+name
+category (food | drinks | music | art | markets | community)
+neighborhood
+description
+image
+location (lat, lng)
+date (ISO)
+time
+endDate (optional)
+ticketUrl (optional)
+ticketPrice (optional)
+tags[] (optional)
+hosts[] — array of user references; first is the creator, additional can be added
+saveCount
+isOngoing (derived: start ≤ now < end)
+```
+
+### User
+```
+id
+name
+handle
+avatar (initial + color)
+bio (optional)
+cities[]
+followerCount
+followingCount
+```
+
+### Collection
+```
+id
+name
+description (optional)
+ownerId
+visibility (private | friends | public)
+items[] — array of {itemId, itemType (spot | event), addedAt}
+coverImage
+saveCount
+city (optional)
+```
+
+### Save
+```
+userId
+itemId
+itemType (spot | event)
+savedAt
+```
+
+### Follow
+```
+followerId
+followedId
+status (pending | approved)
+```
+
+---
+
+## Cold start
+
+The first session must never show an empty feed.
+
+**If location is enabled:**
+- App detects the user's city
+- Immediately shows top spots and events for that city
+- Surfaces popular users with strong local collections in the "People to follow" section
+- The feed is useful from the first scroll — following people refines it over time but is not a prerequisite
+
+**If location is not enabled:**
+- City picker screen: "Which city do you want to explore?"
+- After selection, same populated feed
+
+In both cases, the user reaches useful, browsable content within seconds of opening the app. There are no forced onboarding steps, no "follow 5 people to continue," no tutorial screens.
+
+---
+
+## Design system
+
+### The concept: editorial discovery
+
+portal. is designed to feel like a city magazine you carry in your pocket — not a utility app, not a social feed. The visual language borrows from print editorial: deliberate white space, serif headlines that command attention, and photography that fills the frame. Every screen is a considered layout, not a list of results. Browsing portal. should feel like flipping through a well-edited issue where every pick has weight because someone put their name on it.
+
+This matters for the product: editorial trust is visual before it's intellectual. If the app looks considered, recommendations feel considered. The design system encodes that signal at every level.
+
+### Typography
+
+Two typefaces, used with strict hierarchy:
+
+**Instrument Serif** — headlines, collection names, spot/event titles, the wordmark. A contemporary editorial serif with optical italic that gives the app its magazine voice. Used at display sizes for maximum impact. The italic variant appears in the wordmark (*portal.*) and hero taglines.
+
+**DM Sans** — all UI text, metadata, labels, captions, filter pills. Clean, geometric, highly legible at small sizes. Keeps the product functional without competing with the display type.
+
+### Color
+
+The palette is deliberately restrained — a warm base with a single strong editorial accent.
+
+- **Background:** warm off-white (hsl 36 30% 97%) — reminiscent of uncoated magazine stock, not pure white
+- **Foreground:** near-black with warm brown undertone (hsl 20 20% 10%) — avoids the coldness of pure black
+- **Primary accent:** saturated orange-red (hsl 16 90% 52%) — the editorial accent used for CTAs, active filter pills, and the wordmark period
+- **Live accent:** warm rose (hsl 340 75% 52%) — used sparingly for live/happening-now states
+- **Muted/border:** warm grey tones in the same hue family as the background
+
+### Trust-layer color coding
+
+Color carries semantic meaning — it signals the trust source:
+
+- **Orange gradient** — editorial authority. Appears on prominent user avatars, event date sidebars, CTAs, and active filter pills. When you see orange, something has been recommended by someone with a public following.
+- **Personal colors** (blue, teal, amber — assigned per friend) — friend attribution. When a card shows a colored avatar that isn't orange, it's someone you know personally.
+- **Dashed ring + muted opacity** — pending follow state. Communicates "you don't have access yet" without a hard error.
+
+### Surfaces and depth
+
+Cards use pure white over the warm cream background, creating gentle lift without heavy shadows. Shadows are soft, two-layer, tuned to feel like paper on a desk.
+
+Photography always fills the card frame. A gradient overlay darkens the bottom third of images so white text reads cleanly over any photo.
+
+Border radius is consistent (1rem) — rounded enough to feel modern, not so round it looks playful.
+
+Frosted glass (backdrop blur) appears on floating badges over photography: category pills, save buttons.
+
+### Layout
+
+Mobile-first, single column. The entire discovery feed is one scrolling column. Grids appear only within sections (spots may use a 2-column grid).
+
+Horizontal carousels for collections, users to follow, and friend saves — scrollable within a contained band.
+
+Sticky header with backdrop blur — the city name and wordmark stay visible while scrolling.
+
+Section labels use small, semibold, uppercase, wide-tracked, muted text — the typographic equivalent of a magazine section divider.
+
+Generous padding throughout. White space is editorial. Density is for utility apps.
+
+### Motion
+
+Animations are understated and directional — they reinforce hierarchy, not decorate:
+
+- **Fade-in** (0.4s, ease-out, Y+8px) — content appearing in place. Filters, friend sections.
+- **Slide-up** (0.5s, ease-out, Y+20px) — section-level content entering. Events, featured collections.
+- **Pulse-glow** — the single expressive animation, used only on live/ongoing event indicators. Warm orange glow pulses at 2s interval.
+- **Staggered delays** on grids (80ms per item) — creates the appearance of content being placed, not dumped.

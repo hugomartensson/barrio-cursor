@@ -15,34 +15,49 @@ This testing system provides:
 
 ### Core Flows Tested
 
-- ✅ **Authentication** (`LoginFlowTests.swift`)
-  - Login with valid credentials
-  - Login with invalid credentials
-  - Signup flow
-
-- ✅ **Event Discovery** (`DiscoveryFlowTests.swift`)
-  - Browse feed view
-  - View event details
-  - Filter events (category, following, time)
-  - Map view discovery
-  - **Map to Story flow** - Tap pin → Story viewer → Swipe media → View details
-
-- ✅ **Event Creation** (`EventCreationTests.swift`)
-  - Create event with all fields
-  - Media upload
-  - Location selection
-  - Form validation
-
-- ✅ **Plans** (`PlansFlowTests.swift`)
-  - Create plan
-  - Add event to plan
-  - View plans list
-  - Plan details
-
-- ✅ **Profiles** (`ProfileFlowTests.swift`)
-  - View own profile
-  - Edit profile
-  - View other user profiles
+- ✅ **Authentication**  
+  - `AuthFlowTests.swift` (signup/login/logout, auth vs main screen detection)  
+  - `LoginFlowTests.swift` (valid/invalid login paths)
+  
+- ✅ **Flow 1 – Find something worth doing (Discover + Map + Save)**  
+  - `DiscoveryFlowTests.swift`
+    - Browse **Discover** view
+    - View event details
+    - Filter events (category, following, time)
+    - Map view discovery  
+    - Note: the historical *Map → Story viewer* test is kept but explicitly skipped, since the story viewer surface has been removed from the product.
+  - `EventDiscoveryTests2.swift`
+    - Discover shows events or empty/Loading/Error states
+    - Tap event → Event detail with **Save** as primary action
+    - Toggle Save on event detail
+    - Map tab renders and is interactable
+  
+- ✅ **Flow 2 – Share what you know (Collections)**  
+  - `CollectionsFlowTests.swift`
+    - `Profile → My Collections → +` opens create-collection sheet
+    - Create a collection with name + optional description
+    - New collection appears in **My Collections** list
+    - Collection detail placeholder (“Items in this collection will appear here.”) is visible
+  
+- ✅ **Flow 3 – Put your thing on the map (Create events)**  
+  - `EventCreationTests.swift`
+    - Generic “create event” coverage (title, description, category, location, time, media)  
+    - Verifies navigation back to main view and basic error handling
+  - `EventCreationTests2.swift`
+    - `Profile → My Events → +` opens **CreateEventView**
+    - Basic form validation (Create disabled on empty form)
+    - Cancel returns to My Events
+    - Create event from Profile, then verify:
+      - Event appears in **My Events**
+      - Event title is visible somewhere on **Discover**
+  
+- ✅ **Profiles**  
+  - `ProfileFlowTests.swift`
+    - View own profile (metrics + navigation links)
+    - Edit profile and verify updated name
+    - View other user profiles, including follow button and events section
+  - `ProfileTests2.swift`
+    - Sanity checks for profile info, edit profile sheet, and My Events navigation
 
 ## Setup
 
@@ -92,8 +107,10 @@ TextField("Email", text: $email)
 **Key elements to add identifiers:**
 - All buttons (Login, Create, Save, etc.)
 - Text fields (Email, Password, Title, etc.)
-- Tab bar items (Map, Feed, Profile)
-- Navigation elements
+- Main container + bottom nav:
+  - Root `ContentView` branches (`auth_view`, `main_tab_view`)
+  - Bottom navigation items (`Discover`, `Map`, `Profile`)
+- Navigation elements (links to My Saves / My Collections / My Events, etc.)
 
 ### 4. Grant Permissions
 
@@ -102,6 +119,23 @@ The simulator/device needs:
 - **Photo library access** - For event creation with media
 
 These are typically handled by iOS permission dialogs during test execution.
+
+### 5. Backend / Database (Prisma)
+
+UI tests hit the real API. For **Discover** (nearby events), **collections**, and **event creation** to work, the server database must be up to date and seeded.
+
+1. **Apply migrations** (from repo root):
+   ```bash
+   cd server && npx prisma migrate deploy
+   ```
+2. **Seed the database** so events exist (required for Discover feed and some tests):
+   ```bash
+   cd server && npx prisma db seed
+   ```
+   Optionally run `seed-fake-data` if your project provides it, to add more test events.
+3. **Test accounts** (`test1@barrio.app`, `test2@barrio.app`) are created in Supabase Auth and synced to Prisma on first login; no extra DB seed is required for them.
+
+If migrations or seed are missing, Discover may be empty and tests that expect events (e.g. browse Discover, view event details) can fail or skip.
 
 ## Running Tests
 

@@ -1,8 +1,3 @@
-/**
- * Shared response types for API endpoints
- * Consolidates duplicate type definitions across route files
- */
-
 export interface EventMedia {
   id: string;
   url: string;
@@ -16,13 +11,13 @@ export interface EventData {
   title: string;
   description: string;
   category: string;
-  address: string; // PRD: Address is primary
+  address: string;
   latitude: number;
   longitude: number;
   startTime: string;
   endTime: string | null;
   createdAt: string;
-  interestedCount: number; // PRD: Replaces likesCount/goingCount
+  saveCount: number;
   distance?: number;
   media: EventMedia[];
   user: { id: string; name: string };

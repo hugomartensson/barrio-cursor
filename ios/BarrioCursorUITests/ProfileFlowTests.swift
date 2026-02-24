@@ -43,16 +43,16 @@ class ProfileFlowTests: BaseTestCase {
             // Look for "My Events" or "Events" section
             let eventsSection = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'event'")).firstMatch
             
-            // Look for "Plans" section
-            let plansSection = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'plan'")).firstMatch
+            // Look for "Collections" section
+            let collectionsSection = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'collection'")).firstMatch
             
-            // Look for "Interested" section
-            let interestedSection = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'interested'")).firstMatch
+            // Look for "Saved" section
+            let savedSection = app.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'saved'")).firstMatch
             
             print("Profile sections found:")
             print("  Events: \(eventsSection.exists)")
-            print("  Plans: \(plansSection.exists)")
-            print("  Interested: \(interestedSection.exists)")
+            print("  Collections: \(collectionsSection.exists)")
+            print("  Saved: \(savedSection.exists)")
             
             captureScreenshot(name: "profile_sections")
         }
