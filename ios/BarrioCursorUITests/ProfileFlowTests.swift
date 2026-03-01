@@ -147,10 +147,10 @@ class ProfileFlowTests: BaseTestCase {
     }
     
     func testViewOtherUserProfile() throws {
-        try recordStep("Navigate to Feed") {
-            let feedTab = app.tabBars.buttons["Feed"]
-            XCTAssertTrue(waitForElement(feedTab))
-            feedTab.tap()
+        try recordStep("Navigate to Discover") {
+            let discoverTab = app.tabBars.buttons["Discover"]
+            XCTAssertTrue(waitForElement(discoverTab))
+            discoverTab.tap()
             sleep(5) // Wait for events to load
         }
         

@@ -143,6 +143,14 @@ npm run dev
 | POST /events/:id/like | Toggle like |
 | POST /events/:id/going | Toggle going |
 
+## SwiftUI & build pitfalls
+
+- **ViewBuilder bodies** (e.g. inside `LazyVStack`, `VStack`, `@ViewBuilder`): Every statement must produce a `View`. Do not use standalone assignments like `_ = ...` or unused `let x = ...`; remove them or use the value in the following view.
+- **ForEach + braces**: When the ForEach body is a multi-line view (e.g. a `PortalFilterPill` with a trailing closure), ensure the body is one view and that braces match: close the view, then close the ForEach, then the container (e.g. HStack). Missing one `}` can cause “Attribute 'private' can only be used in a non-local scope” and “Expected '}'”.
+- **Design system colors**: Use `.foregroundColor(.portalXxx)` as usual. When using `.foregroundStyle()` with a portal color, use `Color.portalXxx` explicitly (e.g. `Color.portalMutedForeground.opacity(0.8)`) so the type is unambiguous for `ShapeStyle`.
+- **Copy Bundle Resources vs synchronized root**: The app uses a **File System Synchronized Root Group** for the BarrioCursor folder. Any file that is also added explicitly to “Copy Bundle Resources” (e.g. fonts) will be duplicated and Xcode will warn. Add those files to the root’s **membership exceptions** in the project so they are only copied via the explicit phase.
+- **Conformances on imported types**: When extending an imported type (e.g. `CLLocationCoordinate2D: Equatable`), use `@retroactive` if the compiler suggests it, to avoid future conflicts if the SDK adds the conformance.
+
 ## Troubleshooting
 
 ### "Could not connect to server"

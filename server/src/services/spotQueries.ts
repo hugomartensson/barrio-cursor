@@ -22,7 +22,7 @@ export interface NearbySpotRow {
 }
 
 /**
- * Fetch spots within radius of (lat, lng). Uses location geometry if available.
+ * Fetch spots within radius of (lat, lng). Uses latitude/longitude (location column was removed).
  */
 export async function fetchNearbySpots(
   lat: number,
@@ -30,18 +30,20 @@ export async function fetchNearbySpots(
   limit: number = DEFAULT_LIMIT,
   radiusMeters: number = DEFAULT_RADIUS_METERS
 ): Promise<NearbySpotRow[]> {
-  const rows = await prisma.$queryRaw<NearbySpotRow[]>`
+  const spotPointSql = `ST_SetSRID(ST_MakePoint(s.longitude, s.latitude), 4326)::geography`;
+  const originSql = `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
+  const rows = await prisma.$queryRawUnsafe<NearbySpotRow[]>(
+    `
     SELECT s.id, s.owner_id, s.name, s.description, s.address, s.latitude, s.longitude,
            s.category_tag, s.neighborhood, s.price_range,
-           COALESCE(
-             ST_Distance(s.location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography),
-             0
-           )::integer as distance
+           ST_Distance(${spotPointSql}, ${originSql})::integer as distance
     FROM spots s
-    WHERE s.location IS NOT NULL
-      AND ST_DWithin(s.location::geography, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography, ${radiusMeters})
+    WHERE ST_DWithin(${spotPointSql}, ${originSql}, $1)
     ORDER BY distance ASC
-    LIMIT ${limit}
-  `;
+    LIMIT $2
+  `,
+    radiusMeters,
+    limit
+  );
   return rows;
 }
