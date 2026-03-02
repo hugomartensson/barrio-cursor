@@ -1,0 +1,58 @@
+Alpha PRD — Status as of 2026-03-02
+
+This file summarizes what has been implemented for the alpha version and what remains, per the MASTER-PRD-2402 and alpha scope.
+
+---
+
+WHAT HAS BEEN DONE
+
+Discover feed
+• Non-functional search bar removed; feed uses full width.
+• Map entry is a single floating teal pill (map icon) bottom-right; feed content extends to bottom of screen (no gray/white box).
+• Map pill is hidden when any detail view is shown (event, spot, or collection).
+• Feed list and background extend into bottom safe area so the feed goes all the way down.
+
+Save (Flow 1 — Find)
+• Unified save control: small gray capsule with bookmark icon + save count; turns teal/green when saved. Same style on cards and detail screens.
+• Save works from: event cards, spot cards, map event preview, event detail (hero only), spot detail (hero only), collection detail (hero), and individual spot rows inside a collection.
+• Save count updates in place after toggle (events, spots, collection spots); backend save/unsave is wired.
+
+First-run / location
+• First-run city behavior: app prompts for location permission; if denied or unavailable, fallback is Stockholm (not Manhattan). AppConfig has fallbackLatitude/Longitude for Stockholm.
+
+Map view
+• Map uses full screen height; filter row is a floating card (categories “hang freely”) with spacing so the arrow/recenter isn’t cramped.
+• Close (X) removed from top; Discover pill (compass icon) bottom-right dismisses map and returns to Discover.
+• Event preview save button uses same capsule style and updates count.
+
+Detail pages (event, spot, collection)
+• Event detail: single save pill on hero (top right of photo); “FRIENDS WHO SAVED THIS” with mutuals row (avatars + count/names). Redundant “Add to Collection” / second save pill in body removed.
+• Spot detail: single save pill on hero; redundant save pill in body removed. Save state and count come from feed/view model when opened from Discover.
+• Collection detail: “Collection” label removed from above the collection name on the hero. Orange numbered badges (1, 2, 3) removed from spot cards. Tags on collection spot cards limited to discover filter categories only (Food, Drinks, Music, Art, Markets, Community). Save buttons on individual spots in a collection are wired to API (saved state + count load and update).
+
+---
+
+WHAT IS LEFT FOR ALPHA
+
+• Cross-check remaining “Alpha Must-Haves” from the alpha scope (beyond the ones above) and implement any still outstanding.
+• Ensure all PRD flows (Find, Share, Put on map) are testable end-to-end for alpha — e.g. create event/spot, save from feed/map/detail, view in My Saves / collections as applicable.
+• Any alpha-specific copy, empty states, or error handling called out in the alpha scope.
+
+---
+
+UI/UX CHECKS (BEFORE RELEASE)
+
+• Run a full UI/UX pass to ensure consistency and that the app looks good:
+  – Save button: same capsule style (gray → teal when saved, bookmark + count) everywhere it appears.
+  – Typography, spacing, and colors (e.g. portal primary, muted, cards) consistent across Discover, Map, and Profile.
+  – Detail screens: no duplicate actions (e.g. only one save control per screen where we removed redundancy).
+  – List and scroll views: no stray gray/white bars; content and background extend to edges/safe areas as intended.
+  – Map: floating controls (filters, Discover pill) clearly tappable and not overlapping content in a confusing way.
+  – Accessibility: labels and identifiers in place where we added them; verify VoiceOver and dynamic type where relevant.
+
+---
+
+REFERENCE
+
+• Product requirements: MASTER-PRD-2402 (v1, Feb 2026).
+• Alpha scope: use the same document or list that defines the 15 Alpha Must-Haves and Post-Alpha items to tick off remaining work.
