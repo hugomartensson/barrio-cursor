@@ -1,58 +1,150 @@
-Alpha PRD — Status as of 2026-03-02
+# portal. — Alpha PRD Status (TestFlight v1)
 
-This file summarizes what has been implemented for the alpha version and what remains, per the MASTER-PRD-2402 and alpha scope.
+**Last updated:** March 2, 2026  
+**Based on:** portal. Alpha Scope (March 2, 2026) and MASTER-PRD-2402 (February 2026)
 
 ---
 
-WHAT HAS BEEN DONE
+## Overview
 
-Discover feed
-• Non-functional search bar removed; feed uses full width.
-• Map entry is a single floating teal pill (map icon) bottom-right; feed content extends to bottom of screen (no gray/white box).
-• Map pill is hidden when any detail view is shown (event, spot, or collection).
-• Feed list and background extend into bottom safe area so the feed goes all the way down.
+This file tracks progress toward the first TestFlight release. It embeds the full Alpha Scope (15 must-haves, 12 post-alpha, 3 cut from v1) and marks what is done vs. left.
 
-Save (Flow 1 — Find)
-• Unified save control: small gray capsule with bookmark icon + save count; turns teal/green when saved. Same style on cards and detail screens.
-• Save works from: event cards, spot cards, map event preview, event detail (hero only), spot detail (hero only), collection detail (hero), and individual spot rows inside a collection.
-• Save count updates in place after toggle (events, spots, collection spots); backend save/unsave is wired.
+**Summary:** 15 alpha must-haves · 12 post-alpha · 3 cut from v1
 
-First-run / location
-• First-run city behavior: app prompts for location permission; if denied or unavailable, fallback is Stockholm (not Manhattan). AppConfig has fallbackLatitude/Longitude for Stockholm.
+---
 
-Map view
-• Map uses full screen height; filter row is a floating card (categories “hang freely”) with spacing so the arrow/recenter isn’t cramped.
-• Close (X) removed from top; Discover pill (compass icon) bottom-right dismisses map and returns to Discover.
+## Alpha Must-Haves — Full List and Status
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 1 | Save from every card surface | **Done** | Save/unsave on feed cards (events + spots), map pin preview, and all detail screens. Unified capsule style (gray → teal when saved, bookmark + count). Count updates in place. |
+| 2 | Collection detail view | **Done** | Real view with mixed spots/events; each item tappable to detail. Refinements: "Collection" label removed; no number badges on spot cards (by design); tags limited to discover categories; save on collection hero and on each spot row wired. |
+| 3 | Add/remove items from collections | **Pending** | API exists. Remove: swipe-to-delete on each item in collection detail. Add-from-within-collection (browse saves) deferred. |
+| 4 | Spot creation UI | **Done** | CreateSpotView from Profile → create action (SPOT). Anyone can add spots; no "My Spots" owner list in early version. |
+| 5 | My Spots list | **Cut** | Removed. Early version focuses on curators; anyone can add spots; no owner-centric listing. |
+| 6 | Event detail page | **Done** | Full event detail; save pill on hero only; "FRIENDS WHO SAVED THIS" with mutuals row; no redundant save in body. |
+| 7 | Spot detail page | **Done** | Full spot detail; save pill on hero only; save state/count from feed when opened from Discover; no redundant save in body. |
+| 8 | User detail page (other-user profile) | **Done** | UserProfileView exists; used from feed and event detail. Sections and follow gating to be verified against #12. |
+| 9 | Collection detail page | **Done** | Same as #2. |
+| 10 | Remove non-functional search bar | **Done** | Search bar removed from Discover; map pill bottom-right; feed uses full width and extends to bottom of screen. |
+| 11 | Map as mirror of Discover feed | **Done** | Shared DiscoverFilters; map and feed use same filter state. Map full height; floating filter card; Discover (compass) pill to dismiss. |
+| 12 | Other-user profile sections | **Pending** | Collections (if shared), saved spots, saved events. Saved items only for approved followers with locked empty state. |
+| 13 | Follow-request management UI | **Pending** | Backend: getFollowRequests, accept, decline. No dedicated Profile surface to list pending requests and approve/decline. |
+| 14 | Save counts for spots | **Done** | Spot save/unsave and saveCount wired (feed, spot detail, collection spot rows); backend supports spot save. |
+| 15 | First-run city picker | **Done** | Location prompt; if denied or unavailable, fallback city is Stockholm (AppConfig fallbackLatitude/Longitude). No dedicated "Which city?" picker screen — fallback only. |
+
+---
+
+## What Has Been Done (Implementation Details)
+
+**Discover feed**  
+• Non-functional search bar removed; feed uses full width.  
+• Map entry: single floating teal pill (map icon) bottom-right; feed extends to bottom of screen (no gray/white box).  
+• Map pill hidden when any detail view is shown (event, spot, or collection).  
+• Feed list and background use bottom safe area so content goes all the way down.
+
+**Save (Flow 1)**  
+• Unified save control: small gray capsule, bookmark icon + save count; teal when saved. Same style on cards and detail screens.  
+• Save works from: event cards, spot cards, map event preview, event detail (hero), spot detail (hero), collection detail (hero), and individual spot rows in a collection.  
+• Save count updates in place after toggle (events, spots, collection spots); backend save/unsave wired.
+
+**First-run / location**  
+• App prompts for location; if denied or unavailable, fallback is Stockholm (not Manhattan). AppConfig fallbackLatitude/Longitude for Stockholm.
+
+**Map view**  
+• Full screen height; filter row is floating card; spacing so arrow/recenter not cramped.  
+• Close (X) removed; Discover pill (compass) bottom-right dismisses map.  
 • Event preview save button uses same capsule style and updates count.
 
-Detail pages (event, spot, collection)
-• Event detail: single save pill on hero (top right of photo); “FRIENDS WHO SAVED THIS” with mutuals row (avatars + count/names). Redundant “Add to Collection” / second save pill in body removed.
-• Spot detail: single save pill on hero; redundant save pill in body removed. Save state and count come from feed/view model when opened from Discover.
-• Collection detail: “Collection” label removed from above the collection name on the hero. Orange numbered badges (1, 2, 3) removed from spot cards. Tags on collection spot cards limited to discover filter categories only (Food, Drinks, Music, Art, Markets, Community). Save buttons on individual spots in a collection are wired to API (saved state + count load and update).
+**Detail pages**  
+• Event: single save pill on hero; "FRIENDS WHO SAVED THIS" with mutuals row; no second save in body.  
+• Spot: single save pill on hero; no second save in body; state/count from feed when opened from Discover.  
+• Collection: "Collection" label removed; spot cards in "PLACES IN THIS COLLECTION" do not show number badges (by design — no amber/orange 1, 2, 3… on cards); tags only from discover categories; save on collection and on each spot row wired to API.
 
 ---
 
-WHAT IS LEFT FOR ALPHA
+## What Is Left for Alpha
 
-• Cross-check remaining “Alpha Must-Haves” from the alpha scope (beyond the ones above) and implement any still outstanding.
-• Ensure all PRD flows (Find, Share, Put on map) are testable end-to-end for alpha — e.g. create event/spot, save from feed/map/detail, view in My Saves / collections as applicable.
-• Any alpha-specific copy, empty states, or error handling called out in the alpha scope.
-
----
-
-UI/UX CHECKS (BEFORE RELEASE)
-
-• Run a full UI/UX pass to ensure consistency and that the app looks good:
-  – Save button: same capsule style (gray → teal when saved, bookmark + count) everywhere it appears.
-  – Typography, spacing, and colors (e.g. portal primary, muted, cards) consistent across Discover, Map, and Profile.
-  – Detail screens: no duplicate actions (e.g. only one save control per screen where we removed redundancy).
-  – List and scroll views: no stray gray/white bars; content and background extend to edges/safe areas as intended.
-  – Map: floating controls (filters, Discover pill) clearly tappable and not overlapping content in a confusing way.
-  – Accessibility: labels and identifiers in place where we added them; verify VoiceOver and dynamic type where relevant.
+• **#3** — Add/remove items from collections: UI from within a collection to add items from saves and to remove items; persist immediately.  
+• **#4** — Spot creation UI: CreateSpotView from Profile → My Spots → "+"; required fields per list below.  
+• **#5** — My Spots list (functional): Replace placeholder with real list of spots the user owns.  
+• **#12** — Other-user profile sections: Public collections, spots owned, events hosted always visible; saved items only for approved followers with locked empty state.  
+• **#13** — Follow-request management UI: Profile surface to view pending follow requests and approve/decline each.  
+• **Review event creation flow** — Confirm Create Event (Profile → My Events → "+") matches the minimum required fields below, immediate publish, and consistent flow with the rest of the app.
 
 ---
 
-REFERENCE
+## Creation — minimum required fields
 
-• Product requirements: MASTER-PRD-2402 (v1, Feb 2026).
-• Alpha scope: use the same document or list that defines the 15 Alpha Must-Haves and Post-Alpha items to tick off remaining work.
+**Event**
+- Title
+- Description
+- Category (food, drinks, music, art, markets, community)
+- Address
+- Start time
+- End time
+- At least one image
+
+**Spot**
+- Name
+- Description
+- Category (same set as events)
+- Address
+- Image
+
+*(Coordinates are derived from address by the app/backend; users enter address only.)*
+
+---
+
+## Post-Alpha (Ship Before Public Launch)
+
+| Item | Effort | Description |
+|------|--------|-------------|
+| Full-text search | Large | Backend search across users, spots, events, collections. Re-add search bar when functional. |
+| Shareable collection links + web view | Large | Tokenized URLs; read-only web surface; deep-link into app if installed. |
+| "From Friends" feed section | Medium | Discover section with items saved by approved followers and friend attribution. |
+| Trust-weighted feed ordering | Medium | Boost items saved by friends in feed ranking. |
+| Browse vs. planning mode | Medium | Time filter reshapes feed: time-relevant up, evergreen deprioritized. |
+| LIVE state emphasis on map | Small | Stronger treatment for live events on map (LIVE badge, clustering). |
+| Multiple hosts/owners UI | Medium | Add/display additional hosts on events and owners on spots. |
+| Filter pill UX refinement | Medium | Two-row design: Row 1 (time) single-select, Row 2 (category) multi-select; no "apply" button. |
+| Unauthenticated web surfaces | Large | Production web for shared links and deep links with fallback. |
+| Ticket link on event detail | Trivial | "Get tickets" button for ticketUrl on EventDetailView. |
+
+---
+
+## Cut from v1
+
+| Item | Reason |
+|------|--------|
+| My Spots list | Early version: anyone can add spots; no owner-centric listing. |
+| Featured collection hero card | Removed from scope; post-alpha at earliest. |
+| Event detail "top fold" block | Removed from scope; detail screen shows content without structured top-fold requirement. |
+| Map long-press creation | Removed; creation from Profile only for now. |
+| Inline saves-to-collection shortcut | Not in PRD; users create collections from Profile → My Collections. |
+| Creator analytics beyond saveCount | PRD v1 specifies only saveCount as traction signal. |
+| Push notifications | Deferred to post-TestFlight. |
+
+---
+
+## UI Sweep for Consistency and Quality (Before Release)
+
+**Required:** Run a full UI/UX sweep so the alpha feels consistent and polished. Every surface should be checked for alignment with the design system and for quality of interaction.
+
+**Checklist:**
+
+• **Save button** — Same capsule style (gray → teal when saved, bookmark + count) everywhere it appears.  
+• **Typography, spacing, colors** — Consistent across Discover, Map, Profile, and creation flows (portal primary, muted, cards, section labels).  
+• **Detail screens** — No duplicate actions; single save control where redundancy was removed; mutuals/avatars where specified.  
+• **List and scroll** — No stray gray/white bars; content and background extend to edges and safe areas.  
+• **Map** — Floating controls (filters, Discover pill) clearly tappable and not overlapping content.  
+• **Creation flows** — Event (and later spot) creation: clear labels, sensible order, validation and error states, consistent with rest of app.  
+• **Empty and error states** — Helpful copy and visuals where lists or content are empty or fail to load.  
+• **Accessibility** — Labels and identifiers in place; verify VoiceOver and dynamic type where relevant.
+
+---
+
+## Reference
+
+• **Product requirements:** MASTER-PRD-2402 (v1, Feb 2026).  
+• **Alpha scope:** This file embeds the Alpha Scope; original summary: 15 alpha must-haves · 12 post-alpha · 3 cut from v1.

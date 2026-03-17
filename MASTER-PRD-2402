@@ -37,7 +37,7 @@ Everything in v1 exists to serve one of these three flows. If a feature doesn't 
 **1. Express intent.**
 User opens the app. At the top of the discover feed, two rows of filter pills allow the user to express what they're looking for:
 
-- **Row 1 — Time:** `Tonight` · `Tomorrow` · `This Weekend` · `Sat` · `Sun` · `Pick a date`. Single-select — tapping one deselects the previous. Tapping the active pill again deselects it (returns to browse mode).
+- **Row 1 — Time:** `Tonight` · `Tomorrow` · `This Weekend` · `Pick a date`. Single-select — tapping one deselects the previous. Tapping the active pill again deselects it (returns to browse mode). "Pick a date" opens a date range picker (start and end date).
 - **Row 2 — Category:** `Food` · `Drinks` · `Music` · `Art` · `Markets` · `Community`. Multi-select — the user can combine categories (e.g., Food + Drinks). Tapping an active category deselects it.
 
 Every tap immediately reshapes the feed. There is no "apply" button — the content updates in real time as filters change.
@@ -60,16 +60,7 @@ Each card shows:
 Cards are ordered by a combination of editorial quality, recency, and trust relevance (friend saves weighted higher than stranger saves). The feed also includes discovery sections interspersed with cards — see the Discover surface description below for full section breakdown.
 
 **3. Evaluate.**
-Tapping a card opens a detail screen. The top fold — visible without scrolling — answers four questions:
-
-- *What is it?* — Name + category + tags
-- *When?* — Date/time (events) or "Open" (spots)
-- *Where?* — Neighborhood + distance from user
-- *Why trust this?* — Who created it, who saved it, total save count
-
-Below the fold: full description, ticket link (if event), map showing location, and the hosts/owners attributed to the item.
-
-The primary action on this screen is **Save** — prominently placed, one tap.
+Tapping a card opens a detail screen showing: what it is (name, category, tags), when (date/time or "Open"), where (neighborhood, distance), and why trust it (creator, savers, save count). Full description, ticket link (if event), map, and hosts/owners appear below. The primary action is **Save** — prominently placed, one tap.
 
 **4. Save.**
 One tap. No "which collection?" prompt. No confirmation dialog. The item goes to the user's unsorted personal saves list. This is the moment value is delivered for most users most of the time — they save 3–5 things over the course of browsing and go do 1–2 of them without ever formally organizing.
@@ -123,7 +114,7 @@ Public collections additionally live on the creator's profile permanently, where
 **Steps:**
 
 **1. Create.**
-From the Profile tab, the user taps "+" next to My Events or My Spots. A single creation form adapts to the content type:
+From the Profile tab, the user taps the create action for Events or Spots (or "+" next to My Events). A creation form adapts to the content type:
 
 **For events (things with a date):**
 - Required: name, category, location, date, time, one image, short description
@@ -134,8 +125,6 @@ From the Profile tab, the user taps "+" next to My Events or My Spots. A single 
 - Optional: price range, tags, additional owners
 
 The form is short and focused — it asks only for what a potential visitor needs to decide whether to go. There is no rich text editor, no multi-image gallery, no complex scheduling.
-
-Secondary creation entry point: long-pressing on the map creates a new event or spot with the location pre-filled.
 
 **2. Publish.**
 The item goes live immediately upon submission. It appears:
@@ -174,11 +163,9 @@ The feed is a vertically scrollable page with content organized into sections. T
 
 2. **From Friends** — appears when the user has approved followers who have saved items in the current city. Shows a section header ("From people you trust"), then a horizontal scroll of cards with friend attribution: the friend's colored avatar, their name, and "saved this." Each card shows the spot or event they saved. Tapping a card opens the item detail. This section only appears if there are relevant friend saves to show.
 
-3. **Featured collection** — a hero-sized card showcasing a single public collection from a user with strong local presence. Shows the collection cover image, name, creator attribution, and item count. Tapping opens the collection.
+3. **People to follow** — horizontal scroll of user avatars with names and short context (e.g., "42 saves in Barcelona"). These are users with active public collections in the current city. Tapping an avatar opens their profile.
 
-4. **People to follow** — horizontal scroll of user avatars with names and short context (e.g., "42 saves in Barcelona"). These are users with active public collections in the current city. Tapping an avatar opens their profile.
-
-5. **Public collections** — horizontal scroll of collection cards from various users. Each card shows cover image, name, creator, and save count. Tapping opens the collection.
+4. **Public collections** — horizontal scroll of collection cards from various users. Each card shows cover image, name, creator, and save count. Tapping opens the collection.
 
 **Feed behavior (planning mode — time filter active):**
 When a time filter is selected, the same sections exist but their ordering and content changes:
@@ -211,7 +198,6 @@ The same time and category filters from the discover feed are available on the m
 - Tap a pin → a card preview slides in at the top of the screen showing: name, neighborhood, time (if event), save count, and creator attribution
 - Tap the card preview → opens the full detail screen as an overlay
 - Save button is available directly on the card preview — one tap to save without opening the detail screen
-- Long-press anywhere on the map → opens the creation form with that location pre-filled (secondary entry point for flow 3)
 
 **Recenter:**
 A recenter button returns the map to the user's current location or the city center.
@@ -231,11 +217,9 @@ The user's home base. Where saves, collections, and created content live. Also t
 
 - **My Collections:** A list of the user's created collections. Each collection shows: name, visibility badge (Private / Friends / Public), item count, and cover image. Tapping a collection opens it to show its contents. A "Create collection" action is available here. See the Collections section below for full mechanics.
 
-- **My Spots:** A list of spots where this user is an owner. Each shows the spot card. A "+" button allows creating a new spot (flow 3 entry point).
+- **My Events:** A list of events where this user is a host. Each shows the event card. A "+" button allows creating a new event (flow 3 entry point). Spot creation is available from the Profile create actions; in the early version there is no "My Spots" owner list — anyone can add spots.
 
-- **My Events:** A list of events where this user is a host. Each shows the event card. A "+" button allows creating a new event (flow 3 entry point).
-
-- **Following:** A horizontal scroll of users the current user follows, showing avatars and names. Tapping opens that user's profile.
+- **Followers / Following:** Tappable follower and following counts open a screen showing the list of followers (with pending follow requests and accept/decline) and the list of users the current user follows. Tapping a user opens their profile.
 
 **Viewing another user's profile:**
 
@@ -291,9 +275,10 @@ From Profile → My Collections → Create. The user provides:
   - Public — visible to everyone, appears on the creator's profile, discoverable in the discover feed and through search
 
 **Adding items to a collection:**
-Two paths:
-1. From within the collection: the user browses their saves and taps to add items
-2. From the save action: after saving an item, the user can optionally add it to an existing collection (but this is never required — the default save goes to unsorted saves)
+From the save action or from within the collection (browse saves and tap to add). The default save goes to unsorted saves; adding to a collection is optional.
+
+**Removing items from a collection:**
+The owner can remove an item with a swipe-to-delete gesture (or equivalent) on the item row; the change persists immediately.
 
 **Collection contents:**
 A collection contains a mixed list of spots and events. Each item shows the same card treatment as in the feed. Items are displayed in the order they were added (most recent first). Expired events (past their date) remain in the collection but are visually muted.

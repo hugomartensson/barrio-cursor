@@ -1,0 +1,69 @@
+/**
+ * Portal design tokens — single source of truth for web preview.
+ * Map changes here back to iOS: PortalColors.swift, PortalSpacing.swift, PortalTypography.swift.
+ *
+ * Token → SwiftUI mapping:
+ * --portal-* colors → Color.portal* in PortalColors.swift
+ * --portal-* spacing/size → CGFloat.portal* in PortalSpacing.swift
+ * --portal-* font-* → Font.portal* in PortalTypography.swift
+ */
+
+:root {
+  /* ========== Colors (PortalColors.swift) ========== */
+  --portal-background: #F2F2F0;
+  --portal-foreground: #1F1810;
+  --portal-card: #FFFFFF;
+  --portal-primary: #2F7168;
+  --portal-primary-foreground: #FFFFFF;
+  --portal-secondary: #E8E8E6;
+  --portal-muted: #E0E0DE;
+  --portal-muted-foreground: #6B6B68;
+  --portal-accent: #2563EB;
+  --portal-live: #F25C8C;
+  --portal-destructive: #E03E3E;
+  --portal-border: #E0E0DE;
+
+  /* Primary gradient (teal) — for CTAs, active time pills */
+  --portal-gradient-primary-start: #2F7168;
+  --portal-gradient-primary-end: #3D8A80;
+
+  /* Overlay gradient — dark overlay for image cards */
+  --portal-overlay-gradient-start: rgba(255, 255, 255, 0.2);
+  --portal-overlay-gradient-end: rgba(15, 15, 15, 0.84);
+
+  /* Card shadow (portalCardShadow) */
+  --portal-shadow-card-1: 0 1px 1px rgba(31, 24, 16, 0.05);
+  --portal-shadow-card-2: 0 3px 6px rgba(31, 24, 16, 0.07);
+  /* Warm CTA shadow (portalWarmShadow) */
+  --portal-shadow-warm: 0 2px 4px rgba(47, 113, 104, 0.35);
+
+  /* ========== Spacing & layout (PortalSpacing.swift) ========== */
+  --portal-page-padding: 16px;
+  --portal-section-spacing: 24px;
+  --portal-card-gap: 12px;
+  --portal-radius: 16px;
+  --portal-date-sidebar-width: 72px;
+  --portal-bottom-nav-height: 49px;
+  --portal-bottom-nav-with-search-height: 96px;
+
+  /* ========== Typography (PortalTypography.swift) ========== */
+  /* Display: DMSans SemiBold */
+  --portal-font-display: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --portal-font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --portal-wordmark-size: 48px;
+  --portal-display-72: 72px;
+  --portal-display-28: 28px;
+  --portal-display-22: 22px;
+  --portal-section-label-size: 10px;
+  --portal-section-label-weight: 600;
+  --portal-section-label-tracking: 0.18em;
+  --portal-body-size: 17px;
+  --portal-body-weight: 400;
+  --portal-label-semibold-size: 12px;
+  --portal-label-semibold-weight: 600;
+  --portal-label-size: 15px;
+  --portal-label-weight: 500;
+  --portal-metadata-size: 13px;
+  --portal-metadata-weight: 400;
+}

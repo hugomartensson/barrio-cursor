@@ -173,6 +173,7 @@ interface SavedSpotItem {
   categoryTag: string | null;
   priceRange: string | null;
   imageUrl: string | null;
+  saveCount: number;
   collectionId: string;
   collectionName: string;
   savedAt: string;
@@ -243,6 +244,7 @@ router.get(
             categoryTag: spot.categoryTag,
             priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
             imageUrl: spot.media[0]?.url ?? null,
+            saveCount: spot.saveCount,
             collectionId: s.collection.id,
             collectionName: s.collection.name,
             savedAt: s.createdAt.toISOString(),

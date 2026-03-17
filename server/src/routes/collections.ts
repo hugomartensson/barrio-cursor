@@ -18,8 +18,36 @@ import type {
 } from '../schemas/collections.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
 import { canViewCollection, canSaveCollection } from '../services/collectionService.js';
+import { formatEvent } from '../utils/eventFormatters.js';
+import type { EventData } from '../types/responses.js';
 
 const router = Router();
+
+/** Shape of a spot in collection items (matches spots route SpotData for client compatibility). */
+interface CollectionItemSpotPayload {
+  id: string;
+  name: string;
+  description: string | null;
+  address: string;
+  latitude: number;
+  longitude: number;
+  neighborhood: string | null;
+  categoryTag: string | null;
+  priceRange: string | null;
+  tags: string[];
+  imageUrl: string | null;
+  saveCount: number;
+  distance: number;
+  ownerId: string;
+  ownerHandle: string | null;
+}
+
+export interface CollectionItemEntry {
+  itemType: 'spot' | 'event';
+  addedAt: string;
+  spot?: CollectionItemSpotPayload;
+  event?: EventData;
+}
 
 const RECOMMENDED_LIMIT = 20;
 
@@ -193,6 +221,118 @@ router.get(
         ownerHandle: c.user.handle,
         ownerInitials: c.user.initials,
       }));
+
+      res.json({ data });
+    }
+  )
+);
+
+/**
+ * GET /collections/:id/items - Get items (spots and events) in a collection
+ */
+router.get(
+  '/:id/items',
+  requireAuth,
+  validateRequest({ params: collectionIdSchema }),
+  asyncHandler(
+    async (
+      req: Request<{ id: string }, { data: CollectionItemEntry[] } | ApiErrorResponse>,
+      res: Response<{ data: CollectionItemEntry[] } | ApiErrorResponse>
+    ) => {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const collectionId = req.params.id;
+      const userId = authReq.user.userId;
+
+      const collection = await prisma.collection.findUnique({
+        where: { id: collectionId },
+      });
+      if (!collection) {
+        throw ApiError.notFound('Collection');
+      }
+
+      const allowed = await canViewCollection(collection, userId);
+      if (!allowed) {
+        throw ApiError.forbidden('You cannot view this collection');
+      }
+
+      const saves = await prisma.save.findMany({
+        where: { collectionId, userId: collection.userId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const spotIds = saves.filter((s) => s.itemType === 'spot').map((s) => s.itemId);
+      const eventIds = saves.filter((s) => s.itemType === 'event').map((s) => s.itemId);
+
+      const [spots, events] = await Promise.all([
+        spotIds.length > 0
+          ? prisma.spot.findMany({
+              where: { id: { in: spotIds } },
+              include: {
+                media: { orderBy: { order: 'asc' }, take: 1 },
+                owner: { select: { id: true, handle: true } },
+              },
+            })
+          : [],
+        eventIds.length > 0
+          ? prisma.event.findMany({
+              where: { id: { in: eventIds } },
+              include: {
+                media: { orderBy: { order: 'asc' } },
+                user: { select: { id: true, name: true } },
+              },
+            })
+          : [],
+      ]);
+
+      const spotMap = new Map(spots.map((s) => [s.id, s]));
+      const eventMap = new Map(events.map((e) => [e.id, e]));
+
+      const data: CollectionItemEntry[] = saves.map((s) => {
+        const addedAt = s.createdAt.toISOString();
+        if (s.itemType === 'spot') {
+          const spot = spotMap.get(s.itemId);
+          if (!spot) {
+            return { itemType: 'spot' as const, addedAt };
+          }
+          const payload: CollectionItemSpotPayload = {
+            id: spot.id,
+            name: spot.name,
+            description: spot.description,
+            address: spot.address,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            neighborhood: spot.neighborhood,
+            categoryTag: spot.categoryTag,
+            priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
+            tags: spot.tags,
+            imageUrl: spot.media[0]?.url ?? null,
+            saveCount: spot.saveCount,
+            distance: 0,
+            ownerId: spot.ownerId,
+            ownerHandle: spot.owner.handle ?? null,
+          };
+          return { itemType: 'spot', addedAt, spot: payload };
+        } else {
+          const event = eventMap.get(s.itemId);
+          if (!event) {
+            return { itemType: 'event' as const, addedAt };
+          }
+          const eventData = formatEvent({
+            ...event,
+            startTime: event.startTime,
+            endTime: event.endTime,
+            media: event.media.map((m) => ({
+              id: m.id,
+              url: m.url,
+              type: m.type,
+              order: m.order,
+              thumbnailUrl: m.thumbnailUrl,
+            })),
+            user: event.user,
+          });
+          return { itemType: 'event', addedAt, event: eventData };
+        }
+      });
 
       res.json({ data });
     }
@@ -476,7 +616,12 @@ router.post(
                 data: { saveCount: { increment: 1 } },
               }),
             ]
-          : []),
+          : [
+              prisma.spot.update({
+                where: { id: itemId },
+                data: { saveCount: { increment: 1 } },
+              }),
+            ]),
       ]);
 
       const saveCount =
@@ -487,7 +632,12 @@ router.post(
                 select: { saveCount: true },
               })
             )?.saveCount
-          : undefined;
+          : (
+              await prisma.spot.findUnique({
+                where: { id: itemId },
+                select: { saveCount: true },
+              })
+            )?.saveCount;
       res.status(201).json({ data: { saved: true, saveCount } });
     }
   )
@@ -552,7 +702,12 @@ router.delete(
                 data: { saveCount: { decrement: 1 } },
               }),
             ]
-          : []),
+          : [
+              prisma.spot.update({
+                where: { id: itemId },
+                data: { saveCount: { decrement: 1 } },
+              }),
+            ]),
       ]);
 
       const saveCount = isEvent
@@ -562,7 +717,12 @@ router.delete(
               select: { saveCount: true },
             })
           )?.saveCount
-        : undefined;
+        : (
+            await prisma.spot.findUnique({
+              where: { id: itemId },
+              select: { saveCount: true },
+            })
+          )?.saveCount;
       res.json({ data: { saved: false, saveCount } });
     }
   )

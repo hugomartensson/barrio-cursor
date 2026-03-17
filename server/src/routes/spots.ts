@@ -15,6 +15,7 @@ import {
 import type { CreateSpotInput, UpdateSpotInput } from '../schemas/spots.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
 import { getOrCreateDefaultSavedCollectionId } from '../services/collectionService.js';
+import { geocodeAddress } from '../services/geocoding.js';
 
 const router = Router();
 
@@ -120,6 +121,23 @@ router.post(
       const userId = authReq.user.userId;
       const input = req.body;
 
+      let lat: number;
+      let lng: number;
+      if (input.latitude != null && input.longitude != null) {
+        lat = input.latitude;
+        lng = input.longitude;
+      } else {
+        try {
+          const geocoded = await geocodeAddress(input.address);
+          lat = geocoded.latitude;
+          lng = geocoded.longitude;
+        } catch (err) {
+          throw ApiError.badRequest(
+            'Could not find location for this address. Please try a more specific address.'
+          );
+        }
+      }
+
       const spot = await prisma.spot.create({
         data: {
           ownerId: userId,
@@ -127,8 +145,8 @@ router.post(
           description: input.description,
           address: input.address,
           neighborhood: input.neighborhood ?? null,
-          latitude: input.latitude,
-          longitude: input.longitude,
+          latitude: lat,
+          longitude: lng,
           categoryTag: input.category,
           priceRange: input.priceRange ?? null,
           tags: input.tags ?? [],

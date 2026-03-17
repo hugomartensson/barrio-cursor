@@ -42,6 +42,8 @@ coverage/
 xcuserdata/
 DerivedData/
 ios/test-reports/
+*.xcresult
+**/*.xcresult
 
 # Misc
 *.tgz

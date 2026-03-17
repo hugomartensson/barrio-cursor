@@ -50,9 +50,8 @@ This document describes the automated UI testing system for Barrio that eliminat
 
 1. **LoginFlowTests** - Authentication flows
 2. **DiscoveryFlowTests** - Event browsing and discovery (including map-to-story viewer flow)
-3. **EventCreationTests** - Creating events
-4. **PlansFlowTests** - Plans functionality
-5. **ProfileFlowTests** - Profile viewing and editing
+3. **PlansFlowTests** - Plans functionality
+4. **ProfileFlowTests** - Profile viewing and editing
 
 ## Implementation Plan
 

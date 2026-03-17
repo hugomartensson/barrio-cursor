@@ -1,0 +1,1 @@
+{"build":"pass","classes":[{"name":"CollectionsFlowTests","status":"fail","log":"ios/test-results/CollectionsFlowTests.log"},{"name":"DiscoveryFlowTests","status":"pass","duration_s":473},{"name":"EventDiscoveryTests2","status":"pass","duration_s":291},{"name":"ProfileFlowTests","status":"pass","duration_s":572},{"name":"ProfileTests2","status":"pass","duration_s":327}]}
