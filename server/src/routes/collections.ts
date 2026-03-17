@@ -605,24 +605,22 @@ router.post(
         return;
       }
 
-      await prisma.$transaction([
-        prisma.save.create({
+      await prisma.$transaction(async (tx) => {
+        await tx.save.create({
           data: { userId, collectionId, itemType, itemId },
-        }),
-        ...(itemType === 'event'
-          ? [
-              prisma.event.update({
-                where: { id: itemId },
-                data: { saveCount: { increment: 1 } },
-              }),
-            ]
-          : [
-              prisma.spot.update({
-                where: { id: itemId },
-                data: { saveCount: { increment: 1 } },
-              }),
-            ]),
-      ]);
+        });
+        if (itemType === 'event') {
+          await tx.event.update({
+            where: { id: itemId },
+            data: { saveCount: { increment: 1 } },
+          });
+        } else {
+          await tx.spot.update({
+            where: { id: itemId },
+            data: { saveCount: { increment: 1 } },
+          });
+        }
+      });
 
       const saveCount =
         itemType === 'event'
@@ -691,24 +689,22 @@ router.delete(
       });
       const isEvent = !spotExists;
 
-      await prisma.$transaction([
-        prisma.save.delete({
+      await prisma.$transaction(async (tx) => {
+        await tx.save.delete({
           where: { userId_collectionId_itemId: { userId, collectionId, itemId } },
-        }),
-        ...(isEvent
-          ? [
-              prisma.event.update({
-                where: { id: itemId },
-                data: { saveCount: { decrement: 1 } },
-              }),
-            ]
-          : [
-              prisma.spot.update({
-                where: { id: itemId },
-                data: { saveCount: { decrement: 1 } },
-              }),
-            ]),
-      ]);
+        });
+        if (isEvent) {
+          await tx.event.update({
+            where: { id: itemId },
+            data: { saveCount: { decrement: 1 } },
+          });
+        } else {
+          await tx.spot.update({
+            where: { id: itemId },
+            data: { saveCount: { decrement: 1 } },
+          });
+        }
+      });
 
       const saveCount = isEvent
         ? (

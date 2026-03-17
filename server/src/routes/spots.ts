@@ -123,7 +123,12 @@ router.post(
 
       let lat: number;
       let lng: number;
-      if (input.latitude != null && input.longitude != null) {
+      if (
+        input.latitude !== null &&
+        input.latitude !== undefined &&
+        input.longitude !== null &&
+        input.longitude !== undefined
+      ) {
         lat = input.latitude;
         lng = input.longitude;
       } else {
