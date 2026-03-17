@@ -2,7 +2,6 @@
 # See: https://docs.railway.app/reference/build-and-start-commands
 
 [build]
-builder = "nixpacks"
 # Build TypeScript and generate Prisma client
 buildCommand = "npm ci && npm run build && npx prisma generate"
 
