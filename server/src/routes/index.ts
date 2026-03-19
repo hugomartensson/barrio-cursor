@@ -8,6 +8,7 @@ import interactionsRouter from './interactions.js';
 import uploadRouter from './upload.js';
 import socialRouter from './social/index.js';
 import collectionsRouter from './collections.js';
+import ingestRouter from './ingest.js';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/events', interactionsRouter);
 router.use('/', socialRouter);
 router.use('/collections', collectionsRouter);
 router.use('/upload', uploadRouter);
+router.use('/ingest', ingestRouter);
 
 export default router;

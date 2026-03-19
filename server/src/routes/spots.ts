@@ -28,7 +28,6 @@ export interface SpotData {
   longitude: number;
   neighborhood: string | null;
   categoryTag: string | null;
-  priceRange: string | null;
   tags: string[];
   imageUrl: string | null;
   saveCount: number;
@@ -90,7 +89,6 @@ router.get(
             longitude: spot.longitude,
             neighborhood: spot.neighborhood,
             categoryTag: spot.categoryTag,
-            priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
             tags: spot.tags,
             imageUrl: spot.media[0]?.url ?? null,
             saveCount: spot.saveCount,
@@ -123,24 +121,14 @@ router.post(
 
       let lat: number;
       let lng: number;
-      if (
-        input.latitude !== null &&
-        input.latitude !== undefined &&
-        input.longitude !== null &&
-        input.longitude !== undefined
-      ) {
-        lat = input.latitude;
-        lng = input.longitude;
-      } else {
-        try {
-          const geocoded = await geocodeAddress(input.address);
-          lat = geocoded.latitude;
-          lng = geocoded.longitude;
-        } catch (err) {
-          throw ApiError.badRequest(
-            'Could not find location for this address. Please try a more specific address.'
-          );
-        }
+      try {
+        const geocoded = await geocodeAddress(input.address);
+        lat = geocoded.latitude;
+        lng = geocoded.longitude;
+      } catch {
+        throw ApiError.badRequest(
+          'Could not find location for this address. Please try a more specific address.'
+        );
       }
 
       const spot = await prisma.spot.create({
@@ -153,7 +141,6 @@ router.post(
           latitude: lat,
           longitude: lng,
           categoryTag: input.category,
-          priceRange: input.priceRange ?? null,
           tags: input.tags ?? [],
           media: {
             create: {
@@ -180,7 +167,6 @@ router.post(
           longitude: spot.longitude,
           neighborhood: spot.neighborhood,
           categoryTag: spot.categoryTag,
-          priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
           tags: spot.tags,
           imageUrl: spot.media[0]?.url ?? null,
           saveCount: spot.saveCount,
@@ -227,7 +213,6 @@ router.get(
           longitude: spot.longitude,
           neighborhood: spot.neighborhood,
           categoryTag: spot.categoryTag,
-          priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
           tags: spot.tags,
           imageUrl: spot.media[0]?.url ?? null,
           saveCount: spot.saveCount,
@@ -280,18 +265,18 @@ router.patch(
       }
       if (input.address !== undefined) {
         updateData.address = input.address;
+        try {
+          const geocoded = await geocodeAddress(input.address);
+          updateData.latitude = geocoded.latitude;
+          updateData.longitude = geocoded.longitude;
+        } catch {
+          throw ApiError.badRequest(
+            'Could not find location for this address. Please try a more specific address.'
+          );
+        }
       }
       if (input.neighborhood !== undefined) {
         updateData.neighborhood = input.neighborhood;
-      }
-      if (input.latitude !== undefined) {
-        updateData.latitude = input.latitude;
-      }
-      if (input.longitude !== undefined) {
-        updateData.longitude = input.longitude;
-      }
-      if (input.priceRange !== undefined) {
-        updateData.priceRange = input.priceRange;
       }
       if (input.tags !== undefined) {
         updateData.tags = input.tags;
@@ -328,7 +313,6 @@ router.patch(
           longitude: spot.longitude,
           neighborhood: spot.neighborhood,
           categoryTag: spot.categoryTag,
-          priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
           tags: spot.tags,
           imageUrl: spot.media[0]?.url ?? null,
           saveCount: spot.saveCount,

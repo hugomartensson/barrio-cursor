@@ -290,7 +290,6 @@ const USER_TYPES: Record<UserType, UserTypeConfig> = {
   social_connector: { count: 3, eventsToCreate: 1, spotsToCreate: 1, saves: 6, follows: 10, collections: 2 },
 };
 
-const PRICE_RANGES = ['free', 'low', 'medium', 'high'] as const;
 const EVENT_TAGS = ['outdoor', 'family-friendly', 'free', 'local', 'popular', 'new', 'late-night', 'daytime'];
 
 // ---------------------------------------------------------------------------
@@ -430,7 +429,6 @@ async function createEvent(userId: string) {
       longitude: location.longitude,
       startTime,
       endTime,
-      priceRange: faker.helpers.arrayElement([...PRICE_RANGES]),
       tags: faker.helpers.arrayElements(EVENT_TAGS, { min: 1, max: 3 }),
       saveCount: 0,
     },
@@ -469,7 +467,6 @@ async function createSpot(ownerId: string) {
       longitude: location.longitude,
       categoryTag: category,
       neighborhood: location.neighborhood,
-      priceRange: faker.helpers.arrayElement([...PRICE_RANGES]),
       tags: faker.helpers.arrayElement(templates.tagSets),
       saveCount: 0,
     },

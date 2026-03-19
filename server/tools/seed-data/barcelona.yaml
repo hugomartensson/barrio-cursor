@@ -1,0 +1,20 @@
+collection:
+  name: "Portal Team Barcelona Picks"
+  description: "Starter spots/events for TestFlight onboarding"
+
+items:
+  - url: "https://maps.app.goo.gl/example-place"
+    override:
+      itemType: "spot"
+      tags: ["barcelona", "starter"]
+
+  - manual:
+      itemType: "event"
+      name: "Portal Launch Mixer"
+      description: "Community meetup for curators and early users."
+      category: "community"
+      address: "Barcelona, Spain"
+      startTime: "2026-03-28T18:00:00.000Z"
+      endTime: "2026-03-28T21:00:00.000Z"
+      tags: ["community", "launch"]
+      imageUrl: "https://example.com/portal-launch.jpg"

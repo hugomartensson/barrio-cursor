@@ -3,698 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Barrio - Event Curation</title>
+  <title>Portal Ingest Queue</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f5f5f7;
-      color: #1d1d1f;
-      line-height: 1.5;
-    }
-    .container { max-width: 720px; margin: 0 auto; padding: 20px; }
-    .header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 16px 0; border-bottom: 1px solid #d2d2d7; margin-bottom: 24px;
-    }
-    .header h1 { font-size: 20px; font-weight: 600; }
-    .header .user-info { font-size: 13px; color: #86868b; }
-    #login-section { max-width: 400px; margin: 80px auto; }
-    #login-section h2 { margin-bottom: 16px; font-size: 24px; }
-    .login-form { display: flex; flex-direction: column; gap: 12px; }
-    input[type="text"], input[type="email"], input[type="password"],
-    input[type="url"], input[type="datetime-local"], textarea, select {
-      width: 100%; padding: 10px 12px; border: 1px solid #d2d2d7; border-radius: 8px;
-      font-size: 15px; font-family: inherit; background: #fff; transition: border-color 0.2s;
-    }
-    input:focus, textarea:focus, select:focus { outline: none; border-color: #0071e3; }
-    textarea { min-height: 80px; resize: vertical; }
-    label { font-size: 13px; font-weight: 600; color: #6e6e73; margin-bottom: 4px; display: block; }
-    .btn {
-      padding: 10px 20px; border: none; border-radius: 8px; font-size: 15px;
-      font-weight: 500; cursor: pointer; transition: all 0.2s;
-    }
-    .btn-primary { background: #0071e3; color: #fff; }
-    .btn-primary:hover { background: #0077ED; }
-    .btn-primary:disabled { background: #d2d2d7; cursor: not-allowed; }
-    .btn-secondary { background: #e8e8ed; color: #1d1d1f; }
-    .btn-secondary:hover { background: #d2d2d7; }
-    .btn-success { background: #34c759; color: #fff; }
-    .extract-row { display: flex; gap: 12px; margin-bottom: 24px; }
-    .extract-row input { flex: 1; }
-    .form-section { margin-bottom: 24px; }
-    .form-section h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; color: #1d1d1f; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .form-group { display: flex; flex-direction: column; }
-    .form-group.full-width { grid-column: 1 / -1; }
-    .map-preview {
-      width: 100%; height: 200px; border-radius: 8px; border: 1px solid #d2d2d7;
-      background: #e8e8ed; display: flex; align-items: center; justify-content: center;
-      overflow: hidden; margin-top: 8px;
-    }
-    .map-preview img { width: 100%; height: 100%; object-fit: cover; }
-    .map-preview .placeholder { color: #86868b; font-size: 13px; }
-    .media-grid { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-    .media-item {
-      position: relative; width: 140px; height: 140px; border-radius: 8px;
-      overflow: hidden; border: 1px solid #d2d2d7;
-    }
-    .media-item img { width: 100%; height: 100%; object-fit: cover; }
-    .media-item .remove-btn {
-      position: absolute; top: 4px; right: 4px; width: 24px; height: 24px;
-      border-radius: 12px; background: rgba(0,0,0,0.6); color: #fff; border: none;
-      cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
-    }
-    .dropzone {
-      width: 140px; height: 140px; border: 2px dashed #d2d2d7; border-radius: 8px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      cursor: pointer; transition: all 0.2s; color: #86868b; font-size: 12px;
-    }
-    .dropzone:hover, .dropzone.dragover { border-color: #0071e3; background: #f0f5ff; }
-    .dropzone .plus { font-size: 28px; margin-bottom: 4px; }
-    .status { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
-    .status.success { background: #d1f2d9; color: #1a7a31; }
-    .status.error { background: #ffd4d1; color: #d70015; }
-    .status.loading { background: #e8e8ed; color: #6e6e73; }
-    .checkbox-row { display: flex; align-items: center; gap: 8px; padding-top: 24px; }
-    .checkbox-row input[type="checkbox"] { width: 18px; height: 18px; }
-    .publish-bar {
-      background: #fff; border-top: 1px solid #d2d2d7;
-      padding: 16px 0; display: flex; justify-content: space-between; align-items: center;
-      margin-top: 24px; margin-bottom: 40px;
-    }
-    .hidden { display: none !important; }
-    .container { padding-bottom: 60px; }
-    #debug-log {
-      position: fixed; bottom: 0; left: 0; right: 0; max-height: 80px;
-      overflow-y: auto; background: #1d1d1f; color: #34c759; font-family: monospace;
-      font-size: 11px; padding: 6px 8px; z-index: 9999; opacity: 0.85;
-    }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; }
+    .title { color: #f8fafc; font-weight: 600; }
+    .meta { color: #94a3b8; font-size: 13px; margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+    .pill { background: #0d9488; color: #ecfeff; border-radius: 999px; padding: 2px 8px; font-size: 12px; }
+    .warn { background: #eab308; color: #111827; }
+    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .controls { display: flex; gap: 8px; }
+    button { background: #0d9488; color: #ecfeff; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
+    input { background: #020617; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 8px; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div id="login-section">
-      <h2>Barrio Event Curation</h2>
-      <p style="color: #86868b; margin-bottom: 24px;">Log in with your curator account to import events.</p>
-      <div class="login-form">
-        <div class="form-group">
-          <label>Email</label>
-          <input type="email" id="login-email" placeholder="curator@barrio.app">
-        </div>
-        <div class="form-group">
-          <label>Password</label>
-          <input type="password" id="login-password" placeholder="Password">
-        </div>
-        <div id="login-error" class="status error hidden"></div>
-        <button class="btn btn-primary" id="login-btn">Log In</button>
+  <div class="wrap">
+    <div class="head">
+      <div>
+        <h2>Portal Ingest Drafts</h2>
+        <div id="count">0 drafts pending</div>
+      </div>
+      <div class="controls">
+        <input id="email" type="email" placeholder="portal team email">
+        <input id="password" type="password" placeholder="password">
+        <button id="login">Login</button>
+        <button id="refresh">Refresh</button>
       </div>
     </div>
-
-    <div id="main-section" class="hidden">
-      <div class="header">
-        <h1>Event Curation</h1>
-        <div class="user-info">
-          Logged in as <strong id="user-name"></strong>
-          <button class="btn btn-secondary" id="logout-btn" style="margin-left: 8px; padding: 4px 12px; font-size: 12px;">Log out</button>
-        </div>
-      </div>
-
-      <div class="extract-row">
-        <input type="text" id="extract-url" placeholder="Paste event URL (Eventbrite, venue website...)">
-        <button class="btn btn-primary" id="extract-btn">Extract</button>
-      </div>
-
-      <details id="manual-paste-section" style="margin-bottom: 24px;">
-        <summary style="cursor: pointer; font-size: 14px; color: #0071e3; font-weight: 500;">Instagram / manual paste (paste caption text here)</summary>
-        <div style="margin-top: 12px;">
-          <p style="font-size: 13px; color: #86868b; margin-bottom: 8px;">For Instagram posts: copy the caption text and paste it below. Save the image from Instagram and upload it manually in the Media section.</p>
-          <textarea id="manual-text" placeholder="Paste the event caption/description text here..." style="min-height: 120px; margin-bottom: 8px;"></textarea>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="manual-source-url" placeholder="Source URL (optional)" style="flex: 1;">
-            <button class="btn btn-primary" id="extract-text-btn">Extract from text</button>
-          </div>
-        </div>
-      </details>
-
-      <div id="status-msg" class="status hidden"></div>
-
-      <div id="event-form" class="hidden">
-        <div class="form-section">
-          <h3>Event Details</h3>
-          <div class="form-grid">
-            <div class="form-group full-width">
-              <label>Title</label>
-              <input type="text" id="field-title" maxlength="200">
-            </div>
-            <div class="form-group full-width">
-              <label>Description</label>
-              <textarea id="field-description" maxlength="2000"></textarea>
-            </div>
-            <div class="form-group">
-              <label>Category</label>
-              <select id="field-category">
-                <option value="food_drink">Food & Drink</option>
-                <option value="arts_culture">Arts & Culture</option>
-                <option value="music">Music</option>
-                <option value="nightlife">Nightlife</option>
-                <option value="sports_outdoors">Sports & Outdoors</option>
-                <option value="community">Community</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Venue Name</label>
-              <input type="text" id="field-venueName">
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <h3>When</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Start</label>
-              <input type="datetime-local" id="field-startTime">
-            </div>
-            <div class="form-group">
-              <label>End (optional)</label>
-              <input type="datetime-local" id="field-endTime">
-            </div>
-          </div>
-        </div>
-
-        <div class="form-section">
-          <h3>Where</h3>
-          <div class="form-grid">
-            <div class="form-group full-width">
-              <label>Address</label>
-              <div style="display: flex; gap: 8px;">
-                <input type="text" id="field-address" style="flex: 1;">
-                <button class="btn btn-secondary" id="regeocode-btn" style="white-space: nowrap;">Re-geocode</button>
-              </div>
-            </div>
-          </div>
-          <div class="map-preview" id="map-preview">
-            <span class="placeholder">Map preview will appear after geocoding</span>
-          </div>
-          <input type="hidden" id="field-latitude">
-          <input type="hidden" id="field-longitude">
-        </div>
-
-        <div class="form-section">
-          <h3>Media</h3>
-          <div class="media-grid" id="media-grid"></div>
-          <div id="media-dropzone" class="dropzone">
-            <span class="plus">+</span>
-            <span>Add image</span>
-          </div>
-          <input type="file" id="media-file-input" accept="image/*" multiple class="hidden">
-        </div>
-
-        <div class="form-section">
-          <h3>Links</h3>
-          <div class="form-grid">
-            <div class="form-group">
-              <label>Ticket URL</label>
-              <input type="url" id="field-ticketUrl" placeholder="https://...">
-            </div>
-            <div class="form-group">
-              <label>Source URL</label>
-              <input type="url" id="field-sourceUrl" readonly style="background: #f5f5f7;">
-            </div>
-            <div class="checkbox-row">
-              <input type="checkbox" id="field-isFree" checked>
-              <label for="field-isFree" style="margin: 0;">This event is free</label>
-            </div>
-          </div>
-        </div>
-
-        <div class="publish-bar">
-          <button class="btn btn-secondary" id="clear-btn">Clear</button>
-          <button class="btn btn-success" id="publish-btn">Publish Event</button>
-        </div>
-      </div>
-    </div>
+    <div id="list"></div>
   </div>
-
-  <div id="debug-log"></div>
-
+  <script src="/admin/admin.js"></script>
   <script>
-    // Debug logger - visible on page
-    function dbg(msg) {
-      console.log('[Barrio]', msg);
-      var el = document.getElementById('debug-log');
-      if (el) {
-        el.innerHTML += new Date().toLocaleTimeString() + ' ' + msg + '<br>';
-        el.scrollTop = el.scrollHeight;
-      }
-    }
+    const render = (drafts) => {
+      document.getElementById('count').textContent = `${drafts.length} drafts pending`;
+      const list = document.getElementById('list');
+      list.innerHTML = drafts.map((draft) => `
+        <div class="card" data-id="${draft.id}">
+          <div class="title">${draft.name || 'Unnamed'}</div>
+          <div class="meta">
+            <span class="pill">${draft.itemType || 'unknown'}</span>
+            <span>${draft.category || 'no category'}</span>
+            <span>${new Date(draft.createdAt).toLocaleString()}</span>
+            <span class="pill warn">${draft.flaggedFields.length} flagged</span>
+          </div>
+        </div>
+      `).join('');
 
-    window.onerror = function(msg, src, line, col, err) {
-      dbg('ERROR: ' + msg + ' at line ' + line);
-      return false;
+      [...document.querySelectorAll('.card')].forEach((el) => {
+        el.addEventListener('click', () => {
+          window.location.href = `/admin/draft.html?id=${el.getAttribute('data-id')}`;
+        });
+      });
     };
 
-    dbg('Script loaded');
+    const load = async () => {
+      const response = await window.adminApi.fetchJson('/ingest/drafts');
+      render(response.data || []);
+    };
 
-    // State
-    var authToken = null;
-    var currentUser = null;
-    var mediaItems = [];
-
-    var API_BASE = '/api';
-    var SUPABASE_URL = '%%SUPABASE_URL%%';
-    var SUPABASE_ANON_KEY = '%%SUPABASE_ANON_KEY%%';
-    var GOOGLE_MAPS_API_KEY = '%%GOOGLE_MAPS_API_KEY%%';
-
-    dbg('Config: SUPABASE_URL=' + SUPABASE_URL.substring(0, 30) + '...');
-
-    // --- Helpers ---
-    function apiFetch(path, options) {
-      options = options || {};
-      dbg('API call: ' + (options.method || 'GET') + ' ' + path);
-      return fetch(API_BASE + path, {
-        method: options.method || 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + authToken
-        },
-        body: options.body || undefined
-      });
-    }
-
-    function showStatus(message, type) {
-      dbg('Status [' + type + ']: ' + message);
-      var el = document.getElementById('status-msg');
-      el.textContent = message;
-      el.className = 'status ' + type;
-      el.classList.remove('hidden');
-      if (type === 'success') {
-        setTimeout(function() { el.classList.add('hidden'); }, 8000);
-      }
-    }
-
-    function toLocalDatetime(isoString) {
-      try {
-        var date = new Date(isoString);
-        if (isNaN(date.getTime())) return '';
-        var pad = function(n) { return String(n).padStart(2, '0'); };
-        return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
-      } catch(e) { return ''; }
-    }
-
-    function showMainSection() {
-      dbg('Showing main section, user: ' + (currentUser ? currentUser.email : 'unknown'));
-      document.getElementById('login-section').classList.add('hidden');
-      document.getElementById('main-section').classList.remove('hidden');
-      document.getElementById('user-name').textContent = (currentUser && currentUser.email) ? currentUser.email : 'Unknown';
-    }
-
-    // --- Auth ---
-    function handleLogin() {
-      dbg('Login clicked');
-      var email = document.getElementById('login-email').value.trim();
-      var password = document.getElementById('login-password').value;
-      var errorEl = document.getElementById('login-error');
-
-      if (!email || !password) {
-        errorEl.textContent = 'Please enter email and password';
-        errorEl.classList.remove('hidden');
-        return;
-      }
-
-      document.getElementById('login-btn').disabled = true;
-      document.getElementById('login-btn').textContent = 'Logging in...';
-      errorEl.classList.add('hidden');
-
-      fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
-        body: JSON.stringify({ email: email, password: password })
-      })
-      .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
-      .then(function(result) {
-        if (!result.ok) {
-          throw new Error(result.data.error_description || result.data.msg || 'Login failed');
-        }
-        dbg('Login successful, token received');
-        authToken = result.data.access_token;
-        currentUser = result.data.user;
-        sessionStorage.setItem('barrio_admin_token', authToken);
-        sessionStorage.setItem('barrio_admin_user', JSON.stringify(currentUser));
-        showMainSection();
-      })
-      .catch(function(err) {
-        dbg('Login error: ' + err.message);
-        errorEl.textContent = err.message;
-        errorEl.classList.remove('hidden');
-      })
-      .finally(function() {
-        document.getElementById('login-btn').disabled = false;
-        document.getElementById('login-btn').textContent = 'Log In';
-      });
-    }
-
-    function handleLogout() {
-      dbg('Logout clicked');
-      authToken = null;
-      currentUser = null;
-      sessionStorage.removeItem('barrio_admin_token');
-      sessionStorage.removeItem('barrio_admin_user');
-      document.getElementById('login-section').classList.remove('hidden');
-      document.getElementById('main-section').classList.add('hidden');
-    }
-
-    // --- Extract ---
-    function handleExtract() {
-      dbg('Extract clicked');
-      var url = document.getElementById('extract-url').value.trim();
-      dbg('URL value: "' + url.substring(0, 60) + '..."');
-
-      if (!url) {
-        dbg('URL is empty, aborting');
-        showStatus('Please paste a URL first.', 'error');
-        return;
-      }
-
-      // Instagram URLs can't be scraped -- redirect to manual paste
-      if (url.indexOf('instagram.com') > -1) {
-        showStatus('Instagram posts can\'t be scraped automatically. Use the "Instagram / manual paste" section below the URL bar -- copy the caption text from Instagram and paste it there. Then save the image and upload it manually.', 'error');
-        document.getElementById('manual-source-url').value = url;
-        document.getElementById('manual-paste-section').open = true;
-        document.getElementById('extract-url').value = '';
-        return;
-      }
-
-      showStatus('Extracting event data... This may take 5-15 seconds.', 'loading');
-      document.getElementById('extract-btn').disabled = true;
-      document.getElementById('extract-btn').textContent = 'Extracting...';
-
-      apiFetch('/import/extract', {
-        method: 'POST',
-        body: JSON.stringify({ url: url })
-      })
-      .then(function(res) {
-        dbg('Response received: ' + res.status);
-        return res.json().then(function(json) { return { ok: res.ok, json: json }; });
-      })
-      .then(function(result) {
-        if (!result.ok) {
-          var errMsg = (result.json.error && result.json.error.message) || JSON.stringify(result.json);
-          throw new Error(errMsg);
-        }
-        dbg('Extraction successful: ' + result.json.data.title);
-        populateForm(result.json.data);
-
-        if (result.json.data.failedMediaUrls && result.json.data.failedMediaUrls.length > 0) {
-          showStatus('Extracted! ' + result.json.data.failedMediaUrls.length + ' image(s) need manual upload.', 'success');
-        } else {
-          showStatus('Event data extracted successfully. Review and publish below.', 'success');
-        }
-      })
-      .catch(function(err) {
-        dbg('Extract error: ' + err.message);
-        showStatus('Extraction failed: ' + err.message, 'error');
-      })
-      .finally(function() {
-        document.getElementById('extract-btn').disabled = false;
-        document.getElementById('extract-btn').textContent = 'Extract';
-      });
-    }
-
-    // --- Extract from text (Instagram / manual) ---
-    function handleExtractFromText() {
-      var text = document.getElementById('manual-text').value.trim();
-      if (!text) {
-        showStatus('Please paste some text first.', 'error');
-        return;
-      }
-
-      var sourceUrl = document.getElementById('manual-source-url').value.trim() || undefined;
-      showStatus('Extracting event from text... This may take a few seconds.', 'loading');
-      document.getElementById('extract-text-btn').disabled = true;
-      document.getElementById('extract-text-btn').textContent = 'Extracting...';
-
-      apiFetch('/import/extract-text', {
-        method: 'POST',
-        body: JSON.stringify({ text: text, sourceUrl: sourceUrl })
-      })
-      .then(function(res) {
-        dbg('Text extract response: ' + res.status);
-        return res.json().then(function(json) { return { ok: res.ok, json: json }; });
-      })
-      .then(function(result) {
-        if (!result.ok) {
-          var errMsg = (result.json.error && result.json.error.message) || JSON.stringify(result.json);
-          throw new Error(errMsg);
-        }
-        dbg('Text extraction successful: ' + result.json.data.title);
-        populateForm(result.json.data);
-        showStatus('Event data extracted from text. Add images manually and review below.', 'success');
-      })
-      .catch(function(err) {
-        dbg('Text extract error: ' + err.message);
-        showStatus('Text extraction failed: ' + err.message, 'error');
-      })
-      .finally(function() {
-        document.getElementById('extract-text-btn').disabled = false;
-        document.getElementById('extract-text-btn').textContent = 'Extract from text';
-      });
-    }
-
-    function populateForm(data) {
-      document.getElementById('field-title').value = data.title || '';
-      document.getElementById('field-description').value = data.description || '';
-      document.getElementById('field-category').value = data.category || 'community';
-      document.getElementById('field-venueName').value = data.venueName || '';
-      document.getElementById('field-address').value = data.address || '';
-      document.getElementById('field-latitude').value = data.latitude || '';
-      document.getElementById('field-longitude').value = data.longitude || '';
-      document.getElementById('field-ticketUrl').value = data.ticketUrl || '';
-      document.getElementById('field-sourceUrl').value = data.sourceUrl || '';
-      document.getElementById('field-isFree').checked = data.isFree !== false;
-      if (data.startTime) document.getElementById('field-startTime').value = toLocalDatetime(data.startTime);
-      if (data.endTime) document.getElementById('field-endTime').value = toLocalDatetime(data.endTime);
-
-      mediaItems = (data.media || []).map(function(m) { return { url: m.url, type: m.type || 'photo' }; });
-      renderMedia();
-      updateMapPreview();
-      document.getElementById('event-form').classList.remove('hidden');
-    }
-
-    // --- Geocode ---
-    function handleRegeocode() {
-      var address = document.getElementById('field-address').value.trim();
-      if (!address) return;
-      showStatus('Geocoding address...', 'loading');
-
-      apiFetch('/import/geocode', { method: 'POST', body: JSON.stringify({ address: address }) })
-      .then(function(res) { return res.json().then(function(j) { return { ok: res.ok, json: j }; }); })
-      .then(function(result) {
-        if (!result.ok) throw new Error('Geocoding failed');
-        document.getElementById('field-latitude').value = result.json.data.latitude;
-        document.getElementById('field-longitude').value = result.json.data.longitude;
-        document.getElementById('field-address').value = result.json.data.formattedAddress;
-        updateMapPreview();
-        showStatus('Address geocoded successfully.', 'success');
-      })
-      .catch(function(err) { showStatus('Geocoding failed: ' + err.message, 'error'); });
-    }
-
-    function updateMapPreview() {
-      var lat = document.getElementById('field-latitude').value;
-      var lng = document.getElementById('field-longitude').value;
-      var container = document.getElementById('map-preview');
-      if (lat && lng && GOOGLE_MAPS_API_KEY) {
-        var mapUrl = 'https://maps.googleapis.com/maps/api/staticmap?center=' + lat + ',' + lng + '&zoom=16&size=720x200&scale=2&markers=color:red%7C' + lat + ',' + lng + '&key=' + GOOGLE_MAPS_API_KEY;
-        container.innerHTML = '<img src="' + mapUrl + '" alt="Map preview">';
-        dbg('Map preview updated: ' + lat + ', ' + lng);
-      } else if (lat && lng) {
-        container.innerHTML = '<span class="placeholder">Coordinates: ' + lat + ', ' + lng + '</span>';
-      } else {
-        container.innerHTML = '<span class="placeholder">Map preview will appear after geocoding</span>';
-      }
-    }
-
-    // --- Media ---
-    function renderMedia() {
-      var grid = document.getElementById('media-grid');
-      grid.innerHTML = '';
-      mediaItems.forEach(function(item, index) {
-        var div = document.createElement('div');
-        div.className = 'media-item';
-        var img = document.createElement('img');
-        img.src = item.url;
-        img.alt = 'Media ' + (index + 1);
-        div.appendChild(img);
-        var btn = document.createElement('button');
-        btn.className = 'remove-btn';
-        btn.textContent = '\u00D7';
-        btn.addEventListener('click', function() { removeMedia(index); });
-        div.appendChild(btn);
-        grid.appendChild(div);
-      });
-      document.getElementById('media-dropzone').style.display = mediaItems.length >= 3 ? 'none' : 'flex';
-    }
-
-    function removeMedia(index) {
-      mediaItems.splice(index, 1);
-      renderMedia();
-    }
-
-    function handleFileSelect(files) {
-      if (!files || !files.length) return;
-      Array.from(files).forEach(function(file) {
-        if (mediaItems.length >= 3) return;
-        showStatus('Uploading ' + file.name + '...', 'loading');
-
-        var reader = new FileReader();
-        reader.onload = function() {
-          apiFetch('/import/upload-media', {
-            method: 'POST',
-            body: JSON.stringify({ image: reader.result, contentType: file.type })
-          })
-          .then(function(res) { return res.json().then(function(j) { return { ok: res.ok, json: j }; }); })
-          .then(function(result) {
-            if (!result.ok) throw new Error('Upload failed');
-            mediaItems.push({ url: result.json.data.url, type: result.json.data.type });
-            renderMedia();
-            showStatus('Image uploaded.', 'success');
-          })
-          .catch(function(err) { showStatus('Upload failed: ' + err.message, 'error'); });
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    // --- Publish ---
-    function handlePublish() {
-      dbg('Publish clicked');
-      var title = document.getElementById('field-title').value.trim();
-      var description = document.getElementById('field-description').value.trim();
-      var address = document.getElementById('field-address').value.trim();
-      var latitude = parseFloat(document.getElementById('field-latitude').value);
-      var longitude = parseFloat(document.getElementById('field-longitude').value);
-      var startTime = document.getElementById('field-startTime').value;
-
-      if (!title) return showStatus('Title is required.', 'error');
-      if (!description) return showStatus('Description is required.', 'error');
-      if (!address) return showStatus('Address is required.', 'error');
-      if (isNaN(latitude) || isNaN(longitude)) return showStatus('Please geocode the address first.', 'error');
-      if (!startTime) return showStatus('Start time is required.', 'error');
-
-      var endTimeVal = document.getElementById('field-endTime').value;
-      var eventData = {
-        title: title,
-        description: description,
-        category: document.getElementById('field-category').value,
-        address: address,
-        latitude: latitude,
-        longitude: longitude,
-        startTime: new Date(startTime).toISOString(),
-        endTime: endTimeVal ? new Date(endTimeVal).toISOString() : null,
-        isFree: document.getElementById('field-isFree').checked,
-        venueName: document.getElementById('field-venueName').value.trim() || undefined,
-        ticketUrl: document.getElementById('field-ticketUrl').value.trim() || undefined,
-        sourceUrl: document.getElementById('field-sourceUrl').value.trim() || undefined,
-        sourceType: detectSourceType(document.getElementById('field-sourceUrl').value),
-        media: mediaItems.map(function(m) { return { url: m.url, type: m.type }; })
-      };
-
-      showStatus('Publishing event...', 'loading');
-      document.getElementById('publish-btn').disabled = true;
-
-      apiFetch('/events', { method: 'POST', body: JSON.stringify(eventData) })
-      .then(function(res) { return res.json().then(function(j) { return { ok: res.ok, json: j }; }); })
-      .then(function(result) {
-        if (!result.ok) throw new Error((result.json.error && result.json.error.message) || 'Publish failed');
-        showStatus('Event "' + result.json.data.title + '" published! You can add another.', 'success');
-        resetForm();
-      })
-      .catch(function(err) { showStatus('Publish failed: ' + err.message, 'error'); })
-      .finally(function() { document.getElementById('publish-btn').disabled = false; });
-    }
-
-    function detectSourceType(url) {
-      if (!url) return 'manual';
-      if (url.indexOf('instagram.com') > -1) return 'instagram';
-      if (url.indexOf('facebook.com') > -1 || url.indexOf('fb.me') > -1) return 'facebook';
-      if (url.indexOf('eventbrite') > -1) return 'eventbrite';
-      if (url.indexOf('meetup.com') > -1) return 'meetup';
-      if (url.indexOf('fever') > -1) return 'fever';
-      return 'website';
-    }
-
-    function resetForm() {
-      document.getElementById('event-form').classList.add('hidden');
-      document.getElementById('extract-url').value = '';
-      ['field-title','field-description','field-venueName','field-address',
-       'field-latitude','field-longitude','field-startTime','field-endTime',
-       'field-ticketUrl','field-sourceUrl'].forEach(function(id) {
-        document.getElementById(id).value = '';
-      });
-      document.getElementById('field-category').value = 'community';
-      document.getElementById('field-isFree').checked = true;
-      document.getElementById('map-preview').innerHTML = '<span class="placeholder">Map preview will appear after geocoding</span>';
-      mediaItems = [];
-      renderMedia();
-    }
-
-    // --- Wire up all event listeners on DOMContentLoaded ---
-    document.addEventListener('DOMContentLoaded', function() {
-      dbg('DOM loaded, attaching event listeners');
-
-      document.getElementById('login-btn').addEventListener('click', handleLogin);
-      document.getElementById('login-password').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') handleLogin();
-      });
-      document.getElementById('logout-btn').addEventListener('click', handleLogout);
-      document.getElementById('extract-btn').addEventListener('click', function() {
-        dbg('Extract button click event fired');
-        handleExtract();
-      });
-      document.getElementById('extract-url').addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') handleExtract();
-      });
-      document.getElementById('extract-text-btn').addEventListener('click', function() {
-        dbg('Extract from text button clicked');
-        handleExtractFromText();
-      });
-      document.getElementById('regeocode-btn').addEventListener('click', handleRegeocode);
-      document.getElementById('media-dropzone').addEventListener('click', function() {
-        document.getElementById('media-file-input').click();
-      });
-      document.getElementById('media-file-input').addEventListener('change', function(e) {
-        handleFileSelect(e.target.files);
-        e.target.value = '';
-      });
-      document.getElementById('clear-btn').addEventListener('click', resetForm);
-      document.getElementById('publish-btn').addEventListener('click', handlePublish);
-
-      // Drag and drop
-      var dropzone = document.getElementById('media-dropzone');
-      dropzone.addEventListener('dragover', function(e) { e.preventDefault(); dropzone.classList.add('dragover'); });
-      dropzone.addEventListener('dragleave', function() { dropzone.classList.remove('dragover'); });
-      dropzone.addEventListener('drop', function(e) {
-        e.preventDefault();
-        dropzone.classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) handleFileSelect(e.dataTransfer.files);
-      });
-
-      dbg('All event listeners attached');
-
-      // Restore session
-      var savedToken = sessionStorage.getItem('barrio_admin_token');
-      var savedUser = sessionStorage.getItem('barrio_admin_user');
-      if (savedToken && savedUser) {
-        dbg('Restoring saved session');
-        authToken = savedToken;
-        try { currentUser = JSON.parse(savedUser); } catch(e) { dbg('Failed to parse saved user'); }
-        showMainSection();
-      } else {
-        dbg('No saved session, showing login');
-      }
+    document.getElementById('login').addEventListener('click', async () => {
+      await window.adminApi.login(
+        document.getElementById('email').value.trim(),
+        document.getElementById('password').value
+      );
+      await load();
     });
+    document.getElementById('refresh').addEventListener('click', load);
+    if (window.adminApi.hasToken()) load();
   </script>
 </body>
 </html>

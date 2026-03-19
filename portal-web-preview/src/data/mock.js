@@ -52,9 +52,9 @@ export const MOCK_EVENTS = [
 ]
 
 export const MOCK_SPOTS = [
-  { id: '1', name: 'Lilia', neighborhood: 'Williamsburg', priceRange: '$$$', categoryLabel: 'Italian', ownerHandle: 'fredrik', ownerInitial: 'F' },
-  { id: '2', name: 'Death & Co', neighborhood: 'East Village', priceRange: '$$', categoryLabel: 'Cocktail Bar', ownerHandle: 'fredrik', ownerInitial: 'F' },
-  { id: '3', name: 'Russ & Daughters', neighborhood: 'Lower East Side', priceRange: '$$', categoryLabel: 'Cafe', ownerHandle: 'weekendatlas', ownerInitial: 'W' },
+  { id: '1', name: 'Lilia', neighborhood: 'Williamsburg', categoryLabel: 'Italian', ownerHandle: 'fredrik', ownerInitial: 'F' },
+  { id: '2', name: 'Death & Co', neighborhood: 'East Village', categoryLabel: 'Cocktail Bar', ownerHandle: 'fredrik', ownerInitial: 'F' },
+  { id: '3', name: 'Russ & Daughters', neighborhood: 'Lower East Side', categoryLabel: 'Cafe', ownerHandle: 'weekendatlas', ownerInitial: 'W' },
 ]
 
 export const MOCK_USERS = [

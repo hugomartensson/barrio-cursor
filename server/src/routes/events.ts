@@ -29,6 +29,7 @@ import {
   fetchMediaForEvents,
   calcDistance,
 } from '../services/eventQueries.js';
+import { geocodeAddress } from '../services/geocoding.js';
 
 const router = Router();
 
@@ -62,10 +63,21 @@ router.post(
           title: input.title,
           category: input.category,
           mediaCount: input.media.length,
-          location: { lat: input.latitude, lng: input.longitude },
         },
         '📝 Creating new event'
       );
+
+      let lat: number;
+      let lng: number;
+      try {
+        const geocoded = await geocodeAddress(input.address);
+        lat = geocoded.latitude;
+        lng = geocoded.longitude;
+      } catch {
+        throw ApiError.badRequest(
+          'Could not find location for this address. Please try a more specific address.'
+        );
+      }
 
       const event = await prisma.event.create({
         data: {
@@ -73,9 +85,9 @@ router.post(
           title: input.title,
           description: input.description,
           category: input.category,
-          address: input.address, // PRD: Address is primary
-          latitude: input.latitude,
-          longitude: input.longitude,
+          address: input.address,
+          latitude: lat,
+          longitude: lng,
           startTime: new Date(input.startTime),
           endTime: input.endTime ? new Date(input.endTime) : null,
           ticketUrl: input.ticketUrl,
@@ -99,7 +111,6 @@ router.post(
           requestId,
           eventId: event.id,
           title: event.title,
-          location: { lat: event.latitude, lng: event.longitude },
         },
         '✅ Event created successfully'
       );
@@ -251,12 +262,15 @@ router.patch(
     }
     if (input.address !== undefined) {
       updateData.address = input.address;
-    }
-    if (input.latitude !== undefined) {
-      updateData.latitude = input.latitude;
-    }
-    if (input.longitude !== undefined) {
-      updateData.longitude = input.longitude;
+      try {
+        const geocoded = await geocodeAddress(input.address);
+        updateData.latitude = geocoded.latitude;
+        updateData.longitude = geocoded.longitude;
+      } catch {
+        throw ApiError.badRequest(
+          'Could not find location for this address. Please try a more specific address.'
+        );
+      }
     }
     if (input.startTime !== undefined) {
       updateData.startTime = new Date(input.startTime);

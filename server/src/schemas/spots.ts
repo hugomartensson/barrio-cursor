@@ -18,10 +18,6 @@ export const createSpotSchema = z.object({
   category: categoryEnum,
   address: z.string().min(1, 'Address is required'),
   neighborhood: z.string().max(100).optional(),
-  // Optional: when omitted or null, server geocodes address. Users never input lat/lng.
-  latitude: z.number().min(-90).max(90).optional().nullable(),
-  longitude: z.number().min(-180).max(180).optional().nullable(),
-  priceRange: z.enum(['free', 'low', 'medium', 'high']).optional(),
   tags: z.array(z.string().max(50)).max(10).optional().default([]),
   image: z.object({
     url: z.string().url('Invalid image URL'),
@@ -35,9 +31,6 @@ export const updateSpotSchema = z.object({
   category: categoryEnum.optional(),
   address: z.string().min(1).optional(),
   neighborhood: z.string().max(100).optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
-  priceRange: z.enum(['free', 'low', 'medium', 'high']).optional(),
   tags: z.array(z.string().max(50)).max(10).optional(),
   image: z
     .object({

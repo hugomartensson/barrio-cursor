@@ -308,8 +308,7 @@ category (food | drinks | music | art | markets | community)
 neighborhood
 description
 image
-location (lat, lng)
-priceRange (optional)
+location (lat, lng — derived from address via server-side geocoding)
 tags[] (optional)
 owners[] — array of user references; first is the creator, additional can be added
 saveCount

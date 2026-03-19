@@ -33,7 +33,6 @@ interface CollectionItemSpotPayload {
   longitude: number;
   neighborhood: string | null;
   categoryTag: string | null;
-  priceRange: string | null;
   tags: string[];
   imageUrl: string | null;
   saveCount: number;
@@ -303,7 +302,6 @@ router.get(
             longitude: spot.longitude,
             neighborhood: spot.neighborhood,
             categoryTag: spot.categoryTag,
-            priceRange: spot.priceRange !== null ? String(spot.priceRange) : null,
             tags: spot.tags,
             imageUrl: spot.media[0]?.url ?? null,
             saveCount: spot.saveCount,

@@ -19,7 +19,15 @@ const envSchema = z.object({
   SUPABASE_STORAGE_BUCKET: z.string().default('media'),
   CORS_ORIGIN: z.string().default('*'),
   ANTHROPIC_API_KEY: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
   GOOGLE_MAPS_API_KEY: z.string().optional(),
+  TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_ALLOWED_USER_ID: z.string().optional(),
+  PORTAL_TEAM_EMAIL: z.string().email().optional(),
+  PORTAL_TEAM_PASSWORD: z.string().optional(),
+  PORTAL_API_URL: z.string().url().optional(),
+  ADMIN_USERNAME: z.string().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
 });
 
 const parseEnv = (): z.infer<typeof envSchema> => {

@@ -1,5 +1,5 @@
 export default function PortalSpotCard({ spot }) {
-  const { name, neighborhood, priceRange, categoryLabel, ownerHandle, ownerInitial } = spot
+  const { name, neighborhood, categoryLabel, ownerHandle, ownerInitial } = spot
 
   return (
     <article
@@ -53,7 +53,7 @@ export default function PortalSpotCard({ spot }) {
             gap: 4,
           }}
         >
-          📍 {neighborhood} · <span style={{ color: 'var(--portal-primary)', fontWeight: 500 }}>{priceRange}</span>
+          📍 {neighborhood}{categoryLabel ? ` · ${categoryLabel}` : ''}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span

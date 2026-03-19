@@ -17,7 +17,6 @@ export interface NearbySpotRow {
   longitude: number;
   category_tag: string | null;
   neighborhood: string | null;
-  price_range: string | null;
   distance: number;
 }
 
@@ -35,7 +34,7 @@ export async function fetchNearbySpots(
   const rows = await prisma.$queryRawUnsafe<NearbySpotRow[]>(
     `
     SELECT s.id, s.owner_id, s.name, s.description, s.address, s.latitude, s.longitude,
-           s.category_tag, s.neighborhood, s.price_range,
+           s.category_tag, s.neighborhood,
            ST_Distance(${spotPointSql}, ${originSql})::integer as distance
     FROM spots s
     WHERE ST_DWithin(${spotPointSql}, ${originSql}, $1)

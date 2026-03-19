@@ -2,19 +2,28 @@ import express, { Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import * as pinoHttpModule from 'pino-http';
+import { webhookCallback } from 'grammy';
 import { config } from './config/index.js';
 import { logger } from './services/logger.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import routes from './routes/index.js';
 import type { RequestWithId } from './types/index.js';
+import { createBot } from './tools/ingest/bot.js';
 
 export const createApp = (): Express => {
   const app = express();
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const repoRoot = process.cwd();
 
   // Request ID middleware (must be first)
   app.use(requestIdMiddleware);
+
+  // Required on Railway/reverse proxies so rate limit & IP detection work correctly.
+  app.set('trust proxy', 1);
 
   // HTTP request logging middleware
   const pinoHttpOptions = {
@@ -77,6 +86,44 @@ export const createApp = (): Express => {
 
   // API routes
   app.use('/api', routes);
+
+  if (config.TELEGRAM_BOT_TOKEN) {
+    const bot = createBot();
+    app.use('/api/telegram/webhook', webhookCallback(bot, 'express'));
+  }
+
+  const adminAuth = (
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ): void => {
+    const username = config.ADMIN_USERNAME;
+    const password = config.ADMIN_PASSWORD;
+    if (!username || !password) {
+      next();
+      return;
+    }
+
+    const header = req.headers.authorization;
+    if (!header?.startsWith('Basic ')) {
+      res.set('WWW-Authenticate', 'Basic');
+      res.status(401).send('Unauthorized');
+      return;
+    }
+
+    const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
+    const [providedUser, providedPass] = decoded.split(':');
+    if (providedUser !== username || providedPass !== password) {
+      res.set('WWW-Authenticate', 'Basic');
+      res.status(401).send('Unauthorized');
+      return;
+    }
+    next();
+  };
+  const adminDistPath = path.join(__dirname, 'admin');
+  const adminSourcePath = path.join(repoRoot, 'src', 'admin');
+  app.use('/admin', adminAuth, express.static(adminDistPath));
+  app.use('/admin', adminAuth, express.static(adminSourcePath));
 
   // Root endpoint
   app.get('/', (_req, res) => {

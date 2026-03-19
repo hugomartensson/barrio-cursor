@@ -18,8 +18,6 @@ export const createEventSchema = z.object({
     .max(2000, 'Description too long'),
   category: categoryEnum,
   address: z.string().min(1, 'Address is required'),
-  latitude: z.number().min(-90).max(90),
-  longitude: z.number().min(-180).max(180),
   startTime: z.string().datetime({ message: 'Invalid start time format' }),
   endTime: z
     .string()
@@ -48,8 +46,6 @@ export const updateEventSchema = z.object({
     .optional(),
   category: categoryEnum.optional(),
   address: z.string().min(1, 'Address is required').optional(),
-  latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional(),
   startTime: z.string().datetime({ message: 'Invalid start time format' }).optional(),
   endTime: z.string().datetime({ message: 'Invalid end time format' }).optional(),
   media: z
