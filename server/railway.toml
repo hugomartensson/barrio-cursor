@@ -4,6 +4,7 @@
 [build]
 # Build TypeScript and generate Prisma client (install phase already runs npm ci)
 buildCommand = "npm run build && npx prisma generate"
+nixpacksConfigPath = "nixpacks.toml"
 
 [deploy]
 # Run migrations then start (Railway sets PORT automatically)
