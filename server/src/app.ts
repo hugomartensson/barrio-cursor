@@ -48,8 +48,18 @@ export const createApp = (): Express => {
   ).default || pinoHttpModule) as (opts?: unknown) => express.RequestHandler;
   app.use(pinoHttpFn(pinoHttpOptions));
 
-  // Security middleware
-  app.use(helmet());
+  // Security middleware — allow inline scripts only as fallback (admin HTML uses external admin.js;
+  // some proxies/CDNs still caused issues; unsafe-inline is a pragmatic fix for the small admin surface).
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          'script-src': ["'self'", "'unsafe-inline'"],
+        },
+      },
+    })
+  );
 
   // CORS configuration
   app.use(

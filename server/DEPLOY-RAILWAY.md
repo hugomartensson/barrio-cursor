@@ -83,4 +83,4 @@ Password must satisfy the API rules: **≥8 characters**, at least **one upperca
 
 **After the user exists in Supabase**, `POST /api/auth/login` with the same email/password returns a JWT. The ingest dashboard at **`/admin/`** uses that login in the browser (token in `localStorage`). There is no separate Basic Auth layer.
 
-**Build note:** `npm run build` runs `tsc` and copies `src/admin/*.{html,js}` into `dist/admin` so production serves `queue.js` / `draft-page.js` alongside `admin.js`. Helmet’s default **Content-Security-Policy** blocks **inline** `<script>` tags, so all admin UI logic must stay in those external files.
+**Build note:** `npm run build` runs `tsc` and copies `src/admin/*.{html,js}` into `dist/admin`. **`admin.js` is a single bundle** (API helpers + ingest queue + draft editor) so a missing second script on deploy cannot break the UI. Helmet is configured to allow `'unsafe-inline'` for `script-src` as a fallback; prefer keeping logic in `admin.js` only.

@@ -68,8 +68,7 @@
     <div id="list"></div>
   </div>
 
-  <!-- No inline scripts: Helmet CSP blocks them in production. Order matters. -->
+  <!-- Single bundle: avoids a missing second .js file on deploy (queue + API in admin.js). -->
   <script src="/admin/admin.js"></script>
-  <script src="/admin/queue.js"></script>
 </body>
 </html>
