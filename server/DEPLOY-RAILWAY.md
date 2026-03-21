@@ -61,7 +61,7 @@ Then verify with `GET https://your-app-name.up.railway.app/api/health` and a qui
 
 ## 7. Portal team user (Supabase + API login)
 
-`/api/auth/login` checks **Supabase Auth**, not only your Postgres `User` table. If `PORTAL_TEAM_EMAIL` / `PORTAL_TEAM_PASSWORD` (or your admin Basic Auth user) was never registered, login returns `401 Invalid email or password`.
+`/api/auth/login` checks **Supabase Auth**, not only your Postgres `User` table. If that email was never registered, login returns `401 Invalid email or password`.
 
 **Create the account via the API** (recommended — also runs `syncUserToDatabase` when signup returns a session):
 
@@ -81,4 +81,6 @@ Password must satisfy the API rules: **≥8 characters**, at least **one upperca
 
 **If signup returns `token: ""` and a message about email confirmation:** Supabase has “Confirm email” enabled. Either confirm the email from the inbox, or in Supabase **Authentication → Providers → Email** turn off “Confirm email” for testing, then sign up again (or use **Authentication → Users → Add user** with email + password and mark email confirmed).
 
-**After the user exists in Supabase**, `POST /api/auth/login` with the same email/password returns a JWT. Use that bearer token for `/api/ingest/*`. Keep `ADMIN_USERNAME` / `ADMIN_PASSWORD` in Railway aligned with this account if you want one shared login for Basic Auth + API.
+**After the user exists in Supabase**, `POST /api/auth/login` with the same email/password returns a JWT. The ingest dashboard at **`/admin/`** uses that login in the browser (token in `localStorage`). There is no separate Basic Auth layer.
+
+**Build note:** `npm run build` runs `tsc` and copies `src/admin/*.{html,js}` into `dist/admin` so production serves `queue.js` / `draft-page.js` alongside `admin.js`. Helmet’s default **Content-Security-Policy** blocks **inline** `<script>` tags, so all admin UI logic must stay in those external files.

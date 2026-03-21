@@ -7,7 +7,7 @@
   "scripts": {
     "check-deps": "node scripts/check-dependencies.js",
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-admin-static.mjs",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",

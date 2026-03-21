@@ -21,7 +21,7 @@
 </head>
 <body>
   <div class="wrap">
-    <button onclick="window.location.href='/admin/'">Back</button>
+    <button type="button" id="backBtn">Back</button>
     <h2>Draft Detail</h2>
     <div id="status" class="error" style="display:none"></div>
     <div class="row"><label>Type</label><select id="itemType"><option>spot</option><option>event</option></select></div>
@@ -36,96 +36,12 @@
     <div class="row eventOnly"><label>Start Time</label><input id="startTime" type="datetime-local"></div>
     <div class="row eventOnly"><label>End Time</label><input id="endTime" type="datetime-local"></div>
     <div class="actions">
-      <button id="save">Save</button>
-      <button id="approve">Approve</button>
-      <button id="skip" class="skip">Skip</button>
+      <button type="button" id="save">Save</button>
+      <button type="button" id="approve">Approve</button>
+      <button type="button" id="skip" class="skip">Skip</button>
     </div>
   </div>
   <script src="/admin/admin.js"></script>
-  <script>
-    const id = new URLSearchParams(window.location.search).get('id');
-    const fields = ['itemType','name','description','category','address','neighborhood','tags','imageUrl','startTime','endTime'];
-    let flagged = [];
-
-    const toLocal = (value) => value ? new Date(value).toISOString().slice(0,16) : '';
-
-    const readForm = () => ({
-      itemType: document.getElementById('itemType').value || null,
-      name: document.getElementById('name').value || null,
-      description: document.getElementById('description').value || null,
-      category: document.getElementById('category').value || null,
-      address: document.getElementById('address').value || null,
-      neighborhood: document.getElementById('neighborhood').value || null,
-      tags: document.getElementById('tags').value.split(',').map((v) => v.trim()).filter(Boolean),
-      imageUrl: document.getElementById('imageUrl').value || null,
-      startTime: document.getElementById('startTime').value ? new Date(document.getElementById('startTime').value).toISOString() : null,
-      endTime: document.getElementById('endTime').value ? new Date(document.getElementById('endTime').value).toISOString() : null
-    });
-
-    const applyWarnings = () => {
-      fields.forEach((field) => {
-        const el = document.getElementById(field);
-        if (!el) return;
-        if (flagged.includes(field)) el.classList.add('warn');
-        else el.classList.remove('warn');
-      });
-    };
-
-    const showErr = (e) => {
-      const el = document.getElementById('status');
-      el.style.display = 'block';
-      el.textContent = e instanceof Error ? e.message : String(e);
-    };
-
-    const load = async () => {
-      const response = await window.adminApi.fetchJson(`/ingest/drafts/${id}`);
-      const d = response.data;
-      document.getElementById('status').style.display = 'none';
-      flagged = d.flaggedFields || [];
-      document.getElementById('itemType').value = d.itemType || 'spot';
-      document.getElementById('name').value = d.name || '';
-      document.getElementById('description').value = d.description || '';
-      document.getElementById('category').value = d.category || 'community';
-      document.getElementById('address').value = d.address || '';
-      document.getElementById('neighborhood').value = d.neighborhood || '';
-      document.getElementById('tags').value = (d.tags || []).join(', ');
-      document.getElementById('imageUrl').value = d.imageUrl || '';
-      document.getElementById('preview').src = d.imageUrl || '';
-      document.getElementById('startTime').value = toLocal(d.startTime);
-      document.getElementById('endTime').value = toLocal(d.endTime);
-      applyWarnings();
-    };
-
-    document.getElementById('save').addEventListener('click', async () => {
-      try {
-        await window.adminApi.fetchJson(`/ingest/drafts/${id}`, { method: 'PATCH', body: JSON.stringify(readForm()) });
-        await load();
-      } catch (e) { showErr(e); }
-    });
-
-    document.getElementById('approve').addEventListener('click', async () => {
-      try {
-        await window.adminApi.fetchJson(`/ingest/drafts/${id}/approve`, { method: 'POST' });
-        window.location.href = '/admin/';
-      } catch (e) { showErr(e); }
-    });
-
-    document.getElementById('skip').addEventListener('click', async () => {
-      try {
-        await window.adminApi.fetchJson(`/ingest/drafts/${id}/skip`, { method: 'POST' });
-        window.location.href = '/admin/';
-      } catch (e) { showErr(e); }
-    });
-
-    document.getElementById('imageUrl').addEventListener('blur', (e) => {
-      document.getElementById('preview').src = e.target.value || '';
-    });
-
-    if (window.adminApi.hasToken() && id) {
-      load().catch(showErr);
-    } else if (!window.adminApi.hasToken()) {
-      showErr(new Error('No API session. Go back to /admin/, log in with email/password, then open this draft again.'));
-    }
-  </script>
+  <script src="/admin/draft-page.js"></script>
 </body>
 </html>
