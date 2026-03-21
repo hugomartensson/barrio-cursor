@@ -1,2 +1,6 @@
+# Railway Nixpacks: prefer Node 20 (undici / grammy need global File)
+[variables]
+NIXPACKS_NODE_VERSION = "20"
+
 [phases.setup]
 nixPkgs = ["nodejs_20"]

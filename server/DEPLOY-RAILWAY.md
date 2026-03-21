@@ -58,3 +58,27 @@ After the first deploy you can seed data:
   `DATABASE_URL="postgresql://..." npm run seed` (run from `server/`).
 
 Then verify with `GET https://your-app-name.up.railway.app/api/health` and a quick test from the iOS app.
+
+## 7. Portal team user (Supabase + API login)
+
+`/api/auth/login` checks **Supabase Auth**, not only your Postgres `User` table. If `PORTAL_TEAM_EMAIL` / `PORTAL_TEAM_PASSWORD` (or your admin Basic Auth user) was never registered, login returns `401 Invalid email or password`.
+
+**Create the account via the API** (recommended — also runs `syncUserToDatabase` when signup returns a session):
+
+```bash
+API="https://your-app-name.up.railway.app/api"
+
+curl -sS -X POST "$API/auth/signup" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "you@example.com",
+    "password": "YourPassword1",
+    "name": "Portal Team"
+  }'
+```
+
+Password must satisfy the API rules: **≥8 characters**, at least **one uppercase**, **one lowercase**, and **one number**.
+
+**If signup returns `token: ""` and a message about email confirmation:** Supabase has “Confirm email” enabled. Either confirm the email from the inbox, or in Supabase **Authentication → Providers → Email** turn off “Confirm email” for testing, then sign up again (or use **Authentication → Users → Add user** with email + password and mark email confirmed).
+
+**After the user exists in Supabase**, `POST /api/auth/login` with the same email/password returns a JWT. Use that bearer token for `/api/ingest/*`. Keep `ADMIN_USERNAME` / `ADMIN_PASSWORD` in Railway aligned with this account if you want one shared login for Basic Auth + API.

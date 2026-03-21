@@ -5,73 +5,136 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portal Ingest Queue</title>
   <style>
+    * { box-sizing: border-box; }
     body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
     .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; }
+    .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 12px; cursor: pointer; transition: border-color .15s; }
+    .card:hover { border-color: #0d9488; }
     .title { color: #f8fafc; font-weight: 600; }
     .meta { color: #94a3b8; font-size: 13px; margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
     .pill { background: #0d9488; color: #ecfeff; border-radius: 999px; padding: 2px 8px; font-size: 12px; }
     .warn { background: #eab308; color: #111827; }
-    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .controls { display: flex; gap: 8px; }
-    button { background: #0d9488; color: #ecfeff; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
-    input { background: #020617; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 8px; }
+    .head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    button { background: #0d9488; color: #ecfeff; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 14px; }
+    button.secondary { background: #475569; }
+    input { background: #020617; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+    #status { margin: 12px 0; padding: 12px; border-radius: 8px; font-size: 14px; line-height: 1.5; display: none; }
+    #status.error { display: block; background: #450a0a; border: 1px solid #991b1b; color: #fecaca; }
+    #status.ok { display: block; background: #042f2e; border: 1px solid #0d9488; color: #ccfbf1; }
+    #login-section { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    #logged-in-section { display: none; gap: 8px; align-items: center; }
+    #user-label { color: #94a3b8; font-size: 13px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="head">
       <div>
-        <h2>Portal Ingest Drafts</h2>
-        <div id="count">0 drafts pending</div>
+        <h2 style="margin:0 0 4px">Portal Ingest</h2>
+        <div id="count" style="color:#94a3b8">—</div>
       </div>
-      <div class="controls">
-        <input id="email" type="email" placeholder="portal team email">
+      <div id="login-section">
+        <input id="email" type="email" placeholder="email">
         <input id="password" type="password" placeholder="password">
-        <button id="login">Login</button>
-        <button id="refresh">Refresh</button>
+        <button type="button" id="loginBtn">Log in</button>
+      </div>
+      <div id="logged-in-section">
+        <span id="user-label"></span>
+        <button type="button" id="refreshBtn">Refresh</button>
+        <button type="button" id="logoutBtn" class="secondary">Log out</button>
       </div>
     </div>
+    <div id="status"></div>
     <div id="list"></div>
   </div>
+
   <script src="/admin/admin.js"></script>
   <script>
-    const render = (drafts) => {
-      document.getElementById('count').textContent = `${drafts.length} drafts pending`;
-      const list = document.getElementById('list');
-      list.innerHTML = drafts.map((draft) => `
-        <div class="card" data-id="${draft.id}">
-          <div class="title">${draft.name || 'Unnamed'}</div>
-          <div class="meta">
-            <span class="pill">${draft.itemType || 'unknown'}</span>
-            <span>${draft.category || 'no category'}</span>
-            <span>${new Date(draft.createdAt).toLocaleString()}</span>
-            <span class="pill warn">${draft.flaggedFields.length} flagged</span>
-          </div>
-        </div>
-      `).join('');
+    const $status = document.getElementById('status');
+    const $list = document.getElementById('list');
+    const $count = document.getElementById('count');
+    const $loginSection = document.getElementById('login-section');
+    const $loggedInSection = document.getElementById('logged-in-section');
 
+    const setStatus = (kind, text) => { $status.className = kind; $status.textContent = text; };
+    const clearStatus = () => { $status.className = ''; $status.textContent = ''; };
+
+    const showLoggedIn = (label) => {
+      $loginSection.style.display = 'none';
+      $loggedInSection.style.display = 'flex';
+      document.getElementById('user-label').textContent = label || 'Logged in';
+    };
+
+    const showLoggedOut = () => {
+      $loginSection.style.display = 'flex';
+      $loggedInSection.style.display = 'none';
+      $count.textContent = '—';
+      $list.innerHTML = '';
+    };
+
+    const render = (drafts) => {
+      $count.textContent = `${drafts.length} draft${drafts.length !== 1 ? 's' : ''} pending`;
+      $list.innerHTML = drafts.map((d) => {
+        const flagged = Array.isArray(d.flaggedFields) ? d.flaggedFields.length : 0;
+        return `<div class="card" data-id="${d.id}">
+          <div class="title">${d.name || 'Unnamed'}</div>
+          <div class="meta">
+            <span class="pill">${d.itemType || '?'}</span>
+            <span>${d.category || 'no category'}</span>
+            <span>${new Date(d.createdAt).toLocaleString()}</span>
+            ${flagged ? `<span class="pill warn">${flagged} flagged</span>` : ''}
+          </div>
+        </div>`;
+      }).join('');
       [...document.querySelectorAll('.card')].forEach((el) => {
         el.addEventListener('click', () => {
-          window.location.href = `/admin/draft.html?id=${el.getAttribute('data-id')}`;
+          window.location.href = `/admin/draft.html?id=${el.dataset.id}`;
         });
       });
     };
 
     const load = async () => {
-      const response = await window.adminApi.fetchJson('/ingest/drafts');
-      render(response.data || []);
+      clearStatus();
+      const res = await window.adminApi.fetchJson('/ingest/drafts');
+      const drafts = res.data || [];
+      render(drafts);
+      if (!drafts.length) setStatus('ok', 'No pending drafts. Send links to the Telegram bot to create some.');
     };
 
-    document.getElementById('login').addEventListener('click', async () => {
-      await window.adminApi.login(
-        document.getElementById('email').value.trim(),
-        document.getElementById('password').value
-      );
-      await load();
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      try {
+        clearStatus();
+        const data = await window.adminApi.login(
+          document.getElementById('email').value.trim(),
+          document.getElementById('password').value
+        );
+        showLoggedIn(data.user?.email || data.user?.name);
+        await load();
+      } catch (e) {
+        setStatus('error', e.message);
+      }
     });
-    document.getElementById('refresh').addEventListener('click', load);
-    if (window.adminApi.hasToken()) load();
+
+    document.getElementById('password').addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') document.getElementById('loginBtn').click();
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', async () => {
+      try { await load(); } catch (e) { setStatus('error', e.message); showLoggedOut(); }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      window.adminApi.logout();
+      showLoggedOut();
+      clearStatus();
+    });
+
+    (async () => {
+      if (!window.adminApi.hasToken()) return;
+      showLoggedIn();
+      try { await load(); }
+      catch (e) { setStatus('error', e.message); showLoggedOut(); }
+    })();
   </script>
 </body>
 </html>

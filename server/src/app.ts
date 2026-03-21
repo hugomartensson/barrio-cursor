@@ -5,14 +5,12 @@ import rateLimit from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as pinoHttpModule from 'pino-http';
-import { webhookCallback } from 'grammy';
 import { config } from './config/index.js';
 import { logger } from './services/logger.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import routes from './routes/index.js';
 import type { RequestWithId } from './types/index.js';
-import { createBot } from './tools/ingest/bot.js';
 
 export const createApp = (): Express => {
   const app = express();
@@ -87,43 +85,18 @@ export const createApp = (): Express => {
   // API routes
   app.use('/api', routes);
 
-  if (config.TELEGRAM_BOT_TOKEN) {
-    const bot = createBot();
-    app.use('/api/telegram/webhook', webhookCallback(bot, 'express'));
-  }
+  // Telegram webhook is registered in index.ts (after filePolyfill) when TELEGRAM_BOT_TOKEN is set.
 
-  const adminAuth = (
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ): void => {
-    const username = config.ADMIN_USERNAME;
-    const password = config.ADMIN_PASSWORD;
-    if (!username || !password) {
-      next();
-      return;
-    }
-
-    const header = req.headers.authorization;
-    if (!header?.startsWith('Basic ')) {
-      res.set('WWW-Authenticate', 'Basic');
-      res.status(401).send('Unauthorized');
-      return;
-    }
-
-    const decoded = Buffer.from(header.slice(6), 'base64').toString('utf8');
-    const [providedUser, providedPass] = decoded.split(':');
-    if (providedUser !== username || providedPass !== password) {
-      res.set('WWW-Authenticate', 'Basic');
-      res.status(401).send('Unauthorized');
-      return;
-    }
-    next();
-  };
+  // Admin dashboard — no Basic Auth; the page itself handles login via Supabase JWT.
   const adminDistPath = path.join(__dirname, 'admin');
   const adminSourcePath = path.join(repoRoot, 'src', 'admin');
-  app.use('/admin', adminAuth, express.static(adminDistPath));
-  app.use('/admin', adminAuth, express.static(adminSourcePath));
+  app.use('/admin', express.static(adminDistPath));
+  app.use('/admin', express.static(adminSourcePath));
+
+  // Browsers request this automatically; avoid noisy 404s in logs.
+  app.get('/favicon.ico', (_req, res) => {
+    res.status(204).end();
+  });
 
   // Root endpoint
   app.get('/', (_req, res) => {
