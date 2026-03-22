@@ -120,7 +120,7 @@
       for (const r of runs) {
         try {
           const detail = await fetchJson(
-            `/workflows/ingest/runs/${encodeURIComponent(r.runId)}?fields=steps,status,payload`,
+            `/workflows/ingest/runs/${encodeURIComponent(r.runId)}`,
           );
           if (detail.status !== 'suspended' && detail.status !== 'waiting') continue;
           const draft = extractDraft(detail);
@@ -304,7 +304,7 @@
         return;
       }
       const detail = await fetchJson(
-        `/workflows/ingest/runs/${encodeURIComponent(runId)}?fields=steps,status,payload`,
+        `/workflows/ingest/runs/${encodeURIComponent(runId)}`,
       );
       const draft = extractDraft(detail);
       if (!draft) {
