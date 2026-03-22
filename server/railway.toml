@@ -10,6 +10,12 @@ nixpacksConfigPath = "nixpacks.toml"
 # Sync schema then start (Railway sets PORT automatically).
 # Using db push because the DB was bootstrapped without prisma migrate;
 # _prisma_migrations table does not exist.
-startCommand = "npx prisma db push --skip-generate && node dist/index.js"
+#
+# --accept-data-loss: required when other apps (e.g. portal-mastra) create tables
+# Prisma does not know about (e.g. mastra_*). Without this flag, deploy fails.
+# WARNING: each deploy may DROP those extra tables. For stable Mastra state, stop
+# running db push on boot and use `prisma migrate deploy` only, or give Mastra
+# its own DATABASE_URL on a separate Postgres.
+startCommand = "npx prisma db push --skip-generate --accept-data-loss && node dist/index.js"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
