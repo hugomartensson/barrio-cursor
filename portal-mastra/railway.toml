@@ -1,0 +1,10 @@
+# Railway: set Root Directory to `portal-mastra` for this service.
+# Node 22+ required (see package.json engines).
+
+[build]
+buildCommand = "npm ci && npm run build"
+
+[deploy]
+startCommand = "npm run start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

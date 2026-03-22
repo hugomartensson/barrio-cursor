@@ -79,6 +79,7 @@ interface UserProfileResponse {
     initials?: string | null;
     profilePictureUrl?: string | null;
     isPrivate?: boolean;
+    bio?: string | null;
     followerCount?: number;
     followingCount?: number;
     savedCount?: number;
@@ -96,6 +97,7 @@ interface UpdateUserResponse {
     profilePictureUrl?: string | null;
     isPrivate?: boolean;
     selectedCity?: string | null;
+    bio?: string | null;
   };
 }
 
@@ -129,6 +131,7 @@ router.get(
           followerCount: true,
           followingCount: true,
           selectedCity: true,
+          bio: true,
         },
       });
 
@@ -156,6 +159,7 @@ router.get(
           collectionsCount,
           followedCount: user.followingCount,
           selectedCity: user.selectedCity ?? undefined,
+          bio: user.bio ?? undefined,
         },
       });
     }
@@ -344,6 +348,7 @@ router.get(
           isPrivate: true,
           followerCount: true,
           followingCount: true,
+          bio: true,
         },
       });
 
@@ -375,6 +380,7 @@ router.get(
           isPrivate: user.isPrivate,
           followerCount: user.followerCount,
           followingCount: user.followingCount,
+          bio: user.bio ?? undefined,
         },
       });
     }
@@ -391,13 +397,14 @@ router.patch(
   asyncHandler(
     async (req: PatchRequest, res: Response<UpdateUserResponse | ApiErrorResponse>) => {
       const authReq = req as AuthenticatedRequest;
-      const { name, profilePictureUrl, isPrivate, selectedCity } = req.body;
+      const { name, profilePictureUrl, isPrivate, selectedCity, bio } = req.body;
 
       const updateData: {
         name?: string;
         profilePictureUrl?: string | null;
         isPrivate?: boolean;
         selectedCity?: string | null;
+        bio?: string | null;
       } = {};
 
       if (name !== undefined) {
@@ -412,6 +419,10 @@ router.patch(
       if (selectedCity !== undefined) {
         updateData.selectedCity = selectedCity;
       }
+      if (bio !== undefined) {
+        const trimmed = typeof bio === 'string' ? bio.trim() : '';
+        updateData.bio = trimmed.length === 0 ? null : trimmed;
+      }
 
       const updatedUser = await prisma.user.update({
         where: { id: authReq.user.userId },
@@ -423,6 +434,7 @@ router.patch(
           profilePictureUrl: true,
           isPrivate: true,
           selectedCity: true,
+          bio: true,
         },
       });
 
@@ -434,6 +446,7 @@ router.patch(
           profilePictureUrl: updatedUser.profilePictureUrl,
           isPrivate: updatedUser.isPrivate ?? false,
           selectedCity: updatedUser.selectedCity ?? undefined,
+          bio: updatedUser.bio ?? undefined,
         },
       });
     }

@@ -2,6 +2,8 @@
 
 Use this to run the backend in production (e.g. for TestFlight). Railway will build the server, run migrations, and start the API. The iOS app points to the deployed URL via `AppConfig.productionAPIBaseURL`.
 
+**Full stack (API + Mastra ingest + exact routes):** see **[`RAILWAY-DEPLOYMENT.md`](../RAILWAY-DEPLOYMENT.md)** at the repo root — suitable to paste into Railway’s agent.
+
 ## 1. Create a Railway project
 
 - Go to [railway.app](https://railway.app) and sign in.
@@ -30,6 +32,9 @@ In the Railway service (your API), open **Variables** and add (or confirm):
 | `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
 | `SUPABASE_ANON_KEY` | Yes | Supabase anon key |
 | `SUPABASE_STORAGE_BUCKET` | No | Default `media` |
+| `MASTRA_API_URL` | Yes (ingest) | Mastra service origin, e.g. `https://your-mastra.up.railway.app` |
+| `MASTRA_SERVER_TOKEN` | Yes (ingest) | **Same value** as on the Mastra service (generate once, paste both — if they differ → 401/403) |
+| `PORTAL_EMAIL` / `PORTAL_PASSWORD` | Yes (publish) | Portal user used by Mastra to POST spots/events (see `portal-mastra/.env.example`) |
 | `CORS_ORIGIN` | No | `*` or your iOS app’s origin |
 
 Use `server/.env.example` as a checklist. Do not commit `.env`; set everything in Railway’s UI.
@@ -81,6 +86,13 @@ Password must satisfy the API rules: **≥8 characters**, at least **one upperca
 
 **If signup returns `token: ""` and a message about email confirmation:** Supabase has “Confirm email” enabled. Either confirm the email from the inbox, or in Supabase **Authentication → Providers → Email** turn off “Confirm email” for testing, then sign up again (or use **Authentication → Users → Add user** with email + password and mark email confirmed).
 
-**After the user exists in Supabase**, `POST /api/auth/login` with the same email/password returns a JWT. The ingest dashboard at **`/admin/`** uses that login in the browser (token in `localStorage`). There is no separate Basic Auth layer.
+**After the user exists in Supabase**, `POST /api/auth/login` with the same email/password returns a JWT. The **Mastra ingest** UI is at **`/admin/ingest/`** (token in `localStorage`). `/admin/` redirects there.
 
-**Build note:** `npm run build` runs `tsc` and copies `src/admin/*.{html,js}` into `dist/admin`. **`admin.js` is a single bundle** (API helpers + ingest queue + draft editor) so a missing second script on deploy cannot break the UI. Helmet is configured to allow `'unsafe-inline'` for `script-src` as a fallback; prefer keeping logic in `admin.js` only.
+**Build note:** `npm run build` runs `tsc` and **recursively** copies `src/admin/**/*.html` and `**/*.js` into `dist/admin` (including `admin/ingest/`).
+
+## 8. Mastra ingest service (second Railway service)
+
+- Add a second service with **root directory** `portal-mastra` (see `portal-mastra/README.md`).
+- Set `MASTRA_SERVER_TOKEN` to **one** long random string: generate once, paste the **identical** value on **both** the Mastra service and the Barrio API (check the Variables panel on each — mismatched tokens cause **401/403**).
+- On the Barrio API, set **`MASTRA_API_URL`** to the Mastra service public origin (no trailing slash), e.g. `https://portal-mastra.up.railway.app`.
+- Telegram and the ingest UI call the API; the API proxies **`/api/workflows/*`** to Mastra with `Authorization: Bearer <MASTRA_SERVER_TOKEN>`.

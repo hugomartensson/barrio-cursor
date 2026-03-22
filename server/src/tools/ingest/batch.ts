@@ -1,24 +1,104 @@
 /* istanbul ignore file */
 import fs from 'node:fs/promises';
 import YAML from 'yaml';
-import { ItemType } from '@prisma/client';
-import { detectSourceType } from './source-detect.js';
-import { fetchGooglePlace } from './fetchers/google-places.js';
-import { fetchInstagramPost } from './fetchers/instagram.js';
-import { fetchWebsite } from './fetchers/website.js';
-import { extractDraftFields } from './llm-mapper.js';
-import { publisher } from './publisher.js';
+import { config } from '../../config/index.js';
 
 type BatchItem = {
   url?: string;
   manual?: Record<string, unknown>;
   override?: Record<string, unknown>;
+  type?: string;
 };
 
 type BatchFile = {
-  collection?: { name: string; description?: string };
+  collection?: { name: string; description?: string; visibility?: string };
   items: BatchItem[];
 };
+
+type IngestWorkflowInput = {
+  inputType: 'telegram_link' | 'telegram_text' | 'batch_yaml';
+  rawInput: string;
+  contextNote: string | null;
+};
+
+const mastraBase = (): string =>
+  (config.MASTRA_API_URL ?? 'http://127.0.0.1:4111').replace(/\/$/, '');
+
+const mastraHeaders = (): Record<string, string> => {
+  const h: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+  if (config.MASTRA_SERVER_TOKEN) {
+    h['Authorization'] = `Bearer ${config.MASTRA_SERVER_TOKEN}`;
+  }
+  return h;
+};
+
+async function portalLogin(): Promise<string> {
+  const email = config.PORTAL_EMAIL ?? config.PORTAL_TEAM_EMAIL;
+  const password = config.PORTAL_PASSWORD ?? config.PORTAL_TEAM_PASSWORD;
+  if (!email || !password) {
+    throw new Error(
+      'Set PORTAL_EMAIL/PORTAL_PASSWORD (or PORTAL_TEAM_*) for batch collection creation'
+    );
+  }
+  const api = (config.PORTAL_API_URL ?? 'http://localhost:3000/api').replace(/\/$/, '');
+  const res = await fetch(`${api}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const json = (await res.json()) as { data?: { token?: string } };
+  const token = json.data?.token;
+  if (!token) {
+    throw new Error('Portal login failed for batch runner');
+  }
+  return token;
+}
+
+async function createCollection(
+  token: string,
+  name: string,
+  description?: string
+): Promise<string> {
+  const api = (config.PORTAL_API_URL ?? 'http://localhost:3000/api').replace(/\/$/, '');
+  const res = await fetch(`${api}/collections`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ name, description, visibility: 'public' }),
+  });
+  const json = (await res.json()) as { data?: { id?: string } };
+  const id = json.data?.id;
+  if (!id) {
+    throw new Error('Collection create failed');
+  }
+  return id;
+}
+
+async function startIngest(input: IngestWorkflowInput): Promise<unknown> {
+  const url = `${mastraBase()}/api/workflows/ingest/start-async`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: mastraHeaders(),
+    body: JSON.stringify({ inputData: input }),
+    signal: AbortSignal.timeout(300_000),
+  });
+  const text = await res.text();
+  let json: unknown;
+  try {
+    json = text ? JSON.parse(text) : null;
+  } catch {
+    json = { raw: text };
+  }
+  if (!res.ok) {
+    throw new Error(`Mastra workflow HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return json;
+}
 
 const main = async (): Promise<void> => {
   const yamlPath = process.argv[2];
@@ -32,71 +112,56 @@ const main = async (): Promise<void> => {
     throw new Error('YAML file has no items');
   }
 
-  let collectionId: string | null = null;
+  let collectionNote = '';
   if (parsed.collection) {
-    collectionId = await publisher.createCollection(
+    const token = await portalLogin();
+    const id = await createCollection(
+      token,
       parsed.collection.name,
       parsed.collection.description
     );
+    collectionNote = `\n\nUse collectionId "${id}" when approving in the ingest dashboard (or add resume support later).`;
+    // eslint-disable-next-line no-console
+    console.log(`Created collection ${id} (${parsed.collection.name})`);
   }
 
-  let published = 0;
+  let started = 0;
   for (const item of parsed.items) {
-    let payload = item.manual ?? {};
+    let rawInput: string;
     if (item.url) {
-      const sourceType = detectSourceType(item.url);
-      const fetched =
-        sourceType === 'google_maps'
-          ? await fetchGooglePlace(item.url)
-          : sourceType === 'instagram_post'
-            ? await fetchInstagramPost(item.url)
-            : await fetchWebsite(item.url);
-
-      const mapped = await extractDraftFields({
-        rawText: fetched.rawText,
-        sourceUrl: item.url,
-        partialFields: fetched,
-      });
-      payload = { ...mapped.fields };
-    }
-
-    payload = { ...payload, ...(item.override ?? {}) };
-
-    const itemType = payload['itemType'] as ItemType;
-    if (
-      !itemType ||
-      !payload['name'] ||
-      !payload['description'] ||
-      !payload['category'] ||
-      !payload['address']
-    ) {
+      rawInput = item.url;
+    } else if (item.manual) {
+      rawInput = JSON.stringify({ ...item.manual, ...(item.override ?? {}) });
+    } else {
       // eslint-disable-next-line no-console
-      console.log('Skipping item due to missing required fields');
+      console.log('Skipping item with no url or manual');
       continue;
     }
 
-    const portalId = await publisher.publishDraft({
-      itemType,
-      name: String(payload['name']),
-      description: String(payload['description']),
-      category: String(payload['category']),
-      address: String(payload['address']),
-      neighborhood: (payload['neighborhood'] as string | undefined) ?? null,
-      tags: (payload['tags'] as string[] | undefined) ?? [],
-      imageUrl: (payload['imageUrl'] as string | undefined) ?? null,
-      startTime: (payload['startTime'] as string | undefined) ?? null,
-      endTime: (payload['endTime'] as string | undefined) ?? null,
-      collectionId,
-    });
-    published += 1;
-    const publishedName =
-      typeof payload['name'] === 'string' ? payload['name'] : 'Unnamed';
-    // eslint-disable-next-line no-console
-    console.log(`Published "${publishedName}" (${itemType}) -> ${portalId}`);
+    const input: IngestWorkflowInput = {
+      inputType: item.url ? 'batch_yaml' : 'batch_yaml',
+      rawInput,
+      contextNote: item.override
+        ? `YAML overrides: ${JSON.stringify(item.override)}${collectionNote}`
+        : collectionNote || null,
+    };
+
+    try {
+      const result = await startIngest(input);
+      started += 1;
+      const status = (result as { status?: string })?.status;
+      // eslint-disable-next-line no-console
+      console.log(`Started workflow (${status ?? 'unknown'}): ${rawInput.slice(0, 80)}…`);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('Failed item:', e);
+    }
   }
 
   // eslint-disable-next-line no-console
-  console.log(`Published ${published}/${parsed.items.length} items`);
+  console.log(
+    `Queued ${started}/${parsed.items.length} ingest workflow run(s). Review at /admin/ingest/`
+  );
 };
 
 void main();

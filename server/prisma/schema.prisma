@@ -210,34 +210,6 @@ model FollowRequest {
   @@map("follow_requests")
 }
 
-model Draft {
-  id           String      @id @default(cuid())
-  status       DraftStatus @default(PENDING)
-  inputType    String      @map("input_type")
-  sourceUrl    String?     @map("source_url")
-  rawInput     String?     @map("raw_input")
-  itemType     ItemType?   @map("item_type")
-  name         String?
-  description  String?
-  category     Category?
-  address      String?
-  neighborhood String?
-  startTime    DateTime?   @map("start_time")
-  endTime      DateTime?   @map("end_time")
-  tags         String[]
-  imageUrl     String?     @map("image_url")
-  flaggedFields String[]   @default([]) @map("flagged_fields")
-  collectionId String?     @map("collection_id")
-  portalId     String?     @map("portal_id")
-  errorMessage String?     @map("error_message")
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
-
-  @@index([status])
-  @@index([createdAt])
-  @@map("drafts")
-}
-
 // PRD categories: Food, Drinks, Music, Art, Markets, Community
 enum Category {
   food
@@ -267,12 +239,5 @@ enum CollectionVisibility {
 enum ItemType {
   spot
   event
-}
-
-enum DraftStatus {
-  PENDING
-  APPROVED
-  SKIPPED
-  ERROR
 }
 

@@ -11,6 +11,8 @@ import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import routes from './routes/index.js';
 import { registerTelegramWebhook } from './telegramWebhook.js';
+import { requireAuth } from './middleware/auth.js';
+import { mastraWorkflowProxy } from './middleware/mastraWorkflowProxy.js';
 import type { RequestWithId } from './types/index.js';
 
 export const createApp = (): Express => {
@@ -75,7 +77,7 @@ export const createApp = (): Express => {
   // Production should use stricter limits (e.g., 100 per 15 minutes)
   const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: config.NODE_ENV === 'production' ? 100 : 1000, // 1000 in dev, 100 in prod
+    max: config.NODE_ENV === 'production' ? 400 : 1000,
     message: {
       error: {
         code: 'TOO_MANY_REQUESTS',
@@ -84,6 +86,16 @@ export const createApp = (): Express => {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // Login/refresh must not share the same budget as the rest of the API (feeds/maps burn 100+ calls fast).
+    skip: (req) => {
+      const p = req.path ?? '';
+      return (
+        p === '/api/auth/login' ||
+        p === '/api/auth/refresh' ||
+        p.endsWith('/auth/login') ||
+        p.endsWith('/auth/refresh')
+      );
+    },
   });
   app.use(limiter);
 
@@ -99,6 +111,9 @@ export const createApp = (): Express => {
   if (config.TELEGRAM_BOT_TOKEN) {
     registerTelegramWebhook(app);
   }
+
+  // Mastra ingest workflow API (JWT same as rest of app; forwards to MASTRA_API_URL)
+  app.use('/api/workflows', requireAuth, mastraWorkflowProxy);
 
   // API routes
   app.use('/api', routes);

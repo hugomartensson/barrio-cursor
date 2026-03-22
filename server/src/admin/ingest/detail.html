@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Ingest — Review</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; background: #0d0d0d; color: #eee; }
+    body { margin: 0; padding: 1rem; max-width: 720px; margin-inline: auto; }
+    label { display: block; margin-top: 0.75rem; font-size: 0.85rem; color: #aaa; }
+    input, textarea, select {
+      width: 100%; box-sizing: border-box; padding: 0.5rem; margin-top: 0.25rem;
+      background: #1a1a1a; border: 1px solid #444; color: #eee; border-radius: 6px;
+    }
+    textarea { min-height: 100px; }
+    .flagged { outline: 2px solid #a85; }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .thumb-pick { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; cursor: pointer; border: 2px solid transparent; }
+    .thumb-pick.selected { border-color: #8ab4ff; }
+    .hero { width: 100%; max-height: 280px; object-fit: cover; border-radius: 8px; margin-top: 0.5rem; background: #222; }
+    .actions { margin-top: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    button {
+      padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; border: 1px solid #444;
+      background: #2a2a2a; color: #eee;
+    }
+    button.primary { background: #2a4a2a; border-color: #4a6; }
+    button.danger { background: #4a2a2a; border-color: #844; }
+    #verifierNotes { background: #1a1a2a; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem; }
+    #login-section, #logged-in-section { margin-bottom: 1rem; }
+    #status { margin: 0.5rem 0; padding: 0.5rem; border-radius: 6px; }
+    #status.error { background: #3a1a1a; color: #f88; }
+    #status.ok { background: #1a2a1a; color: #8f8; }
+  </style>
+</head>
+<body>
+  <button type="button" id="backBtn">← Back</button>
+  <h2 id="title">Review draft</h2>
+
+  <div id="login-section">
+    <input type="email" id="email" placeholder="Email" autocomplete="username">
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+    <button type="button" id="ingestLoginBtn">Log in</button>
+  </div>
+  <div id="logged-in-section" hidden>
+    <button type="button" id="logoutBtn">Log out</button>
+  </div>
+
+  <div id="status" hidden></div>
+  <div id="verifierNotes" hidden></div>
+
+  <div id="form-wrap" hidden>
+    <img id="hero" class="hero" alt="">
+    <label>Alternate images</label>
+    <div class="row" id="thumbs"></div>
+    <label>Image URL (override)</label>
+    <input type="url" id="imageUrl">
+
+    <label>Name</label>
+    <input type="text" id="name">
+    <label>Description</label>
+    <textarea id="description"></textarea>
+    <label>Category</label>
+    <select id="category">
+      <option value="food">food</option>
+      <option value="drinks">drinks</option>
+      <option value="music">music</option>
+      <option value="art">art</option>
+      <option value="markets">markets</option>
+      <option value="community">community</option>
+    </select>
+    <label>Address</label>
+    <input type="text" id="address">
+    <label>Neighborhood</label>
+    <input type="text" id="neighborhood">
+
+    <div id="event-fields">
+      <label>Start time</label>
+      <input type="datetime-local" id="startTime">
+      <label>End time</label>
+      <input type="datetime-local" id="endTime">
+    </div>
+
+    <label>Collection ID (optional)</label>
+    <input type="text" id="collectionId" placeholder="uuid">
+
+    <div class="actions">
+      <button type="button" class="primary" id="approveBtn">Approve</button>
+      <button type="button" class="danger" id="skipBtn">Skip</button>
+    </div>
+  </div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -25,7 +25,11 @@ const envSchema = z.object({
   TELEGRAM_ALLOWED_USER_ID: z.string().optional(),
   PORTAL_TEAM_EMAIL: z.string().email().optional(),
   PORTAL_TEAM_PASSWORD: z.string().optional(),
+  PORTAL_EMAIL: z.string().email().optional(),
+  PORTAL_PASSWORD: z.string().optional(),
   PORTAL_API_URL: z.string().url().optional(),
+  MASTRA_API_URL: z.string().url().optional(),
+  MASTRA_SERVER_TOKEN: z.string().optional(),
   ADMIN_USERNAME: z.string().optional(),
   ADMIN_PASSWORD: z.string().optional(),
 });

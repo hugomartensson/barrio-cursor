@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal Ingest — Queue</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; background: #0d0d0d; color: #eee; }
+    body { margin: 0; padding: 1rem; max-width: 960px; margin-inline: auto; }
+    a { color: #8ab4ff; }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tabs button {
+      background: #222; color: #eee; border: 1px solid #444; padding: 0.5rem 1rem;
+      border-radius: 6px; cursor: pointer;
+    }
+    .tabs button.active { background: #333; border-color: #666; }
+    .card {
+      display: flex; gap: 1rem; align-items: center; padding: 0.75rem; margin-bottom: 0.5rem;
+      background: #1a1a1a; border-radius: 8px; border: 1px solid #333; cursor: pointer;
+    }
+    .card:hover { border-color: #555; }
+    .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; background: #333; }
+    .meta { flex: 1; }
+    .badge { font-size: 0.75rem; padding: 0.15rem 0.4rem; border-radius: 4px; background: #333; }
+    .warn { border-color: #a85; }
+    #login-section, #logged-in-section { margin-bottom: 1rem; }
+    #status { margin: 0.5rem 0; padding: 0.5rem; border-radius: 6px; }
+    #status.error { background: #3a1a1a; color: #f88; }
+    #status.ok { background: #1a2a1a; color: #8f8; }
+    input { padding: 0.4rem; margin-right: 0.5rem; background: #222; border: 1px solid #444; color: #eee; border-radius: 4px; }
+    button.action { background: #2a4a2a; border: 1px solid #4a6; color: #eee; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>Portal Ingest</h1>
+  <p>Mastra workflow queue — Spots and Events awaiting review.</p>
+
+  <div id="login-section">
+    <input type="email" id="email" placeholder="Email" autocomplete="username">
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+    <button class="action" type="button" id="ingestLoginBtn">Log in</button>
+  </div>
+  <div id="logged-in-section" hidden>
+    <button class="action" type="button" id="refreshBtn">Refresh</button>
+    <button type="button" id="logoutBtn">Log out</button>
+  </div>
+
+  <div id="status" hidden></div>
+
+  <div class="tabs" id="tabs">
+    <button type="button" data-tab="spot" class="active">Spots</button>
+    <button type="button" data-tab="event">Events</button>
+  </div>
+  <div id="list"></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

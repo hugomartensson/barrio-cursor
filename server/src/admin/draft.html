@@ -2,45 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Draft Review</title>
-  <style>
-    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #0f172a; color: #e2e8f0; }
-    .wrap { max-width: 900px; margin: 0 auto; padding: 24px; }
-    .row { display: grid; grid-template-columns: 170px 1fr; gap: 12px; align-items: center; margin-bottom: 10px; }
-    input, textarea, select { width: 100%; background: #020617; color: #e2e8f0; border: 1px solid #334155; border-radius: 8px; padding: 8px; }
-    textarea { min-height: 120px; }
-    .actions { margin-top: 20px; display: flex; gap: 8px; }
-    button { background: #0d9488; color: #ecfeff; border: 0; border-radius: 8px; padding: 8px 10px; cursor: pointer; }
-    .skip { background: #6b7280; }
-    .warn { border-color: #eab308; }
-    img { width: 220px; border-radius: 10px; border: 1px solid #334155; }
-    #status { margin: 12px 0; padding: 12px; border-radius: 8px; font-size: 14px; }
-    #status.error { background: #450a0a; border: 1px solid #991b1b; color: #fecaca; }
-  </style>
+  <meta http-equiv="refresh" content="0; url=/admin/ingest/">
+  <title>Redirect…</title>
 </head>
 <body>
-  <div class="wrap">
-    <button type="button" id="backBtn">Back</button>
-    <h2>Draft Detail</h2>
-    <div id="status" class="error" style="display:none"></div>
-    <div class="row"><label>Type</label><select id="itemType"><option>spot</option><option>event</option></select></div>
-    <div class="row"><label>Name</label><input id="name"></div>
-    <div class="row"><label>Description</label><textarea id="description"></textarea></div>
-    <div class="row"><label>Category</label><select id="category"><option>food</option><option>drinks</option><option>music</option><option>art</option><option>markets</option><option>community</option></select></div>
-    <div class="row"><label>Address</label><input id="address"></div>
-    <div class="row"><label>Neighborhood</label><input id="neighborhood"></div>
-    <div class="row"><label>Tags (comma)</label><input id="tags"></div>
-    <div class="row"><label>Image URL</label><input id="imageUrl"></div>
-    <div class="row"><label>Preview</label><img id="preview" alt="preview"></div>
-    <div class="row eventOnly"><label>Start Time</label><input id="startTime" type="datetime-local"></div>
-    <div class="row eventOnly"><label>End Time</label><input id="endTime" type="datetime-local"></div>
-    <div class="actions">
-      <button type="button" id="save">Save</button>
-      <button type="button" id="approve">Approve</button>
-      <button type="button" id="skip" class="skip">Skip</button>
-    </div>
-  </div>
-  <script src="/admin/admin.js"></script>
+  <p><a href="/admin/ingest/">Continue to Portal Ingest</a></p>
 </body>
 </html>

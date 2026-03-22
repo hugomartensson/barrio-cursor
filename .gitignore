@@ -8,11 +8,10 @@ build/
 **/dist/
 **/build/
 
-# Environment files
+# Environment files (commit `.env.example` templates; keep real secrets out of git)
 .env
 .env.local
 .env.*.local
-.env.example
 
 # IDE
 .idea/

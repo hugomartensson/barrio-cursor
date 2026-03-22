@@ -1,76 +1,46 @@
 /* istanbul ignore file */
-import { Bot } from 'grammy';
-import { DraftStatus, ItemType } from '@prisma/client';
+import { Bot, type Context } from 'grammy';
 import { config } from '../../config/index.js';
-import { prisma } from '../../services/prisma.js';
 import { createLogger } from '../../services/logger.js';
-import { extractDraftFields } from './llm-mapper.js';
-import { detectSourceType } from './source-detect.js';
-import { fetchGooglePlace } from './fetchers/google-places.js';
-import { fetchInstagramPost } from './fetchers/instagram.js';
-import { fetchWebsite } from './fetchers/website.js';
-import type { DraftFields } from './types.js';
+import {
+  extractDraftNameFromMastraResult,
+  runIngestWorkflow,
+  type IngestWorkflowInput,
+} from './mastra-client.js';
 
 const logger = createLogger({ component: 'ingest-bot' });
-const chatContext = new Map<number, { draftId: string; atMs: number }>();
 
-const createDraftFromExtraction = async (params: {
-  inputType: string;
-  sourceUrl?: string;
-  rawInput?: string;
-  imageUrl?: string | null;
-  imageBase64?: string;
-  imageMimeType?: string;
-  partialFields?: Partial<DraftFields>;
-  preferredType?: ItemType;
-}): Promise<{ id: string; name: string | null }> => {
-  const { fields, flaggedFields } = await extractDraftFields({
-    rawText: params.rawInput,
-    sourceUrl: params.sourceUrl,
-    imageBase64: params.imageBase64,
-    imageMimeType: params.imageMimeType,
-    partialFields: params.partialFields,
-    preferredType: params.preferredType,
-  });
+type Pending = { url: string; timer: ReturnType<typeof setTimeout> };
+const pendingByChat = new Map<number, Pending>();
 
-  const draft = await prisma.draft.create({
-    data: {
-      status: DraftStatus.PENDING,
-      inputType: params.inputType,
-      sourceUrl: params.sourceUrl ?? null,
-      rawInput: params.rawInput ?? null,
-      itemType: fields.itemType,
-      name: fields.name,
-      description: fields.description,
-      category: fields.category,
-      address: fields.address,
-      neighborhood: fields.neighborhood,
-      startTime: fields.startTime ? new Date(fields.startTime) : null,
-      endTime: fields.endTime ? new Date(fields.endTime) : null,
-      tags: fields.tags,
-      imageUrl: params.imageUrl ?? fields.imageUrl,
-      flaggedFields,
-    },
-  });
-  return { id: draft.id, name: draft.name };
+const URL_IN_TEXT = /https?:\/\/\S+/i;
+
+const clearPending = (chatId: number): void => {
+  const p = pendingByChat.get(chatId);
+  if (p) {
+    clearTimeout(p.timer);
+  }
+  pendingByChat.delete(chatId);
 };
 
-const loadImageFromTelegram = async (
-  bot: Bot,
-  fileId: string
-): Promise<{ data: string; mimeType: string }> => {
-  const file = await bot.api.getFile(fileId);
-  if (!file.file_path || !config.TELEGRAM_BOT_TOKEN) {
-    throw new Error('Could not resolve Telegram file path');
-  }
-  const fileUrl = `https://api.telegram.org/file/bot${config.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
-  const response = await fetch(fileUrl, { signal: AbortSignal.timeout(15000) });
-  if (!response.ok) {
-    throw new Error(`Failed to download Telegram image (${response.status})`);
-  }
-  const mimeType = response.headers.get('content-type') ?? 'image/jpeg';
-  const data = Buffer.from(await response.arrayBuffer()).toString('base64');
-  return { data, mimeType };
+const scheduleDelayedLink = (
+  chatId: number,
+  url: string,
+  run: (input: IngestWorkflowInput, opts: { skipGotIt: boolean }) => Promise<void>
+): void => {
+  clearPending(chatId);
+  const timer = setTimeout(() => {
+    pendingByChat.delete(chatId);
+    void run(
+      {
+        inputType: 'telegram_link',
+        rawInput: url,
+        contextNote: null,
+      },
+      { skipGotIt: true }
+    );
+  }, 5000);
+  pendingByChat.set(chatId, { url, timer });
 };
 
 export const createBot = (): Bot => {
@@ -106,116 +76,73 @@ export const createBot = (): Bot => {
     await next();
   });
 
-  bot.on('message:photo', async (ctx) => {
+  const runWorkflow = async (
+    ctx: Context,
+    input: IngestWorkflowInput,
+    options?: { skipGotIt?: boolean }
+  ): Promise<void> => {
     try {
-      await ctx.reply('Got it.');
-      const largestPhoto = ctx.message.photo[ctx.message.photo.length - 1];
-      if (!largestPhoto) {
-        throw new Error('Photo payload missing');
+      if (!options?.skipGotIt) {
+        await ctx.reply('Got it ✓');
       }
-      const image = await loadImageFromTelegram(bot, largestPhoto.file_id);
-
-      const caption = ctx.message.caption?.trim();
-      const created = await createDraftFromExtraction({
-        inputType: 'telegram_photo',
-        rawInput: caption,
-        imageBase64: image.data,
-        imageMimeType: image.mimeType,
-      });
-      chatContext.set(ctx.chat.id, { draftId: created.id, atMs: Date.now() });
-      await ctx.reply(`Draft ready: ${created.name ?? 'Unnamed'}`);
+      const result = await runIngestWorkflow(input);
+      const status = (result as { status?: string })?.status;
+      if (status === 'suspended') {
+        const name = extractDraftNameFromMastraResult(result) ?? 'Unnamed';
+        await ctx.reply(
+          `Draft ready: ${name}\nOpen Admin → /admin/ingest/ (Spots / Events tabs) to review.`
+        );
+        return;
+      }
+      if (status === 'bailed') {
+        await ctx.reply('Skipped.');
+        return;
+      }
+      if (status === 'success') {
+        await ctx.reply('Published ✓');
+        return;
+      }
+      logger.warn({ result }, 'Unexpected Mastra workflow status');
+      await ctx.reply('Extraction finished — check the ingest dashboard.');
     } catch (error) {
-      logger.error({ error }, 'Telegram photo handling failed');
-      await ctx.reply('Extraction failed.');
+      logger.error({ error }, 'Mastra ingest workflow failed');
+      await ctx.reply('Extraction failed — check dashboard / logs.');
     }
-  });
+  };
 
   bot.on('message:text', async (ctx) => {
     const text = ctx.message.text.trim();
-    try {
-      await ctx.reply('Got it.');
+    const chatId = ctx.chat.id;
 
-      const previous = chatContext.get(ctx.chat.id);
-      if (previous && Date.now() - previous.atMs < 60000 && !text.includes('http')) {
-        const existing = await prisma.draft.findUnique({
-          where: { id: previous.draftId },
-        });
-        if (existing) {
-          const rawInput = [existing.rawInput, text].filter(Boolean).join('\n');
-          const { fields, flaggedFields } = await extractDraftFields({
-            rawText: rawInput,
-            partialFields: {
-              itemType: existing.itemType,
-              name: existing.name,
-              description: existing.description,
-              category: existing.category,
-              address: existing.address,
-              neighborhood: existing.neighborhood,
-              tags: existing.tags,
-              imageUrl: existing.imageUrl,
-            },
-          });
-          await prisma.draft.update({
-            where: { id: existing.id },
-            data: {
-              rawInput,
-              itemType: fields.itemType,
-              name: fields.name,
-              description: fields.description,
-              category: fields.category,
-              address: fields.address,
-              neighborhood: fields.neighborhood,
-              startTime: fields.startTime ? new Date(fields.startTime) : null,
-              endTime: fields.endTime ? new Date(fields.endTime) : null,
-              tags: fields.tags,
-              imageUrl: fields.imageUrl,
-              flaggedFields,
-            },
-          });
-          await ctx.reply(`Draft updated: ${fields.name ?? 'Unnamed'}`);
-          return;
-        }
-      }
+    const urlMatch = text.match(URL_IN_TEXT);
+    const url = urlMatch?.[0];
 
-      if (text.includes('http://') || text.includes('https://')) {
-        const match = text.match(/https?:\/\/\S+/i);
-        const url = match?.[0];
-        if (!url) {
-          throw new Error('Link text had no valid URL');
-        }
-        const sourceType = detectSourceType(url);
-        const fetcherResult =
-          sourceType === 'google_maps'
-            ? await fetchGooglePlace(url)
-            : sourceType === 'instagram_post'
-              ? await fetchInstagramPost(url)
-              : await fetchWebsite(url);
-
-        const created = await createDraftFromExtraction({
-          inputType: 'telegram_link',
-          sourceUrl: url,
-          rawInput: fetcherResult.rawText ?? text,
-          imageUrl: fetcherResult.imageUrl,
-          partialFields: fetcherResult,
-        });
-        chatContext.set(ctx.chat.id, { draftId: created.id, atMs: Date.now() });
-        await ctx.reply(`Draft ready: ${created.name ?? 'Unnamed'}`);
-        return;
-      }
-
-      const created = await createDraftFromExtraction({
-        inputType: 'telegram_text',
-        rawInput: text,
-      });
-      chatContext.set(ctx.chat.id, { draftId: created.id, atMs: Date.now() });
-      await ctx.reply(`Draft ready: ${created.name ?? 'Unnamed'}`);
-    } catch (error) {
-      logger.error({ error }, 'Telegram text handling failed');
-      await ctx.reply('Extraction failed.');
+    if (url) {
+      scheduleDelayedLink(chatId, url, (inp, opts) => runWorkflow(ctx, inp, opts));
+      await ctx.reply(
+        'Got it ✓ — starting in 5s. Send a short note now if you want extra context.'
+      );
+      return;
     }
+
+    const pending = pendingByChat.get(chatId);
+    if (pending) {
+      clearPending(chatId);
+      await runWorkflow(ctx, {
+        inputType: 'telegram_link',
+        rawInput: pending.url,
+        contextNote: text,
+      });
+      return;
+    }
+
+    await runWorkflow(ctx, {
+      inputType: 'telegram_text',
+      rawInput: text,
+      contextNote: null,
+    });
   });
 
-  // Anything that isn’t plain text or photo (e.g. document, voice, sticker, location-only)
   bot
     .on('message')
     .filter((ctx) => {
@@ -223,9 +150,8 @@ export const createBot = (): Bot => {
       if (!msg) {
         return false;
       }
-      const hasPhoto = 'photo' in msg && Array.isArray(msg.photo) && msg.photo.length > 0;
       const hasText = 'text' in msg && typeof msg.text === 'string';
-      return !hasPhoto && !hasText;
+      return !hasText;
     })
     .use(async (ctx) => {
       logger.info(
@@ -233,8 +159,8 @@ export const createBot = (): Bot => {
         'Telegram message type not supported for ingest'
       );
       await ctx.reply(
-        'I only handle text (include a full https:// link for places) or photos.\n\n' +
-          'Tip: paste the URL as plain text, or send a photo with optional caption.'
+        'Send a text message with an https:// link (optional short note right after), or plain text to search.\n\n' +
+          'Photo uploads are not used for this pipeline.'
       );
     });
 
