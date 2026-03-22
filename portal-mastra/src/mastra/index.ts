@@ -24,6 +24,7 @@ function getConnectionString(): string {
 }
 
 const storage = new PostgresStore({
+  id: 'portal-mastra-store',
   connectionString: getConnectionString(),
 });
 
