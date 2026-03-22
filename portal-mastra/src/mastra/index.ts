@@ -49,7 +49,8 @@ export const mastra = new Mastra({
         if (!secret) {
           return { id: 'open', sub: 'mastra-dev' };
         }
-        const raw = (token ?? '').trim();
+        // Mastra strips "Bearer " in most paths; normalize in case a proxy passes the full header
+        let raw = (token ?? '').trim().replace(/^Bearer\s+/i, '').trim();
         if (raw !== secret) {
           return null;
         }
