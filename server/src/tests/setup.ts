@@ -5,6 +5,9 @@
  * to avoid circuit breaker issues with Supabase connection pooler.
  */
 
+// Before createApp() loads grammy (via telegramWebhook), Node 18 needs global File.
+import '../filePolyfill.js';
+
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 

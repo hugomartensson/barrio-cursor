@@ -6,13 +6,8 @@ import { logger } from './services/logger.js';
 import cron from 'node-cron';
 import { Bonjour } from 'bonjour-service';
 
-async function bootstrap(): Promise<void> {
+function bootstrap(): void {
   const app = createApp();
-
-  if (config.TELEGRAM_BOT_TOKEN) {
-    const { registerTelegramWebhook } = await import('./telegramWebhook.js');
-    registerTelegramWebhook(app);
-  }
 
   let bonjourInstance: InstanceType<typeof Bonjour> | null = null;
 
@@ -78,7 +73,9 @@ async function bootstrap(): Promise<void> {
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
-void bootstrap().catch((err: unknown) => {
+try {
+  bootstrap();
+} catch (err: unknown) {
   logger.error({ err }, 'Bootstrap failed');
   process.exit(1);
-});
+}

@@ -10,6 +10,7 @@ import { logger } from './services/logger.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import routes from './routes/index.js';
+import { registerTelegramWebhook } from './telegramWebhook.js';
 import type { RequestWithId } from './types/index.js';
 
 export const createApp = (): Express => {
@@ -92,10 +93,15 @@ export const createApp = (): Express => {
   app.use(express.json({ limit: '70mb' }));
   app.use(express.urlencoded({ extended: true, limit: '70mb' }));
 
+  // Telegram webhook MUST mount before `app.use('/api', routes)` and before `notFoundHandler`.
+  // Previously it was registered in index.ts after createApp(), which placed it *after* notFoundHandler,
+  // so POST /api/telegram/webhook always returned 404.
+  if (config.TELEGRAM_BOT_TOKEN) {
+    registerTelegramWebhook(app);
+  }
+
   // API routes
   app.use('/api', routes);
-
-  // Telegram webhook is registered in index.ts (after filePolyfill) when TELEGRAM_BOT_TOKEN is set.
 
   // Admin dashboard — no Basic Auth; the page itself handles login via Supabase JWT.
   const adminDistPath = path.join(__dirname, 'admin');
