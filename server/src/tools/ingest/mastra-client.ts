@@ -1,6 +1,7 @@
 /* istanbul ignore file */
 import { config } from '../../config/index.js';
 import { createLogger } from '../../services/logger.js';
+import { normalizeMastraApiBase } from '../../utils/mastraUrl.js';
 
 const logger = createLogger({ component: 'mastra-client' });
 
@@ -11,7 +12,7 @@ export type IngestWorkflowInput = {
 };
 
 const mastraBase = (): string =>
-  (config.MASTRA_API_URL ?? 'http://127.0.0.1:4111').replace(/\/$/, '');
+  normalizeMastraApiBase(config.MASTRA_API_URL ?? 'http://127.0.0.1:4111');
 
 const headers = (): Record<string, string> => {
   const h: Record<string, string> = {

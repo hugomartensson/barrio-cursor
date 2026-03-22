@@ -2,6 +2,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { config } from '../config/index.js';
 import { logger } from '../services/logger.js';
 import type { AuthenticatedRequest } from '../types/index.js';
+import { normalizeMastraApiBase } from '../utils/mastraUrl.js';
 
 async function proxyToMastra(req: Request, res: Response): Promise<void> {
   const user = (req as AuthenticatedRequest).user;
@@ -12,9 +13,8 @@ async function proxyToMastra(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const mastraBase = (config.MASTRA_API_URL ?? 'http://127.0.0.1:4111').replace(
-    /\/$/,
-    ''
+  const mastraBase = normalizeMastraApiBase(
+    config.MASTRA_API_URL ?? 'http://127.0.0.1:4111'
   );
   const targetUrl = `${mastraBase}${req.originalUrl}`;
 

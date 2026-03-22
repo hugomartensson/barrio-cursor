@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import YAML from 'yaml';
 import { config } from '../../config/index.js';
+import { normalizeMastraApiBase } from '../../utils/mastraUrl.js';
 
 type BatchItem = {
   url?: string;
@@ -22,7 +23,7 @@ type IngestWorkflowInput = {
 };
 
 const mastraBase = (): string =>
-  (config.MASTRA_API_URL ?? 'http://127.0.0.1:4111').replace(/\/$/, '');
+  normalizeMastraApiBase(config.MASTRA_API_URL ?? 'http://127.0.0.1:4111');
 
 const mastraHeaders = (): Record<string, string> => {
   const h: Record<string, string> = {

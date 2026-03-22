@@ -52,7 +52,7 @@ Paste this document (or sections of it) into **Railway’s agent** or use it as 
 
 | Variable | Notes |
 |----------|--------|
-| `MASTRA_API_URL` | Public origin of Mastra service, **no trailing slash**, e.g. `https://portal-mastra-xxxx.up.railway.app` |
+| `MASTRA_API_URL` | **Mastra service only** — public origin, **no `/api` suffix** (routes already use `/api/workflows/...`). Wrong service or `.../api` → **404 "Application not found"**. Example: `https://portal-mastra-xxxx.up.railway.app` |
 | `MASTRA_SERVER_TOKEN` | Long random string; **identical** on Mastra service. If unset locally, Mastra accepts any caller (**do not** leave unset in production). |
 
 **Telegram ingest bot (optional but needed for Telegram → ingest)**
