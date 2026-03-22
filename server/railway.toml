@@ -7,7 +7,9 @@ buildCommand = "npm run build && npx prisma generate"
 nixpacksConfigPath = "nixpacks.toml"
 
 [deploy]
-# Run migrations then start (Railway sets PORT automatically)
-startCommand = "npx prisma migrate deploy && node dist/index.js"
+# Sync schema then start (Railway sets PORT automatically).
+# Using db push because the DB was bootstrapped without prisma migrate;
+# _prisma_migrations table does not exist.
+startCommand = "npx prisma db push --skip-generate && node dist/index.js"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

@@ -1,33 +1,30 @@
 import 'dotenv/config';
 import { Mastra } from '@mastra/core/mastra';
-import { LibSQLStore } from '@mastra/libsql';
+import { PostgresStore } from '@mastra/pg';
 import { extractorAgent } from './agents/extractor.js';
 import { verifierAgent } from './agents/verifier.js';
 import { ingestWorkflow } from './workflows/ingest.js';
 
 /**
- * LibSQL file URLs must point at a writable path. Railway runs from `.mastra/output`;
- * `./.mastra/mastra.db` is missing/read-only there → SQLite error 14. Use /tmp on hosts
- * without a persistent project dir, or set MASTRA_STORAGE_URL to Turso for durable storage.
+ * Persistent Postgres storage via the existing Supabase database.
+ * Mastra auto-creates its tables (mastra_*) on first connect.
+ * Requires DATABASE_URL (pooler) or DIRECT_URL env var.
  */
-function resolveMastraStorageUrl(): string {
-  const explicit = process.env.MASTRA_STORAGE_URL?.trim();
-  if (explicit) return explicit;
-
-  const onRailway = Boolean(
-    process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_SERVICE_NAME
-  );
-  const prod = process.env.NODE_ENV === 'production';
-  if (onRailway || prod) {
-    return 'file:/tmp/mastra.db';
+function getConnectionString(): string {
+  const url =
+    process.env.MASTRA_DATABASE_URL?.trim() ||
+    process.env.DATABASE_URL?.trim() ||
+    process.env.DIRECT_URL?.trim();
+  if (!url) {
+    throw new Error(
+      'DATABASE_URL (or MASTRA_DATABASE_URL / DIRECT_URL) is required for Mastra storage',
+    );
   }
-
-  return 'file:./.mastra/mastra.db';
+  return url;
 }
 
-const storage = new LibSQLStore({
-  id: 'portal-mastra-store',
-  url: resolveMastraStorageUrl(),
+const storage = new PostgresStore({
+  connectionString: getConnectionString(),
 });
 
 export const mastra = new Mastra({
@@ -50,7 +47,7 @@ export const mastra = new Mastra({
           return { id: 'open', sub: 'mastra-dev' };
         }
         // Mastra strips "Bearer " in most paths; normalize in case a proxy passes the full header
-        let raw = (token ?? '').trim().replace(/^Bearer\s+/i, '').trim();
+        const raw = (token ?? '').trim().replace(/^Bearer\s+/i, '').trim();
         if (raw !== secret) {
           return null;
         }
