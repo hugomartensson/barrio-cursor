@@ -5,6 +5,7 @@ import { createLogger } from '../../services/logger.js';
 import {
   extractDraftNameFromMastraResult,
   runIngestWorkflow,
+  workflowAwaitingHumanReview,
   type IngestWorkflowInput,
 } from './mastra-client.js';
 
@@ -87,7 +88,7 @@ export const createBot = (): Bot => {
       }
       const result = await runIngestWorkflow(input);
       const status = (result as { status?: string })?.status;
-      if (status === 'suspended') {
+      if (workflowAwaitingHumanReview(result)) {
         const name = extractDraftNameFromMastraResult(result) ?? 'Unnamed';
         await ctx.reply(
           `Draft ready: ${name}\nOpen Admin → /admin/ingest/ (Spots / Events tabs) to review.`
@@ -100,6 +101,11 @@ export const createBot = (): Bot => {
       }
       if (status === 'success') {
         await ctx.reply('Published ✓');
+        return;
+      }
+      if (status === 'failed') {
+        logger.warn({ result }, 'Mastra workflow failed');
+        await ctx.reply('Extraction failed — check Mastra logs or try another URL.');
         return;
       }
       logger.warn({ result }, 'Unexpected Mastra workflow status');

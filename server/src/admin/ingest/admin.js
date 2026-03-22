@@ -107,14 +107,22 @@
 
     async function loadQueue() {
       showStatus('ok', 'Loading…');
-      const { runs = [] } = await fetchJson('/workflows/ingest/runs?status=suspended&perPage=50');
+      // Mastra may use `waiting` (HITL) instead of `suspended` for the same state — fetch both.
+      const [sus, wait] = await Promise.all([
+        fetchJson('/workflows/ingest/runs?status=suspended&perPage=50'),
+        fetchJson('/workflows/ingest/runs?status=waiting&perPage=50'),
+      ]);
+      const byId = new Map();
+      for (const r of sus.runs || []) byId.set(r.runId, r);
+      for (const r of wait.runs || []) byId.set(r.runId, r);
+      const runs = Array.from(byId.values());
       const rows = [];
       for (const r of runs) {
         try {
           const detail = await fetchJson(
             `/workflows/ingest/runs/${encodeURIComponent(r.runId)}?fields=steps,status,payload`,
           );
-          if (detail.status !== 'suspended') continue;
+          if (detail.status !== 'suspended' && detail.status !== 'waiting') continue;
           const draft = extractDraft(detail);
           if (!draft) continue;
           rows.push({ runId: r.runId, draft });
@@ -124,7 +132,7 @@
       }
       rowCache = rows;
       render();
-      showStatus('ok', `${rows.length} suspended run(s) loaded.`);
+      showStatus('ok', `${rows.length} run(s) awaiting review loaded.`);
     }
 
     function render() {
