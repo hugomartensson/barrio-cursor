@@ -85,6 +85,22 @@ export const createBot = (): Bot => {
       config.TELEGRAM_ALLOWED_USER_ID &&
       ctx.from?.id.toString() !== config.TELEGRAM_ALLOWED_USER_ID
     ) {
+      logger.warn(
+        {
+          fromId: ctx.from?.id,
+          fromUsername: ctx.from?.username,
+          expectedUserId: config.TELEGRAM_ALLOWED_USER_ID,
+        },
+        'Telegram update ignored: TELEGRAM_ALLOWED_USER_ID mismatch'
+      );
+      try {
+        await ctx.reply(
+          `Not authorized for this bot.\n\nYour Telegram user id: ${ctx.from?.id ?? 'unknown'}\n` +
+            `Set Railway env TELEGRAM_ALLOWED_USER_ID to that number (or remove it to allow any user).`
+        );
+      } catch (replyErr) {
+        logger.warn({ replyErr }, 'Could not send Telegram unauthorized reply');
+      }
       return;
     }
     await next();
@@ -198,6 +214,29 @@ export const createBot = (): Bot => {
       await ctx.reply('Extraction failed.');
     }
   });
+
+  // Anything that isn’t plain text or photo (e.g. document, voice, sticker, location-only)
+  bot
+    .on('message')
+    .filter((ctx) => {
+      const msg = ctx.message;
+      if (!msg) {
+        return false;
+      }
+      const hasPhoto = 'photo' in msg && Array.isArray(msg.photo) && msg.photo.length > 0;
+      const hasText = 'text' in msg && typeof msg.text === 'string';
+      return !hasPhoto && !hasText;
+    })
+    .use(async (ctx) => {
+      logger.info(
+        { chatId: ctx.chat?.id, keys: ctx.message ? Object.keys(ctx.message) : [] },
+        'Telegram message type not supported for ingest'
+      );
+      await ctx.reply(
+        'I only handle text (include a full https:// link for places) or photos.\n\n' +
+          'Tip: paste the URL as plain text, or send a photo with optional caption.'
+      );
+    });
 
   return bot;
 };
