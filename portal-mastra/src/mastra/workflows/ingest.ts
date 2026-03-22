@@ -30,7 +30,11 @@ const extractStep = createStep({
     }
 
     const result = await agent.generate(prompt, {
-      structuredOutput: { schema: draftSchema },
+      structuredOutput: {
+        schema: draftSchema,
+        // Gemini 2.5: cannot combine API response_format (JSON) with tools in one call
+        jsonPromptInjection: true,
+      },
       maxSteps: 28,
     });
 
