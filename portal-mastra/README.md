@@ -20,6 +20,12 @@ See `.env.example`. Important:
 
 Create a **public** Supabase Storage bucket (default name `ingest-images`) or set `SUPABASE_INGEST_BUCKET`.
 
+### Workflow storage (LibSQL)
+
+- **Local:** default `file:./.mastra/mastra.db` under the project.
+- **Railway / `NODE_ENV=production`:** defaults to **`file:/tmp/mastra.db`** so the container can create the DB (the bundled app cwd is not writable for `./.mastra/…`).
+- **`/tmp` is ephemeral** on PaaS (lost on redeploy). For durable suspended runs across deploys, set **`MASTRA_STORAGE_URL`** to a [Turso](https://turso.tech/) `libsql://…` database (+ auth token per LibSQL docs).
+
 ## Production (Railway)
 
 1. New service from this directory; start command: `npm run start` (runs `mastra start` → built output).

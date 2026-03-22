@@ -5,9 +5,29 @@ import { extractorAgent } from './agents/extractor.js';
 import { verifierAgent } from './agents/verifier.js';
 import { ingestWorkflow } from './workflows/ingest.js';
 
+/**
+ * LibSQL file URLs must point at a writable path. Railway runs from `.mastra/output`;
+ * `./.mastra/mastra.db` is missing/read-only there → SQLite error 14. Use /tmp on hosts
+ * without a persistent project dir, or set MASTRA_STORAGE_URL to Turso for durable storage.
+ */
+function resolveMastraStorageUrl(): string {
+  const explicit = process.env.MASTRA_STORAGE_URL?.trim();
+  if (explicit) return explicit;
+
+  const onRailway = Boolean(
+    process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_SERVICE_NAME
+  );
+  const prod = process.env.NODE_ENV === 'production';
+  if (onRailway || prod) {
+    return 'file:/tmp/mastra.db';
+  }
+
+  return 'file:./.mastra/mastra.db';
+}
+
 const storage = new LibSQLStore({
   id: 'portal-mastra-store',
-  url: process.env.MASTRA_STORAGE_URL ?? 'file:./.mastra/mastra.db',
+  url: resolveMastraStorageUrl(),
 });
 
 export const mastra = new Mastra({

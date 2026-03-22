@@ -141,7 +141,7 @@ The **browser dashboard** never talks to Mastra directly; it calls **`/api/workf
 |----------|----------|--------|
 | `TAVILY_API_KEY` | No | Web search; optional |
 | `SUPABASE_INGEST_BUCKET` | No | Default **`ingest-images`** (`portal-mastra/src/mastra/lib/ingest-image.ts`) |
-| `MASTRA_STORAGE_URL` | No | Default `file:./.mastra/mastra.db` — for multi-instance/restarts consider durable storage |
+| `MASTRA_STORAGE_URL` | No | Omit to use **`file:/tmp/mastra.db`** when Railway env vars are present (writable). `/tmp` resets on redeploy; set a **Turso** `libsql://…` URL for durable workflow state |
 
 ### Supabase
 
