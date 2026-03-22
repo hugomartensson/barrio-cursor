@@ -180,17 +180,19 @@ export function getPortalClient(): PortalClient {
   return singleton;
 }
 
-/** Map workflow draft fields into publish payload */
+/** Map workflow draft fields into publish payload.
+ *  barrio-api's createSpotSchema requires non-empty name, description, address
+ *  (all min(1)), so we must provide sensible fallbacks for nullable draft fields. */
 export function draftToPublishPayload(
   d: Draft & { collectionId?: string | null },
   supabaseImageUrl: string,
 ): PublishPayload {
   return {
     type: d.type,
-    name: d.name ?? 'Unnamed',
-    description: d.description ?? '',
+    name: d.name?.trim() || 'Unnamed',
+    description: d.description?.trim() || d.name?.trim() || 'No description',
     category: d.category ?? 'community',
-    address: d.address ?? '',
+    address: d.address?.trim() || 'Unknown address',
     neighborhood: d.neighborhood,
     imageUrl: supabaseImageUrl,
     startTime: d.type === 'event' ? d.startTime : undefined,
