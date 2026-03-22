@@ -44,7 +44,8 @@ export const mastra = new Mastra({
     host: process.env.HOST ?? '0.0.0.0',
     auth: {
       authenticateToken: async (token: string) => {
-        const secret = process.env.MASTRA_SERVER_TOKEN;
+        // Trim secret — Railway/UI pastes often include a trailing newline, which breaks ===
+        const secret = process.env.MASTRA_SERVER_TOKEN?.trim();
         if (!secret) {
           return { id: 'open', sub: 'mastra-dev' };
         }
