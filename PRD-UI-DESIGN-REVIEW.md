@@ -2,27 +2,29 @@
 
 **Document:** MASTER-PRD-2402 (portal. — Product Requirements Document v1)  
 **Review focus:** UI and design system alignment across the iOS app  
-**Date:** February 2026
+**Date:** February 2026 (design audit update: March 2026)
 
 ---
 
 ## Executive summary
 
-The app has **strong alignment** with the PRD in many areas: three-tab structure, filter pills (time + category), feed sections, map with pins and preview card, profile with saves/collections/events/spots, and the core “editorial” color palette. Several **gaps** remain: typography (fonts), a few PRD-specified feed sections, tab iconography, detail-screen “top fold” structure, and some design tokens (radius, map pin colors). This review lists what’s implemented, what’s partial, and what’s missing from a UI/design perspective.
+The app has **strong alignment** with the PRD in many areas: three-tab structure, filter pills (time + category), feed sections, map with pins and preview card, profile with saves/collections/events/spots, and the core editorial color palette. A **March 2026 design audit** resolved typography direction (DM Sans–only bundle: Black for display titles, Italic for editorial accents), image gradient legibility, discover section chrome (wide-tracked headers, hidden empty EVENTS), location search keyboard scrolling, unified **PortalSaveButton** affordance, teal primary for Follow, map pin semantics (all teal; events use `ticket.fill`), and several polish items. **Gaps** that remain include some PRD feed sections (“From Friends”, featured collection hero), Discover tab compass icon, sticky blurred header, event detail “top fold” grouping, and motion/stagger specs.
 
 ---
 
 ## 1. Design system
 
-### 1.1 Typography — **Not aligned**
+### 1.1 Typography — **Aligned (March 2026 direction)**
 
-| PRD | Implementation | Status |
-|-----|-----------------|--------|
-| **Instrument Serif** — headlines, collection names, spot/event titles, wordmark | **System default / Archivo** — `PortalTypography.swift` uses system fonts; comments reference Archivo Black/Archivo | ❌ Not implemented |
-| **DM Sans** — UI text, metadata, labels, filter pills | Same — system fonts, no DM Sans | ❌ Not implemented |
-| Italic variant for wordmark (*portal.*) | Wordmark is "portal" + "·" in regular weight, no italic | ❌ Not implemented |
+| Spec | Implementation | Status |
+|------|----------------|--------|
+| Display / titles — strong sans | **DM Sans Black** (`DMSans-Black.ttf`) for `portalWordmark`, `portalDisplay*`, and dynamic `portalDisplayBlack(size:)` | ✅ |
+| Editorial italic accent (no system serif) | **DM Sans Italic** (`DMSans-Italic.ttf`) for `portalSerifItalic` / `portalSerifItalicSmall` / `portalItalic(size:)` | ✅ |
+| UI body, metadata, labels, pills | **System San Francisco** — `portalBody`, `portalMetadata`, `portalLabel*`, section titles | ✅ |
+| Section labels | `portalSectionLabel` — 11pt semibold; apply **~1.2pt tracking** in views where used | ✅ |
+| Discover section headers (EVENTS, SPOTS, …) | `portalSectionTitle` — **14pt bold** with **~1.8pt tracking** in `FeedView` | ✅ |
 
-**Recommendation:** Add Instrument Serif and DM Sans to the app bundle and switch display/headline styles to Instrument Serif and body/UI to DM Sans. Use italic for the “portal” wordmark if the PRD’s *portal.* is intended visually.
+**Note:** MASTER-PRD may still mention Instrument Serif; the **product decision** for this codebase is **DM Sans only** for bundled display fonts (Instrument Serif / Archivo removed from the bundle).
 
 ---
 
@@ -36,6 +38,7 @@ The app has **strong alignment** with the PRD in many areas: three-tab structure
 | Live accent: warm rose | `portalLive` #F25C8C | ✅ |
 | Muted/border: neutral greys | `portalMuted` #E0E0DE, `portalMutedForeground` #6B6B68 | ✅ |
 | Cards: pure white | `portalCard` #FFFFFF | ✅ |
+| Image card bottom scrim | `portalGradientOverlay`: **clear → black 0.9** (readable white type on light photos) | ✅ |
 
 **Trust-layer coding:**  
 PRD: Orange = editorial/authority; personal colors (blue, teal, amber) = friends; dashed ring + muted = pending.  
@@ -48,9 +51,10 @@ PRD: Orange = editorial/authority; personal colors (blue, teal, amber) = friends
 | PRD | Implementation | Status |
 |-----|-----------------|--------|
 | Cards: pure white, soft two-layer shadow | `portalCard` + double shadow (opacity 0.05/0.07, radius 1 & 6) | ✅ |
-| Border radius consistent (1rem) | `portalRadius` = **12pt** (PRD implies ~16pt for 1rem) | ⚠️ Minor |
-| Gradient overlay on image bottom third | `portalGradientOverlay`; used in some cards; EventCard uses date sidebar instead of hero image | ⚠️ Varies by component |
-| Frosted glass on floating badges | Not consistently used (e.g. save button often solid card/muted) | ⚠️ Partial |
+| Border radius consistent (1rem) | `portalRadius` = **16pt** | ✅ |
+| Small UI radius | `portalRadiusSm` = **8pt** | ✅ |
+| Gradient overlay on image bottom third | `portalGradientOverlay` (strong dark scrim); EventCard still uses date sidebar layout | ⚠️ Layout varies by component |
+| Frosted glass on floating badges | Detail hero nav uses `.ultraThinMaterial`; save uses **PortalSaveButton** (teal circle / outline) | ⚠️ Partial |
 
 ---
 
@@ -58,7 +62,9 @@ PRD: Orange = editorial/authority; personal colors (blue, teal, amber) = friends
 
 - Single column, mobile-first: Discover feed is one scroll. ✅  
 - Horizontal carousels for collections, “People to follow,” spots. ✅  
-- Section labels: small, semibold, uppercase, wide-tracking, muted (e.g. `portalSectionLabel` + tracking 0.18). ✅  
+- Section labels: 11pt semibold, wide tracking (~1.2), muted (`portalSectionLabel`). ✅  
+- Feed section titles: 14pt bold, wide tracking (~1.8). ✅  
+- Location dropdown: **ScrollView** + search field focus + scroll-dismiss keyboard for keyboard overlap. ✅  
 - Sticky header: PRD says “Sticky header with backdrop blur”. **Implementation:** Header is in the scroll content; no explicit sticky + blur in the Discover view. ⚠️
 
 ---
@@ -135,9 +141,9 @@ Search bar in main tab; PRD says “search bar accessible from discover feed” 
 | PRD | Implementation | Status |
 |-----|-----------------|--------|
 | Full-screen map, same data as Discover | Map with events + spots, shared filters | ✅ |
-| Spots: dark pins | `SpotPin`: `portalPrimary` (orange) background | ⚠️ PRD says “dark-colored” for spots |
-| Events: accent (orange) pins | `EventPin`: `portalAccent` (blue) background | ❌ PRD says orange for events |
-| Live events: “LIVE” badge on pin | “NOW” in pill on card; EventPin has scale animation for live | ⚠️ No “LIVE” on map pin itself |
+| Pin color | **Both** `EventPin` and `SpotPin` use **`portalPrimary` (teal)** background (March 2026 audit) | ✅ (differs from older PRD “dark spots / orange events”) |
+| Event vs spot identity | **Event:** `ticket.fill` + title; **Spot:** `mappin` + name | ✅ |
+| Live events: “LIVE” badge on pin | **“LIVE”** capsule on `EventPin` when `event.isLive`; scale pulse | ✅ |
 | Layer toggle: All / Spots / Events | In Map filter sheet as “Content” picker | ✅ |
 | Filters shared with Discover | `DiscoverFilters` shared via environment | ✅ |
 | Tap pin → card preview at top | Preview card with title, time, address, creator, save button | ✅ |
@@ -146,7 +152,7 @@ Search bar in main tab; PRD says “search bar accessible from discover feed” 
 | Long-press → create with location pre-filled | Long-press opens `CreateEventView(initialLocation:)` | ✅ |
 | Recenter button | Recenter to user/city center | ✅ |
 
-**Fix:** Swap map pin semantics: **events = orange** (`portalPrimary`), **spots = dark** (e.g. dark gray/charcoal), and add a small “LIVE” badge on the map for live events if desired.
+**Spec note:** Map pins are intentionally **uniform teal** with **iconography** to distinguish entity types (better colorblind safety than orange-vs-dark alone).
 
 ---
 
@@ -165,7 +171,7 @@ Search bar in main tab; PRD says “search bar accessible from discover feed” 
 | Following — horizontal avatars + names | Horizontal scroll of following | ✅ |
 
 **Other user profile**  
-`UserProfileView`: avatar, name, follower/following, follow state, events. Public collections and “Saved items” (only when following) behavior not fully re-verified here; structure exists.
+`UserProfileView`: avatar, name, follower/following, follow state, events. **Follow** CTA uses **`portalGradientPrimary` (teal)** (was coral). Empty “no events” state uses neutral **calendar** icon (not exclamation). Public collections and “Saved items” (only when following) behavior not fully re-verified here; structure exists.
 
 ---
 
@@ -174,9 +180,8 @@ Search bar in main tab; PRD says “search bar accessible from discover feed” 
 PRD: Top fold without scrolling answers: *What?* (name, category, tags), *When?* (date/time or “Open”), *Where?* (neighborhood + distance), *Why trust?* (creator, savers, save count). Primary action: **Save**, prominent, one tap.
 
 **Implementation:**  
-- `EventDetailView`: hero image (16:9), then title, date/time, address, description, “by …”.  
-- Save is in a bottom safe-area inset (Save button with count).  
-- **Gaps:** No explicit “above the fold” summary block; category/tags and “Why trust?” (creator + save count) are not grouped in one clear top fold; distance/neighborhood not clearly called out. Save is prominent but not in a single “top fold” block.
+- `EventDetailView`: hero image, date strip + title on hero, **Save** via **`PortalSaveButton`** in the hero top bar (one tap; separate “Add to collection” control).  
+- **Gaps:** No explicit grouped “above the fold” summary block; category/tags and “Why trust?” (creator + save count) not consolidated; distance/neighborhood not always called out in one block.
 
 **Recommendation:** Add a compact “top fold” section (name, category, when, where, creator + save count) and keep Save as the primary action; optionally move Save into that fold on desktop or large screens.
 
@@ -185,7 +190,8 @@ PRD: Top fold without scrolling answers: *What?* (name, category, tags), *When?*
 ## 4. Save behavior
 
 - One-tap save without “which collection?” required: ✅  
-- Save on card (feed), map preview, and detail: ✅  
+- Save on card (feed), map preview, and detail: ✅ — shared **`PortalSaveButton`** (teal-filled circle when saved; outlined when not; count adjacent).  
+- “Add to collection” remains a **separate** explicit action (not chained to Save). ✅  
 - Default to unsorted personal saves: ✅ (no forced collection pick)
 
 ---
@@ -193,7 +199,7 @@ PRD: Top fold without scrolling answers: *What?* (name, category, tags), *When?*
 ## 5. Collections
 
 - Create from Profile → My Collections: ✅  
-- Name, description, visibility (Private/Friends/Public): Create sheet has name + description; **visibility not in create sheet** in reviewed code. ⚠️  
+- Name, description, visibility (Private/Friends/Public): Create sheet includes **visibility** (`CreateCollectionVisibility`). ✅  
 - Collection card: cover, name, creator, item count; PRD also “save count” for public collections — not clearly on `PortalCollectionCard`. ⚠️  
 - Sharing (link, read-only web view): Not verified in UI review.
 
@@ -208,27 +214,36 @@ Implementation: Feed loads with location/filters; city picker exists via locatio
 
 ## 7. Summary of gaps (UI/design)
 
-**High impact**
+**Resolved in March 2026 audit (non-exhaustive)**
 
-1. **Typography:** Use Instrument Serif (display/headlines) and DM Sans (UI) per PRD; add italic wordmark if desired.  
-2. **Discover feed sections:** Add “From Friends” (“From people you trust”) and “Featured collection” (one hero collection).  
-3. **Map pins:** Events = orange, spots = dark; add “LIVE” on map for live events if specified.  
-4. **Discover tab icon:** Use compass icon instead of safari.  
-5. **Event detail “top fold”:** Add a clear top-fold block (what/when/where/why trust) and ensure Save is the primary action in that context.
+- DM Sans Black / Italic bundle; display vs editorial italic tokens.  
+- `portalGradientOverlay` legibility; `portalRadiusSm` = 8pt.  
+- Discover: hide **EVENTS** section when `filteredEvents` is empty; section title tracking + bold 14pt.  
+- Location dropdown scroll + keyboard dismiss.  
+- **PortalSaveButton** across feed, map preview, detail, profile grids.  
+- Follow CTA teal; user-profile empty state icon.  
+- Map: teal pins + `ticket.fill` for events + LIVE on pin.  
+- New collection: stronger name placeholder contrast; shorter cover aspect (4:1).
+
+**High impact (still open)**
+
+1. **Discover feed sections:** “From Friends” / “From people you trust” and **featured collection** hero.  
+2. **Discover tab icon:** Compass instead of `safari`.  
+3. **Event detail “top fold”:** Single grouped block (what/when/where/why trust).
 
 **Medium impact**
 
-6. **Sticky header:** Make Discover header (city + wordmark + filters) sticky with backdrop blur.  
-7. **Profile own header:** Show handle and current city in addition to name.  
-8. **Collections:** Visibility in create flow; visibility badge and save count on collection cards.  
-9. **Event cards in feed:** Consider a “hero image filling card” variant for events to match PRD card description.  
-10. **Motion:** Add fade-in, slide-up, and staggered grid animations per PRD.
+4. **Sticky header:** Discover header sticky + backdrop blur.  
+5. **Profile own header:** Handle + current city.  
+6. **Collection list rows:** Visibility badge + cover in list (if still missing).  
+7. **Event cards in feed:** Optional hero-image variant per PRD.  
+8. **Motion:** Fade-in, slide-up, staggered grid per PRD.
 
 **Lower impact**
 
-11. Border radius: Consider 16pt (1rem) for consistency with PRD.  
-12. Frosted glass for floating badges over photography.  
-13. “People to follow” context: e.g. “42 saves in Barcelona” where data exists.
+9. Frosted glass consistency on floating controls over photography.  
+10. “People to follow” context copy (e.g. saves in city).  
+11. MASTER-PRD text refresh: typography and map pin strategy now follow **DM Sans–only** and **teal + icon** map pins.
 
 ---
 
@@ -236,12 +251,13 @@ Implementation: Feed loads with location/filters; city picker exists via locatio
 
 - Three-tab structure and shared filter state.  
 - Time and category filter pills (single/multi, no Apply).  
-- Portal color palette and card styling.  
-- Map preview card, save on preview, long-press create.  
+- Portal color palette, card shadows, and **strong image scrims**.  
+- Map preview card, **PortalSaveButton** on preview, long-press create.  
 - Profile stats, My Saves (mixed, chronological), My Collections list, Following strip.  
 - PortalEventCard date sidebar and live styling.  
 - PortalSpotCard and PortalCollectionCard layout and attribution.  
-- One-tap save and no forced collection selection.
+- One-tap save, **no** automatic “pick a collection” sheet on Save.  
+- Collection create flow includes **visibility** and improved cover/name UX.
 
 ---
 

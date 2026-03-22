@@ -186,9 +186,9 @@ A spatial view of the same content available in the discover feed. The map is no
 
 **Map view:**
 - Full-screen map centered on the user's current city
-- Spots appear as dark-colored pins
-- Events appear as accent-colored (orange) pins
-- Live/ongoing events (start time ≤ now < end time) display a small "LIVE" badge on the pin
+- **iOS implementation:** Spots and events both use **teal** (`portalPrimary`) capsule pins; **events** show a **`ticket.fill`** icon plus title, **spots** show **`mappin`** plus name (icon distinguishes type).
+- **Legacy PRD copy:** dark spot pins and orange event pins — superseded on iOS by the unified teal + icon treatment (see `PRD-UI-DESIGN-REVIEW.md`).
+- Live/ongoing events (start time ≤ now < end time) display a small **"LIVE"** badge on the event pin
 - Layer toggle at the top: All / Spots / Events — allows the user to show only one content type
 
 **Filters:**
@@ -398,41 +398,48 @@ In both cases, the user reaches useful, browsable content within seconds of open
 
 ### The concept: editorial discovery
 
-portal. is designed to feel like a city magazine you carry in your pocket — not a utility app, not a social feed. The visual language borrows from print editorial: deliberate white space, serif headlines that command attention, and photography that fills the frame. Every screen is a considered layout, not a list of results. Browsing portal. should feel like flipping through a well-edited issue where every pick has weight because someone put their name on it.
+portal. is designed to feel like a city magazine you carry in your pocket — not a utility app, not a social feed. The visual language borrows from print editorial: deliberate white space, strong display typography, and photography that fills the frame. Every screen is a considered layout, not a list of results. Browsing portal. should feel like flipping through a well-edited issue where every pick has weight because someone put their name on it.
 
 This matters for the product: editorial trust is visual before it's intellectual. If the app looks considered, recommendations feel considered. The design system encodes that signal at every level.
 
 ### Typography
 
-Two typefaces, used with strict hierarchy:
+**iOS implementation (authoritative for the BarrioCursor app — March 2026):** One bundled family + system UI.
 
-**Instrument Serif** — headlines, collection names, spot/event titles, the wordmark. A contemporary editorial serif with optical italic that gives the app its magazine voice. Used at display sizes for maximum impact. The italic variant appears in the wordmark (*portal.*) and hero taglines.
+- **DM Sans Black** — display headlines, wordmark, spot/event/collection titles at impact sizes (`DMSans-Black.ttf`).
+- **DM Sans Italic** — editorial accent lines and “magazine” italics where a second voice is needed (`DMSans-Italic.ttf`); no system serif.
+- **DM Sans** Regular / Medium / Bold — supporting custom styles where referenced in the design system.
+- **SF (system)** — body copy, metadata, labels, filter pills, section chrome.
 
-**DM Sans** — all UI text, metadata, labels, captions, filter pills. Clean, geometric, highly legible at small sizes. Keeps the product functional without competing with the display type.
+**Original PRD intent (reference):** Instrument Serif for display + DM Sans for UI. That pairing is **not** used in the current iOS bundle; see `PRD-UI-DESIGN-REVIEW.md` for the rationale and audit history.
 
 ### Color
 
-The palette is deliberately restrained — a warm base with a single strong editorial accent.
+The palette is deliberately restrained — a neutral base with a single strong brand accent.
 
-- **Background:** warm off-white (hsl 36 30% 97%) — reminiscent of uncoated magazine stock, not pure white
-- **Foreground:** near-black with warm brown undertone (hsl 20 20% 10%) — avoids the coldness of pure black
-- **Primary accent:** saturated orange-red (hsl 16 90% 52%) — the editorial accent used for CTAs, active filter pills, and the wordmark period
-- **Live accent:** warm rose (hsl 340 75% 52%) — used sparingly for live/happening-now states
-- **Muted/border:** warm grey tones in the same hue family as the background
+**iOS tokens (`PortalColors.swift`):**
+
+- **Background:** grayish off-white `#F2F2F0` — neutral page ground (not creamy)
+- **Foreground:** near-black `#1F1810`
+- **Primary accent:** teal green `#2F7168` — CTAs, active filters, map pins, Follow, save-active state
+- **Live accent:** warm rose `#F25C8C` — live / happening-now
+- **Muted/border:** neutral greys (`#E0E0DE`, `#6B6B68`, etc.)
+
+**Legacy prose (reference):** Earlier drafts described a warm cream background and orange-red primary; the shipped app uses the token list above. Trust-layer copy below should be read in light of **teal = primary brand** on iOS.
 
 ### Trust-layer color coding
 
 Color carries semantic meaning — it signals the trust source:
 
-- **Orange gradient** — editorial authority. Appears on prominent user avatars, event date sidebars, CTAs, and active filter pills. When you see orange, something has been recommended by someone with a public following.
-- **Personal colors** (blue, teal, amber — assigned per friend) — friend attribution. When a card shows a colored avatar that isn't orange, it's someone you know personally.
+- **Teal / primary** — brand and primary actions on iOS (CTAs, active pills, pins). Legacy PRD described an orange editorial gradient for some of the same surfaces.
+- **Personal colors** (blue, teal, amber — assigned per friend) — friend attribution. When a card shows a colored avatar that isn't the primary brand treatment, it's someone you know personally.
 - **Dashed ring + muted opacity** — pending follow state. Communicates "you don't have access yet" without a hard error.
 
 ### Surfaces and depth
 
-Cards use pure white over the warm cream background, creating gentle lift without heavy shadows. Shadows are soft, two-layer, tuned to feel like paper on a desk.
+Cards use pure white over the gray off-white page background (`portalBackground`), creating gentle lift without heavy shadows. Shadows are soft, two-layer, tuned to feel like paper on a desk.
 
-Photography always fills the card frame. A gradient overlay darkens the bottom third of images so white text reads cleanly over any photo.
+Photography fills the card frame where the layout uses a hero image. **`portalGradientOverlay`** uses a strong bottom scrim (clear → black ~90% opacity) so white type stays readable on light photos.
 
 Border radius is consistent (1rem) — rounded enough to feel modern, not so round it looks playful.
 
@@ -456,5 +463,5 @@ Animations are understated and directional — they reinforce hierarchy, not dec
 
 - **Fade-in** (0.4s, ease-out, Y+8px) — content appearing in place. Filters, friend sections.
 - **Slide-up** (0.5s, ease-out, Y+20px) — section-level content entering. Events, featured collections.
-- **Pulse-glow** — the single expressive animation, used only on live/ongoing event indicators. Warm orange glow pulses at 2s interval.
+- **Pulse-glow** — the single expressive animation, used only on live/ongoing event indicators (e.g. scale pulse on map pin / live halo). Interval ~2s.
 - **Staggered delays** on grids (80ms per item) — creates the appearance of content being placed, not dumped.
