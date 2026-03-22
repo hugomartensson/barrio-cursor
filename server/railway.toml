@@ -7,15 +7,13 @@ buildCommand = "npm run build && npx prisma generate"
 nixpacksConfigPath = "nixpacks.toml"
 
 [deploy]
-# Sync schema then start (Railway sets PORT automatically).
-# Using db push because the DB was bootstrapped without prisma migrate;
-# _prisma_migrations table does not exist.
+# Do NOT run `prisma db push` on every boot: it drops tables Prisma does not know
+# about (e.g. mastra_workflow_snapshot from portal-mastra), which breaks the ingest
+# admin with 500 on GET /api/workflows/ingest/runs.
 #
-# --accept-data-loss: required when other apps (e.g. portal-mastra) create tables
-# Prisma does not know about (e.g. mastra_*). Without this flag, deploy fails.
-# WARNING: each deploy may DROP those extra tables. For stable Mastra state, stop
-# running db push on boot and use `prisma migrate deploy` only, or give Mastra
-# its own DATABASE_URL on a separate Postgres.
-startCommand = "npx prisma db push --skip-generate --accept-data-loss && node dist/index.js"
+# When you change `prisma/schema.prisma`, apply the schema once:
+#   railway run --service <barrio-api> npx prisma db push --accept-data-loss
+# or fix migrations and use: npx prisma migrate deploy
+startCommand = "node dist/index.js"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
