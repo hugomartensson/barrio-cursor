@@ -69,6 +69,59 @@ export async function runIngestWorkflow(
   return { runId };
 }
 
+/**
+ * Polls a workflow run until it reaches a terminal state (suspended/success/failed/bailed).
+ * Calls onDone with the final run record. Stops after maxMinutes.
+ */
+export function pollWorkflowRun(
+  runId: string,
+  onDone: (result: unknown) => Promise<void>,
+  maxMinutes = 10
+): void {
+  const base = mastraBase();
+  const url = `${base}/api/workflows/ingest/runs/${encodeURIComponent(runId)}`;
+  const deadline = Date.now() + maxMinutes * 60_000;
+  const interval = 20_000;
+
+  const poll = async (): Promise<void> => {
+    if (Date.now() > deadline) {
+      logger.warn({ runId }, 'Workflow poll timed out');
+      await onDone({ status: 'timeout' });
+      return;
+    }
+    try {
+      const res = await fetch(url, {
+        headers: headers(),
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (!res.ok) {
+        logger.warn({ runId, status: res.status }, 'Poll fetch failed, retrying');
+        setTimeout(() => void poll(), interval);
+        return;
+      }
+      const data = (await res.json()) as Record<string, unknown>;
+      const status = data['status'] as string | undefined;
+      if (
+        status === 'suspended' ||
+        status === 'waiting' ||
+        status === 'success' ||
+        status === 'failed' ||
+        status === 'bailed'
+      ) {
+        logger.info({ runId, status }, 'Workflow reached terminal state');
+        await onDone(data);
+        return;
+      }
+      setTimeout(() => void poll(), interval);
+    } catch (e) {
+      logger.warn({ runId, err: String(e) }, 'Poll error, retrying');
+      setTimeout(() => void poll(), interval);
+    }
+  };
+
+  setTimeout(() => void poll(), interval);
+}
+
 /** Draft nested under human-review step (Mastra suspend shape). */
 function draftFromSteps(r: Record<string, unknown>): { name?: string } | null {
   const steps = r['steps'] as

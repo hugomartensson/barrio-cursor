@@ -2,7 +2,13 @@
 import { Bot, type Context } from 'grammy';
 import { config } from '../../config/index.js';
 import { createLogger } from '../../services/logger.js';
-import { runIngestWorkflow, type IngestWorkflowInput } from './mastra-client.js';
+import {
+  extractDraftNameFromMastraResult,
+  pollWorkflowRun,
+  runIngestWorkflow,
+  workflowAwaitingHumanReview,
+  type IngestWorkflowInput,
+} from './mastra-client.js';
 
 const logger = createLogger({ component: 'ingest-bot' });
 
@@ -83,9 +89,27 @@ export const createBot = (): Bot => {
       }
       const { runId } = await runIngestWorkflow(input);
       logger.info({ runId }, 'Ingest workflow started');
-      await ctx.reply(
-        'Processing... check /admin/ingest/ in ~1 min for the draft to review.'
-      );
+      await ctx.reply("Processing... I'll let you know when the draft is ready.");
+      void pollWorkflowRun(runId, async (result) => {
+        const status = (result as { status?: string })?.status;
+        if (workflowAwaitingHumanReview(result)) {
+          const name = extractDraftNameFromMastraResult(result) ?? 'Unnamed';
+          await ctx.reply(`Draft ready: ${name}\nOpen Admin → /admin/ingest/ to review.`);
+        } else if (status === 'bailed') {
+          await ctx.reply('Skipped — content not suitable for Portal.');
+        } else if (status === 'success') {
+          await ctx.reply('Published ✓');
+        } else if (status === 'failed') {
+          logger.warn({ result }, 'Workflow failed');
+          await ctx.reply('Extraction failed — check Mastra logs or try another URL.');
+        } else if (status === 'timeout') {
+          await ctx.reply(
+            'Timed out waiting for result — check /admin/ingest/ manually.'
+          );
+        } else {
+          await ctx.reply('Extraction finished — check /admin/ingest/.');
+        }
+      });
     } catch (error) {
       logger.error({ error }, 'Mastra ingest workflow failed');
       await ctx.reply('Failed to start workflow — check dashboard / logs.');
