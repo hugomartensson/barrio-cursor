@@ -2,12 +2,7 @@
 import { Bot, type Context } from 'grammy';
 import { config } from '../../config/index.js';
 import { createLogger } from '../../services/logger.js';
-import {
-  extractDraftNameFromMastraResult,
-  runIngestWorkflow,
-  workflowAwaitingHumanReview,
-  type IngestWorkflowInput,
-} from './mastra-client.js';
+import { runIngestWorkflow, type IngestWorkflowInput } from './mastra-client.js';
 
 const logger = createLogger({ component: 'ingest-bot' });
 
@@ -86,33 +81,14 @@ export const createBot = (): Bot => {
       if (!options?.skipGotIt) {
         await ctx.reply('Got it ✓');
       }
-      const result = await runIngestWorkflow(input);
-      const status = (result as { status?: string })?.status;
-      if (workflowAwaitingHumanReview(result)) {
-        const name = extractDraftNameFromMastraResult(result) ?? 'Unnamed';
-        await ctx.reply(
-          `Draft ready: ${name}\nOpen Admin → /admin/ingest/ (Spots / Events tabs) to review.`
-        );
-        return;
-      }
-      if (status === 'bailed') {
-        await ctx.reply('Skipped.');
-        return;
-      }
-      if (status === 'success') {
-        await ctx.reply('Published ✓');
-        return;
-      }
-      if (status === 'failed') {
-        logger.warn({ result }, 'Mastra workflow failed');
-        await ctx.reply('Extraction failed — check Mastra logs or try another URL.');
-        return;
-      }
-      logger.warn({ result }, 'Unexpected Mastra workflow status');
-      await ctx.reply('Extraction finished — check the ingest dashboard.');
+      const { runId } = await runIngestWorkflow(input);
+      logger.info({ runId }, 'Ingest workflow started');
+      await ctx.reply(
+        'Processing... check /admin/ingest/ in ~1 min for the draft to review.'
+      );
     } catch (error) {
       logger.error({ error }, 'Mastra ingest workflow failed');
-      await ctx.reply('Extraction failed — check dashboard / logs.');
+      await ctx.reply('Failed to start workflow — check dashboard / logs.');
     }
   };
 

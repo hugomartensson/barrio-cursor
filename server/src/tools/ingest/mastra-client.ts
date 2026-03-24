@@ -26,32 +26,47 @@ const headers = (): Record<string, string> => {
 };
 
 /**
- * Runs ingest workflow until suspend, success, failure, or bail. Uses Mastra start-async route
- * (handler awaits until first terminal state for that run).
+ * Starts the ingest workflow in the background using the two-step create-run + start pattern.
+ * Returns immediately (fire-and-forget) — the workflow runs asynchronously on the Mastra server,
+ * avoiding the Railway 180s HTTP gateway timeout that blocked the previous start-async approach.
  */
-export async function runIngestWorkflow(input: IngestWorkflowInput): Promise<unknown> {
-  const url = `${mastraBase()}/api/workflows/ingest/start-async`;
-  const res = await fetch(url, {
+export async function runIngestWorkflow(
+  input: IngestWorkflowInput
+): Promise<{ runId: string }> {
+  const base = mastraBase();
+
+  // Step 1: create run → get runId immediately
+  const createRes = await fetch(`${base}/api/workflows/ingest/create-run`, {
     method: 'POST',
     headers: headers(),
-    body: JSON.stringify({ inputData: input }),
-    signal: AbortSignal.timeout(300_000),
+    body: JSON.stringify({}),
+    signal: AbortSignal.timeout(15_000),
   });
+  if (!createRes.ok) {
+    const text = await createRes.text();
+    logger.warn({ status: createRes.status, text }, 'Mastra create-run failed');
+    throw new Error(`Mastra create-run failed: ${createRes.status}`);
+  }
+  const { runId } = (await createRes.json()) as { runId: string };
 
-  const text = await res.text();
-  let json: unknown;
-  try {
-    json = text ? JSON.parse(text) : null;
-  } catch {
-    json = { parseError: true, raw: text };
+  // Step 2: start run in background (fire-and-forget — returns immediately)
+  const startRes = await fetch(
+    `${base}/api/workflows/ingest/start?runId=${encodeURIComponent(runId)}`,
+    {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({ inputData: input }),
+      signal: AbortSignal.timeout(15_000),
+    }
+  );
+  if (!startRes.ok) {
+    const text = await startRes.text();
+    logger.warn({ status: startRes.status, text, runId }, 'Mastra start failed');
+    throw new Error(`Mastra start failed: ${startRes.status}`);
   }
 
-  if (!res.ok) {
-    logger.warn({ status: res.status, json }, 'Mastra ingest workflow HTTP error');
-    throw new Error(`Mastra workflow failed: ${res.status}`);
-  }
-
-  return json;
+  logger.info({ runId }, 'Mastra ingest workflow started');
+  return { runId };
 }
 
 /** Draft nested under human-review step (Mastra suspend shape). */
