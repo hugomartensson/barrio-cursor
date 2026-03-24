@@ -21,6 +21,7 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   GEMINI_API_KEY: z.string().optional(),
   GOOGLE_MAPS_API_KEY: z.string().optional(),
+  GOOGLE_PLACES_API_KEY: z.string().optional(),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_ALLOWED_USER_ID: z.string().optional(),
   PORTAL_TEAM_EMAIL: z.string().email().optional(),

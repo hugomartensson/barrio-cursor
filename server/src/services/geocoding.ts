@@ -12,7 +12,7 @@ export interface GeocodingResult {
  * Returns the first result's lat/lng and formatted address.
  */
 export async function geocodeAddress(address: string): Promise<GeocodingResult> {
-  const apiKey = config.GOOGLE_MAPS_API_KEY;
+  const apiKey = config.GOOGLE_MAPS_API_KEY ?? config.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     throw new Error('GOOGLE_MAPS_API_KEY is not configured');
   }

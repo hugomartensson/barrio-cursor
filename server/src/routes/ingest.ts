@@ -15,12 +15,11 @@ async function resolveCoords(
   address: string,
   name?: string
 ): Promise<{ latitude: number; longitude: number; formattedAddress: string | null }> {
-  if (!config.GOOGLE_MAPS_API_KEY) {
+  const googleKey = config.GOOGLE_MAPS_API_KEY ?? config.GOOGLE_PLACES_API_KEY;
+  if (!googleKey) {
     throw Object.assign(
       new Error('GOOGLE_MAPS_API_KEY is not configured on this service'),
-      {
-        configMissing: true,
-      }
+      { configMissing: true }
     );
   }
 
@@ -41,7 +40,7 @@ async function resolveCoords(
 
   // Fallback: Places text search by name + city when address geocoding returns no results
   if (name) {
-    const key = config.GOOGLE_MAPS_API_KEY;
+    const key = googleKey;
     const queries = [`${name} Barcelona`, `${name}, ${address}`];
     for (const query of queries) {
       const searchUrl = new URL(
