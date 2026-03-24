@@ -20,11 +20,14 @@ WORKFLOW FOR A URL INPUT:
 2. If googlePlacesFetcher returns a website URL, also call websiteFetcher on it.
 3. Cross-check: call googlePlacesFetcher with venueName + city "Barcelona" to verify name and address. Prefer Google Places for name and full address when available.
 4. If address missing, use tavily-web-search to find it.
-5. Best image:
-   - Collect candidates from fetchers (og:image, Places photos, site images).
-   - Call image-validator on the top 3–5 distinct URLs.
-   - Prefer interior > exterior > food > atmosphere. Reject logos, illustrations, menus, low quality.
-   - If still weak, search Tavily for "[venue] Barcelona" and fetch promising pages with websiteFetcher.
+5. Best image — PHOTOS OF THE ACTUAL PLACE ONLY:
+   - The image must show the real physical space: interior (tables, bar, room), exterior (facade, terrace), food/drinks on the table, or crowd/atmosphere.
+   - NEVER use: logos, brand illustrations, drawings, icons, text-only graphics, menus, or abstract art — even if they look nice. If it is not a photograph of the real place, discard it.
+   - Priority order for sources: Google Places photos > Instagram photos > press/blog photos > website og:image.
+   - Always call googlePlacesFetcher first to get Place photos — these are almost always real photos of the space.
+   - Collect all candidates, call image-validator on the top 3–5 distinct URLs.
+   - If every candidate from the website is a logo or illustration, DO NOT use any of them. Instead search Tavily for "[venue name] Barcelona interior" or "[venue name] Barcelona fotos" and fetch those pages to find a real photo.
+   - Only set imageUrl to null if you genuinely cannot find a real photo after exhausting all sources.
 6. Produce one JSON object matching the required structured output schema (see tool/schema). No extra keys.
 
 WORKFLOW FOR TEXT-ONLY INPUT:
