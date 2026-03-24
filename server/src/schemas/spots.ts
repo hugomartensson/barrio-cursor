@@ -9,21 +9,34 @@ export const listSpotsQuerySchema = z.object({
   categoryTag: z.string().max(50).optional(),
 });
 
-export const createSpotSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(200, 'Name too long'),
-  description: z
-    .string()
-    .min(1, 'Description is required')
-    .max(2000, 'Description too long'),
-  category: categoryEnum,
-  address: z.string().min(1, 'Address is required'),
-  neighborhood: z.string().max(100).optional(),
-  tags: z.array(z.string().max(50)).max(10).optional().default([]),
-  image: z.object({
-    url: z.string().url('Invalid image URL'),
-    thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
-  }),
-});
+export const createSpotSchema = z
+  .object({
+    name: z.string().min(1, 'Name is required').max(200, 'Name too long'),
+    description: z
+      .string()
+      .min(1, 'Description is required')
+      .max(2000, 'Description too long'),
+    category: categoryEnum,
+    address: z.string().min(1, 'Address is required'),
+    neighborhood: z.string().max(100).optional(),
+    tags: z.array(z.string().max(50)).max(10).optional().default([]),
+    image: z.object({
+      url: z.string().url('Invalid image URL'),
+      thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
+    }),
+    /** When both set (e.g. after validate / enrich), POST /spots skips Geocoding API. */
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+  })
+  .refine(
+    (d) =>
+      (d.latitude === undefined && d.longitude === undefined) ||
+      (d.latitude !== undefined && d.longitude !== undefined),
+    {
+      message: 'latitude and longitude must both be provided or both omitted',
+      path: ['latitude'],
+    }
+  );
 
 export const updateSpotSchema = z.object({
   name: z.string().min(1).max(200).optional(),

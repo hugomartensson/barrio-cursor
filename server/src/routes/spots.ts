@@ -121,14 +121,19 @@ router.post(
 
       let lat: number;
       let lng: number;
-      try {
-        const geocoded = await geocodeAddress(input.address);
-        lat = geocoded.latitude;
-        lng = geocoded.longitude;
-      } catch {
-        throw ApiError.badRequest(
-          'Could not find location for this address. Please try a more specific address.'
-        );
+      if (input.latitude !== undefined && input.longitude !== undefined) {
+        lat = input.latitude;
+        lng = input.longitude;
+      } else {
+        try {
+          const geocoded = await geocodeAddress(input.address);
+          lat = geocoded.latitude;
+          lng = geocoded.longitude;
+        } catch {
+          throw ApiError.badRequest(
+            'Could not find location for this address. Please try a more specific address.'
+          );
+        }
       }
 
       const spot = await prisma.spot.create({

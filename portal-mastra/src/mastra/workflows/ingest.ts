@@ -1,5 +1,6 @@
 import { createStep, createWorkflow } from '@mastra/core/workflows';
 import { downloadAndUploadIngestImage } from '../lib/ingest-image.js';
+import { resolvePlaceCoordinates } from '../lib/places-resolve.js';
 import { draftToPublishPayload, getPortalClient } from '../lib/portal-client.js';
 import {
   draftSchema,
@@ -59,6 +60,43 @@ const verifyStep = createStep({
   },
 });
 
+const enrichLocationStep = createStep({
+  id: 'enrich-location',
+  inputSchema: verifiedDraftSchema,
+  outputSchema: verifiedDraftSchema,
+  execute: async ({ inputData }) => {
+    const addr = inputData.address?.trim();
+    if (!addr) {
+      return {
+        ...inputData,
+        publishReady: false,
+        publishBlockers: ['Missing address for location'],
+      };
+    }
+    const r = await resolvePlaceCoordinates({
+      address: addr,
+      name: inputData.name,
+      neighborhood: inputData.neighborhood,
+    });
+    if (!r.ok) {
+      return {
+        ...inputData,
+        publishReady: false,
+        publishBlockers: [r.reason],
+      };
+    }
+    return {
+      ...inputData,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      resolvedAddress: r.formattedAddress,
+      placeId: r.placeId,
+      publishReady: true,
+      publishBlockers: [],
+    };
+  },
+});
+
 const humanReviewStep = createStep({
   id: 'human-review',
   inputSchema: verifiedDraftSchema,
@@ -114,6 +152,7 @@ export const ingestWorkflow = createWorkflow({
 })
   .then(extractStep)
   .then(verifyStep)
+  .then(enrichLocationStep)
   .then(humanReviewStep)
   .then(publishStep)
   .commit();

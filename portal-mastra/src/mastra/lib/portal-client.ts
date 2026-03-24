@@ -11,6 +11,8 @@ export interface PublishPayload {
   startTime?: string | null;
   endTime?: string | null;
   collectionId?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 interface LoginResponse {
@@ -19,6 +21,22 @@ interface LoginResponse {
 
 interface CreateResponse {
   data?: { id?: string };
+}
+
+async function readApiError(response: Response): Promise<string> {
+  const text = await response.text();
+  if (!text) return response.statusText || String(response.status);
+  try {
+    const j = JSON.parse(text) as {
+      error?: { message?: string; code?: string };
+      message?: string;
+    };
+    const msg = j.error?.message ?? j.message;
+    if (msg) return `${response.status}: ${msg}`;
+  } catch {
+    /* use raw */
+  }
+  return `${response.status}: ${text.slice(0, 500)}`;
 }
 
 const apiBase = (): string => {
@@ -66,6 +84,7 @@ export class PortalClient {
     const token = await this.login();
     const response = await fetch(`${apiBase()}${path}`, {
       ...init,
+      signal: AbortSignal.timeout(30_000),
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
@@ -77,6 +96,7 @@ export class PortalClient {
       const refreshed = await this.login();
       return fetch(`${apiBase()}${path}`, {
         ...init,
+        signal: AbortSignal.timeout(30_000),
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${refreshed}`,
@@ -91,21 +111,29 @@ export class PortalClient {
     const { type, collectionId } = draft;
 
     if (type === 'spot') {
+      const hasCoords = draft.latitude != null && draft.longitude != null;
+      console.log(
+        `[portal-client] publish spot "${draft.name}" — coords: ${hasCoords ? `${draft.latitude},${draft.longitude}` : 'none (will geocode)'}`,
+      );
+      const body: Record<string, unknown> = {
+        name: draft.name,
+        description: draft.description,
+        category: draft.category,
+        address: draft.address,
+        neighborhood: draft.neighborhood ?? undefined,
+        tags: [],
+        image: { url: draft.imageUrl },
+      };
+      if (hasCoords) {
+        body.latitude = draft.latitude;
+        body.longitude = draft.longitude;
+      }
       const response = await this.authedFetch('/spots', {
         method: 'POST',
-        body: JSON.stringify({
-          name: draft.name,
-          description: draft.description,
-          category: draft.category,
-          address: draft.address,
-          neighborhood: draft.neighborhood ?? undefined,
-          tags: [],
-          image: { url: draft.imageUrl },
-        }),
+        body: JSON.stringify(body),
       });
       if (!response.ok) {
-        const t = await response.text();
-        throw new Error(`Spot publish failed: ${response.status} ${t}`);
+        throw new Error(`Spot publish failed: ${await readApiError(response)}`);
       }
       const json = (await response.json()) as CreateResponse;
       const itemId = json.data?.id;
@@ -116,21 +144,25 @@ export class PortalClient {
       return { portalId: itemId, portalType: 'spot' };
     }
 
+    const evBody: Record<string, unknown> = {
+      title: draft.name,
+      description: draft.description,
+      category: draft.category,
+      address: draft.address,
+      startTime: draft.startTime ?? new Date().toISOString(),
+      endTime: draft.endTime ?? null,
+      media: [{ url: draft.imageUrl, type: 'photo' }],
+    };
+    if (draft.latitude != null && draft.longitude != null) {
+      evBody.latitude = draft.latitude;
+      evBody.longitude = draft.longitude;
+    }
     const response = await this.authedFetch('/events', {
       method: 'POST',
-      body: JSON.stringify({
-        title: draft.name,
-        description: draft.description,
-        category: draft.category,
-        address: draft.address,
-        startTime: draft.startTime ?? new Date().toISOString(),
-        endTime: draft.endTime ?? null,
-        media: [{ url: draft.imageUrl, type: 'photo' }],
-      }),
+      body: JSON.stringify(evBody),
     });
     if (!response.ok) {
-      const t = await response.text();
-      throw new Error(`Event publish failed: ${response.status} ${t}`);
+      throw new Error(`Event publish failed: ${await readApiError(response)}`);
     }
     const json = (await response.json()) as CreateResponse;
     const itemId = json.data?.id;
@@ -187,16 +219,20 @@ export function draftToPublishPayload(
   d: Draft & { collectionId?: string | null },
   supabaseImageUrl: string,
 ): PublishPayload {
+  const lat = d.latitude ?? null;
+  const lng = d.longitude ?? null;
   return {
     type: d.type,
     name: d.name?.trim() || 'Unnamed',
     description: d.description?.trim() || d.name?.trim() || 'No description',
     category: d.category ?? 'community',
-    address: d.address?.trim() || 'Unknown address',
+    address: d.address?.trim() || d.resolvedAddress?.trim() || 'Unknown address',
     neighborhood: d.neighborhood,
     imageUrl: supabaseImageUrl,
     startTime: d.type === 'event' ? d.startTime : undefined,
     endTime: d.type === 'event' ? d.endTime : undefined,
     collectionId: d.collectionId ?? null,
+    latitude: lat,
+    longitude: lng,
   };
 }

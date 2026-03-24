@@ -10,32 +10,45 @@ export const categoryEnum = z.enum([
   'community',
 ]);
 
-export const createEventSchema = z.object({
-  title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
-  description: z
-    .string()
-    .min(1, 'Description is required')
-    .max(2000, 'Description too long'),
-  category: categoryEnum,
-  address: z.string().min(1, 'Address is required'),
-  startTime: z.string().datetime({ message: 'Invalid start time format' }),
-  endTime: z
-    .string()
-    .datetime({ message: 'Invalid end time format' })
-    .nullable()
-    .optional(),
-  media: z
-    .array(
-      z.object({
-        url: z.string().url('Invalid media URL'),
-        type: z.enum(['photo']),
-        thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
-      })
-    )
-    .min(1, 'At least one image is required')
-    .max(1, 'Maximum 1 image allowed'),
-  ticketUrl: z.string().url('Invalid ticket URL').optional(),
-});
+export const createEventSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
+    description: z
+      .string()
+      .min(1, 'Description is required')
+      .max(2000, 'Description too long'),
+    category: categoryEnum,
+    address: z.string().min(1, 'Address is required'),
+    startTime: z.string().datetime({ message: 'Invalid start time format' }),
+    endTime: z
+      .string()
+      .datetime({ message: 'Invalid end time format' })
+      .nullable()
+      .optional(),
+    media: z
+      .array(
+        z.object({
+          url: z.string().url('Invalid media URL'),
+          type: z.enum(['photo']),
+          thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
+        })
+      )
+      .min(1, 'At least one image is required')
+      .max(1, 'Maximum 1 image allowed'),
+    ticketUrl: z.string().url('Invalid ticket URL').optional(),
+    /** When both set, POST /events skips Geocoding API. */
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+  })
+  .refine(
+    (d) =>
+      (d.latitude === undefined && d.longitude === undefined) ||
+      (d.latitude !== undefined && d.longitude !== undefined),
+    {
+      message: 'latitude and longitude must both be provided or both omitted',
+      path: ['latitude'],
+    }
+  );
 
 export const updateEventSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long').optional(),

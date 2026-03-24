@@ -22,6 +22,13 @@ export const draftSchema = z.object({
   flaggedFields: z.array(z.string()),
   startTime: z.string().nullable(),
   endTime: z.string().nullable(),
+  /** From enrich step or admin validate — forwarded to POST /spots|events to skip geocode. */
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+  resolvedAddress: z.string().nullable().optional(),
+  placeId: z.string().nullable().optional(),
+  publishReady: z.boolean().optional(),
+  publishBlockers: z.array(z.string()).optional(),
 });
 
 export const verifiedDraftSchema = draftSchema.extend({

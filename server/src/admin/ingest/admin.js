@@ -237,6 +237,97 @@
     }
 
     let currentDraft = null;
+    /** Set when POST /ingest/validate-draft succeeds — merged into correctedFields on approve. */
+    let validatedCoords = null;
+    let validateTimer = null;
+
+    function debounceValidate() {
+      if (validateTimer) clearTimeout(validateTimer);
+      validateTimer = setTimeout(() => {
+        validateTimer = null;
+        void validateDraft();
+      }, 650);
+    }
+
+    function buildValidatePayload() {
+      const d = readDraftFromForm();
+      const img = (d.imageUrl || currentDraft?.imageUrl || '').trim();
+      if (!img) return null;
+      // Pass through coords if already resolved (from enrich step) — validate-draft skips geocoding when present.
+      const lat = typeof d.latitude === 'number' ? d.latitude : undefined;
+      const lng = typeof d.longitude === 'number' ? d.longitude : undefined;
+      if (d.type === 'spot') {
+        return {
+          type: 'spot',
+          name: d.name?.trim() || 'Unnamed',
+          description: d.description?.trim() || '—',
+          category: d.category || 'community',
+          address: d.address?.trim() || '',
+          neighborhood: d.neighborhood?.trim() || undefined,
+          tags: [],
+          image: { url: img },
+          ...(lat !== undefined && lng !== undefined ? { latitude: lat, longitude: lng } : {}),
+        };
+      }
+      const start = d.startTime || new Date().toISOString();
+      return {
+        type: 'event',
+        title: d.name?.trim() || 'Untitled',
+        description: d.description?.trim() || '—',
+        category: d.category || 'community',
+        address: d.address?.trim() || '',
+        startTime: start,
+        endTime: d.endTime ?? null,
+        media: [{ url: img, type: 'photo' }],
+        ...(lat !== undefined && lng !== undefined ? { latitude: lat, longitude: lng } : {}),
+      };
+    }
+
+    async function validateDraft() {
+      const approveBtn = document.getElementById('approveBtn');
+      const payload = buildValidatePayload();
+      validatedCoords = null;
+      if (approveBtn) approveBtn.disabled = true;
+      if (!getToken()) return;
+      if (!payload) {
+        showStatus('error', 'Image URL is required before validation.');
+        return;
+      }
+      if (!String(payload.address || '').trim()) {
+        showStatus('error', 'Address is required.');
+        return;
+      }
+      try {
+        showStatus('ok', 'Validating location…');
+        const response = await fetch('/api/ingest/validate-draft', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(payload),
+        });
+        const json = await parseJsonSafe(response);
+        if (response.status === 401) {
+          localStorage.removeItem(TOKEN_KEY);
+          showStatus('error', 'Session expired — log in again.');
+          return;
+        }
+        if (!response.ok) {
+          showStatus('error', json.error?.message || `Validate failed (${response.status})`);
+          return;
+        }
+        if (!json.valid) {
+          showStatus('error', json.error?.message || 'Could not validate this draft.');
+          return;
+        }
+        validatedCoords = { latitude: json.latitude, longitude: json.longitude };
+        if (approveBtn) approveBtn.disabled = false;
+        showStatus('ok', `Location validated (${json.latitude.toFixed(5)}, ${json.longitude.toFixed(5)}) — you can approve.`);
+      } catch (e) {
+        showStatus('error', errMsg(e));
+      }
+    }
 
     function applyDraftToForm(draft) {
       currentDraft = draft;
@@ -247,7 +338,14 @@
       document.getElementById('neighborhood').value = draft.neighborhood || '';
       document.getElementById('imageUrl').value = draft.imageUrl || '';
       const hero = document.getElementById('hero');
-      if (draft.imageUrl) hero.src = draft.imageUrl;
+      const heroLink = document.getElementById('heroLink');
+      if (draft.imageUrl) {
+        hero.referrerPolicy = 'no-referrer';
+        hero.src = draft.imageUrl;
+        hero.onerror = () => { hero.style.display = 'none'; };
+        hero.onload = () => { hero.style.display = ''; };
+        if (heroLink) { heroLink.href = draft.imageUrl; heroLink.textContent = draft.imageUrl; heroLink.hidden = false; }
+      }
       const ev = document.getElementById('event-fields');
       if (draft.type === 'event') {
         ev.style.display = 'block';
@@ -260,15 +358,23 @@
       thumbs.innerHTML = '';
       const urls = [draft.imageUrl, ...(draft.imageUrls || [])].filter(Boolean);
       const uniq = [...new Set(urls)];
-      uniq.forEach((u) => {
+      uniq.forEach((u, i) => {
         const im = document.createElement('img');
         im.className = 'thumb-pick';
+        im.referrerPolicy = 'no-referrer';
         im.src = u;
+        im.title = u;
+        if (i === 0) im.classList.add('selected');
+        im.onerror = () => { im.style.opacity = '0.25'; im.title = `(failed) ${u}`; };
         im.onclick = () => {
           thumbs.querySelectorAll('.thumb-pick').forEach((x) => x.classList.remove('selected'));
           im.classList.add('selected');
           document.getElementById('imageUrl').value = u;
-          document.getElementById('hero').src = u;
+          const h = document.getElementById('hero');
+          h.referrerPolicy = 'no-referrer';
+          h.src = u;
+          h.style.display = '';
+          if (heroLink) { heroLink.href = u; heroLink.textContent = u; heroLink.hidden = false; }
         };
         thumbs.appendChild(im);
       });
@@ -314,6 +420,10 @@
       document.getElementById('title').textContent = `Review: ${draft.name || 'Unnamed'}`;
       applyDraftToForm(draft);
       formWrap.hidden = false;
+      const approveBtn = document.getElementById('approveBtn');
+      if (approveBtn) approveBtn.disabled = true;
+      validatedCoords = null;
+      await validateDraft();
     }
 
     backBtn.addEventListener('click', () => {
@@ -338,10 +448,27 @@
         formWrap.hidden = true;
       });
 
+    ['name', 'description', 'category', 'address', 'neighborhood', 'imageUrl', 'startTime', 'endTime'].forEach(
+      (id) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', () => debounceValidate());
+          el.addEventListener('change', () => debounceValidate());
+        }
+      },
+    );
+
     document.getElementById('approveBtn').addEventListener('click', async () => {
       try {
+        await validateDraft();
+        if (!validatedCoords) {
+          showStatus('error', 'Fix validation errors before approving.');
+          return;
+        }
         const corrected = readDraftFromForm();
         delete corrected.verifierNotes;
+        corrected.latitude = validatedCoords.latitude;
+        corrected.longitude = validatedCoords.longitude;
         const collectionId = document.getElementById('collectionId').value.trim() || null;
         await fetchJson(`/workflows/ingest/resume-async?runId=${encodeURIComponent(runId)}`, {
           method: 'POST',
