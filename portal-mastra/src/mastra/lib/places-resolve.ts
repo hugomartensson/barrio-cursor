@@ -73,18 +73,30 @@ export async function resolvePlaceCoordinates(input: {
     return geocodeFallback(addr);
   }
 
-  const query = [input.name?.trim(), addr, input.neighborhood?.trim()].filter(Boolean).join(', ');
-  const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
-  searchUrl.searchParams.set('query', query);
-  searchUrl.searchParams.set('key', key);
+  // Try with full query first (name + address), then fall back to name-only so a wrong
+  // address extracted by the AI doesn't poison the search.
+  const name = input.name?.trim();
+  const queries = [
+    [name, addr, input.neighborhood?.trim()].filter(Boolean).join(', '),
+  ];
+  if (name) {
+    queries.push(`${name} Barcelona`);
+  }
 
+  let placeId: string | undefined;
   try {
-    const searchRes = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(12_000) });
-    const searchJson = (await searchRes.json()) as {
-      status: string;
-      results?: Array<{ place_id?: string }>;
-    };
-    const placeId = searchJson.results?.[0]?.place_id;
+    for (const query of queries) {
+      const searchUrl = new URL('https://maps.googleapis.com/maps/api/place/textsearch/json');
+      searchUrl.searchParams.set('query', query);
+      searchUrl.searchParams.set('key', key);
+      const searchRes = await fetch(searchUrl.toString(), { signal: AbortSignal.timeout(12_000) });
+      const searchJson = (await searchRes.json()) as {
+        status: string;
+        results?: Array<{ place_id?: string }>;
+      };
+      placeId = searchJson.results?.[0]?.place_id;
+      if (placeId) break;
+    }
 
     if (placeId) {
       const detailsUrl = new URL('https://maps.googleapis.com/maps/api/place/details/json');
