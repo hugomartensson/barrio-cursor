@@ -4,8 +4,79 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { createSpotSchema } from '../schemas/spots.js';
 import { createEventSchema } from '../schemas/events.js';
 import { geocodeAddress } from '../services/geocoding.js';
+import { config } from '../config/index.js';
+import { createLogger } from '../services/logger.js';
 
 const router = Router();
+const logger = createLogger({ component: 'ingest-validate' });
+
+/** Try geocoding, then fall back to Places text search by name if the address alone fails. */
+async function resolveCoords(
+  address: string,
+  name?: string
+): Promise<{ latitude: number; longitude: number; formattedAddress: string | null }> {
+  if (!config.GOOGLE_MAPS_API_KEY) {
+    throw Object.assign(
+      new Error('GOOGLE_MAPS_API_KEY is not configured on this service'),
+      {
+        configMissing: true,
+      }
+    );
+  }
+
+  // Primary: geocode the address directly
+  try {
+    const g = await geocodeAddress(address);
+    return {
+      latitude: g.latitude,
+      longitude: g.longitude,
+      formattedAddress: g.formattedAddress,
+    };
+  } catch (geocodeErr) {
+    logger.warn(
+      { address, err: String(geocodeErr) },
+      'Geocoding failed, trying Places fallback'
+    );
+  }
+
+  // Fallback: Places text search by name + city when address geocoding returns no results
+  if (name) {
+    const key = config.GOOGLE_MAPS_API_KEY;
+    const queries = [`${name} Barcelona`, `${name}, ${address}`];
+    for (const query of queries) {
+      const searchUrl = new URL(
+        'https://maps.googleapis.com/maps/api/place/textsearch/json'
+      );
+      searchUrl.searchParams.set('query', query);
+      searchUrl.searchParams.set('key', key);
+      const searchRes = await fetch(searchUrl.toString(), {
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!searchRes.ok) {
+        continue;
+      }
+      const searchJson = (await searchRes.json()) as {
+        status: string;
+        results?: Array<{
+          place_id?: string;
+          geometry?: { location: { lat: number; lng: number } };
+          formatted_address?: string;
+        }>;
+      };
+      const first = searchJson.results?.[0];
+      if (first?.geometry?.location) {
+        logger.info({ query, placeId: first.place_id }, 'Resolved via Places fallback');
+        return {
+          latitude: first.geometry.location.lat,
+          longitude: first.geometry.location.lng,
+          formattedAddress: first.formatted_address ?? null,
+        };
+      }
+    }
+  }
+
+  throw new Error(`Could not resolve location for "${address}"`);
+}
 
 type ValidateOk = {
   valid: true;
@@ -62,7 +133,7 @@ router.post(
         return;
       }
       try {
-        const g = await geocodeAddress(spot.address);
+        const g = await resolveCoords(spot.address, spot.name);
         res.json({
           valid: true,
           type: 'spot',
@@ -71,13 +142,15 @@ router.post(
           formattedAddress: g.formattedAddress,
         });
         return;
-      } catch {
+      } catch (err) {
+        const configMissing = (err as { configMissing?: boolean }).configMissing;
         res.status(200).json({
           valid: false,
           type: 'spot',
           error: {
-            message:
-              'Could not find location for this address. Please try a more specific address.',
+            message: configMissing
+              ? 'Geocoding is not configured on this server (GOOGLE_MAPS_API_KEY missing). Contact admin.'
+              : 'Could not find location for this address. Try editing the address or name.',
           },
         });
         return;
@@ -110,7 +183,7 @@ router.post(
         return;
       }
       try {
-        const g = await geocodeAddress(ev.address);
+        const g = await resolveCoords(ev.address, ev.title);
         res.json({
           valid: true,
           type: 'event',
@@ -119,13 +192,15 @@ router.post(
           formattedAddress: g.formattedAddress,
         });
         return;
-      } catch {
+      } catch (err) {
+        const configMissing = (err as { configMissing?: boolean }).configMissing;
         res.status(200).json({
           valid: false,
           type: 'event',
           error: {
-            message:
-              'Could not find location for this address. Please try a more specific address.',
+            message: configMissing
+              ? 'Geocoding is not configured on this server (GOOGLE_MAPS_API_KEY missing). Contact admin.'
+              : 'Could not find location for this address. Try editing the address or name.',
           },
         });
         return;
