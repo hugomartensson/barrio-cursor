@@ -87,14 +87,16 @@ export const createApp = (): Express => {
     },
     standardHeaders: true,
     legacyHeaders: false,
-    // Login/refresh must not share the same budget as the rest of the API (feeds/maps burn 100+ calls fast).
+    // Exclude: auth endpoints, admin static files, and workflow polling (all already JWT-protected).
     skip: (req) => {
       const p = req.path ?? '';
       return (
         p === '/api/auth/login' ||
         p === '/api/auth/refresh' ||
         p.endsWith('/auth/login') ||
-        p.endsWith('/auth/refresh')
+        p.endsWith('/auth/refresh') ||
+        p.startsWith('/admin') ||
+        p.startsWith('/api/workflows/')
       );
     },
   });
