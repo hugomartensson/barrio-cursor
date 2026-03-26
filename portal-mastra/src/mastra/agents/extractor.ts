@@ -48,6 +48,7 @@ FIELD RULES:
 
 KULTURNATT STOCKHOLM: For URLs from kulturnattstockholm.se:
 - All events take place on April 18, 2026. The individual event page shows the time but may not show the date. Use 2026-04-18 as the date, combine with the time from the page for startTime/endTime.
+- Swedish time notation: "18-00" or "18.00" means 18:00 (6 PM), NOT a date range. Parse these as clock times in 24-hour format. Example: "18-00–20-00" → startTime 2026-04-18T18:00:00, endTime 2026-04-18T20:00:00.
 - The page lists a venue name (e.g. "Ungerska kulturhuset", "Spårvägsmuseet", etc.). Extract that name, then call googlePlacesFetcher with "[venue name] Stockholm" to get the address and photos.
 - If googlePlacesFetcher returns no results, use tavily-web-search for "[venue name] Stockholm adress" to find the street address.
 - Use the venue's Google Places photos as the image (real interior/exterior photos), not any event poster from the Kulturnatt page.
