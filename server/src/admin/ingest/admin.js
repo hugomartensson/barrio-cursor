@@ -202,6 +202,56 @@
       showStatus('ok', `${rows.length} run(s) awaiting review loaded.`);
     }
 
+    async function quickApprove(runId, draft, card) {
+      const btns = card.querySelectorAll('button');
+      btns.forEach((b) => { b.disabled = true; });
+      try {
+        // Geocode if no coords yet
+        let lat = draft.latitude;
+        let lng = draft.longitude;
+        if (!lat || !lng) {
+          const payload = draft.type === 'event'
+            ? { type: 'event', title: draft.name || 'Untitled', description: draft.description || '—', category: draft.category || 'community', address: draft.address || '', startTime: draft.startTime || new Date().toISOString(), endTime: draft.endTime || null, media: draft.imageUrl ? [{ url: draft.imageUrl, type: 'photo' }] : [] }
+            : { type: 'spot', name: draft.name || 'Unnamed', description: draft.description || '—', category: draft.category || 'community', address: draft.address || '', image: draft.imageUrl ? { url: draft.imageUrl } : { url: '' }, tags: [] };
+          const v = await fetchJson('/ingest/validate-draft', { method: 'POST', body: JSON.stringify(payload) });
+          if (!v.valid) { showStatus('error', `Cannot approve "${draft.name}": ${v.error?.message}`); btns.forEach((b) => { b.disabled = false; }); return; }
+          lat = v.latitude;
+          lng = v.longitude;
+        }
+        const corrected = { ...draft, latitude: lat, longitude: lng };
+        delete corrected.verifierNotes;
+        await fetchJson(`/workflows/ingest/resume-async?runId=${encodeURIComponent(runId)}`, {
+          method: 'POST',
+          body: JSON.stringify({ step: 'human-review', resumeData: { approved: true, correctedFields: corrected, collectionId: null } }),
+        });
+        card.style.opacity = '0.4';
+        card.style.pointerEvents = 'none';
+        showStatus('ok', `Approved: ${draft.name || 'Unnamed'}`);
+        rowCache = rowCache.filter((x) => x.runId !== runId);
+      } catch (e) {
+        showStatus('error', errMsg(e));
+        btns.forEach((b) => { b.disabled = false; });
+      }
+    }
+
+    async function quickSkip(runId, draft, card) {
+      const btns = card.querySelectorAll('button');
+      btns.forEach((b) => { b.disabled = true; });
+      try {
+        await fetchJson(`/workflows/ingest/resume-async?runId=${encodeURIComponent(runId)}`, {
+          method: 'POST',
+          body: JSON.stringify({ step: 'human-review', resumeData: { approved: false } }),
+        });
+        card.style.opacity = '0.4';
+        card.style.pointerEvents = 'none';
+        showStatus('ok', `Skipped: ${draft.name || 'Unnamed'}`);
+        rowCache = rowCache.filter((x) => x.runId !== runId);
+      } catch (e) {
+        showStatus('error', errMsg(e));
+        btns.forEach((b) => { b.disabled = false; });
+      }
+    }
+
     function render() {
       const filtered = rowCache.filter((x) => x.draft.type === activeTab);
       listEl.innerHTML = '';
@@ -213,17 +263,17 @@
         const card = document.createElement('div');
         card.className = 'card';
         if ((draft.flaggedFields || []).length) card.classList.add('warn');
-        card.onclick = () => {
-          window.location.href = `/admin/ingest/detail.html?runId=${encodeURIComponent(runId)}`;
-        };
+
         const img = document.createElement('img');
         img.className = 'thumb';
+        img.referrerPolicy = 'no-referrer';
         img.alt = '';
-        if (draft.imageUrl) {
-          img.src = draft.imageUrl;
-        }
+        if (draft.imageUrl) img.src = draft.imageUrl;
+
         const meta = document.createElement('div');
         meta.className = 'meta';
+        meta.style.cursor = 'pointer';
+        meta.onclick = () => { window.location.href = `/admin/ingest/detail.html?runId=${encodeURIComponent(runId)}`; };
         const title = document.createElement('div');
         title.textContent = draft.name || 'Unnamed';
         const sub = document.createElement('div');
@@ -232,12 +282,31 @@
         sub.textContent = [draft.neighborhood, draft.category].filter(Boolean).join(' · ');
         meta.appendChild(title);
         meta.appendChild(sub);
+
+        const actions = document.createElement('div');
+        actions.className = 'card-actions';
+
         const badge = document.createElement('span');
         badge.className = 'badge';
         badge.textContent = `${(draft.flaggedFields || []).length} flags`;
+
+        const approveBtn = document.createElement('button');
+        approveBtn.className = 'btn-approve';
+        approveBtn.textContent = '✓ Approve';
+        approveBtn.onclick = (e) => { e.stopPropagation(); void quickApprove(runId, draft, card); };
+
+        const skipBtn = document.createElement('button');
+        skipBtn.className = 'btn-skip';
+        skipBtn.textContent = '✕ Skip';
+        skipBtn.onclick = (e) => { e.stopPropagation(); void quickSkip(runId, draft, card); };
+
+        actions.appendChild(badge);
+        actions.appendChild(approveBtn);
+        actions.appendChild(skipBtn);
+
         card.appendChild(img);
         card.appendChild(meta);
-        card.appendChild(badge);
+        card.appendChild(actions);
         listEl.appendChild(card);
       }
     }
