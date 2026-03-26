@@ -100,9 +100,76 @@
       $status.textContent = text;
     }
 
+    const $submitSection = document.getElementById('submit-section');
+    const $urlInput = document.getElementById('urlInput');
+    const $contextNote = document.getElementById('contextNote');
+    const $submitUrlBtn = document.getElementById('submitUrlBtn');
+    const $submitStatus = document.getElementById('submitStatus');
+
+    function setSubmitStatus(kind, text) {
+      if (!$submitStatus) return;
+      $submitStatus.className = kind;
+      $submitStatus.textContent = text;
+    }
+
     function setAuthed(on) {
       if ($loginSection) $loginSection.hidden = on;
       if ($loggedInSection) $loggedInSection.hidden = !on;
+      if ($submitSection) $submitSection.hidden = !on;
+    }
+
+    function pollSubmittedRun(runId) {
+      const INTERVAL = 10_000;
+      const DEADLINE = Date.now() + 12 * 60_000;
+      const check = async () => {
+        if (Date.now() > DEADLINE) {
+          setSubmitStatus('error', 'Timed out waiting for workflow. Check the queue for results.');
+          return;
+        }
+        try {
+          const run = await fetchJson(`/workflows/ingest/runs/${encodeURIComponent(runId)}`);
+          const s = run.status;
+          if (s === 'suspended' || s === 'waiting') {
+            const draft = extractDraft(run);
+            const name = draft?.name || 'Unnamed';
+            setSubmitStatus('ok', `Draft ready: "${name}" — appeared in queue below.`);
+            void loadQueue();
+          } else if (s === 'success') {
+            setSubmitStatus('ok', 'Published directly (no review step required).');
+            void loadQueue();
+          } else if (s === 'failed' || s === 'bailed') {
+            setSubmitStatus('error', `Workflow ${s}. Check logs for details.`);
+          } else {
+            setTimeout(() => void check(), INTERVAL);
+          }
+        } catch {
+          setTimeout(() => void check(), INTERVAL);
+        }
+      };
+      setTimeout(() => void check(), INTERVAL);
+    }
+
+    if ($submitUrlBtn) {
+      $submitUrlBtn.addEventListener('click', async () => {
+        const url = $urlInput ? $urlInput.value.trim() : '';
+        if (!url) { setSubmitStatus('error', 'Please enter a URL.'); return; }
+        $submitUrlBtn.disabled = true;
+        setSubmitStatus('info', 'Submitting…');
+        try {
+          const { runId } = await fetchJson('/ingest/submit-url', {
+            method: 'POST',
+            body: JSON.stringify({ url, contextNote: $contextNote?.value?.trim() || undefined }),
+          });
+          if ($urlInput) $urlInput.value = '';
+          if ($contextNote) $contextNote.value = '';
+          setSubmitStatus('info', `Processing… (run ${runId.slice(0, 8)}). This takes 1–3 min. The draft will appear in the queue when ready.`);
+          pollSubmittedRun(runId);
+        } catch (e) {
+          setSubmitStatus('error', errMsg(e));
+        } finally {
+          $submitUrlBtn.disabled = false;
+        }
+      });
     }
 
     async function loadQueue() {

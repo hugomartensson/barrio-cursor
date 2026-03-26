@@ -6,6 +6,7 @@ import { createEventSchema } from '../schemas/events.js';
 import { geocodeAddress } from '../services/geocoding.js';
 import { config } from '../config/index.js';
 import { createLogger } from '../services/logger.js';
+import { runIngestWorkflow } from '../tools/ingest/mastra-client.js';
 
 const router = Router();
 const logger = createLogger({ component: 'ingest-validate' });
@@ -96,6 +97,28 @@ router.get('/maps-config', requireAuth, (_req, res) => {
   const key = config.GOOGLE_MAPS_API_KEY ?? config.GOOGLE_PLACES_API_KEY ?? null;
   res.json({ key });
 });
+
+/**
+ * POST /ingest/submit-url — starts the ingest workflow for a URL, same as Telegram link submission.
+ * Returns { runId } immediately; client polls /api/workflows/ingest/runs/:runId for status.
+ */
+router.post(
+  '/submit-url',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { url, contextNote } = req.body as { url?: string; contextNote?: string };
+    if (!url || typeof url !== 'string' || !url.trim()) {
+      res.status(400).json({ error: { message: 'url is required' } });
+      return;
+    }
+    const { runId } = await runIngestWorkflow({
+      inputType: 'telegram_link',
+      rawInput: url.trim(),
+      contextNote: contextNote?.trim() || null,
+    });
+    res.json({ runId });
+  })
+);
 
 /**
  * POST /ingest/validate-draft — same validation as create spot/event, runs geocode when lat/lng omitted.
