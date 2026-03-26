@@ -518,7 +518,6 @@
         // eslint-disable-next-line no-undef
         const ac = new google.maps.places.Autocomplete(addressEl, {
           types: ['establishment', 'geocode'],
-          componentRestrictions: { country: ['es', 'se'] },
           fields: ['formatted_address', 'geometry', 'address_components'],
         });
         ac.addListener('place_changed', () => {
