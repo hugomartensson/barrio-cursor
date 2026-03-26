@@ -119,16 +119,16 @@ model MediaItem {
 }
 
 model Save {
-  userId       String   @map("user_id")
-  collectionId String   @map("collection_id")
-  itemType     ItemType @map("item_type")
-  itemId       String   @map("item_id")
-  createdAt    DateTime @default(now()) @map("created_at")
+  userId       String    @map("user_id")
+  collectionId String?   @map("collection_id")
+  itemType     ItemType  @map("item_type")
+  itemId       String    @map("item_id")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collection Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
 
-  @@id([userId, collectionId, itemId])
+  @@id([userId, itemType, itemId])
   @@index([userId])
   @@index([collectionId])
   @@index([itemId])

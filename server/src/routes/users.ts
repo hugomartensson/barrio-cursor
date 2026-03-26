@@ -177,8 +177,6 @@ interface SavedSpotItem {
   categoryTag: string | null;
   imageUrl: string | null;
   saveCount: number;
-  collectionId: string;
-  collectionName: string;
   savedAt: string;
 }
 
@@ -202,8 +200,6 @@ interface SavedEventItem {
     thumbnailUrl: string | null;
   }[];
   user: { id: string; name: string };
-  collectionId: string;
-  collectionName: string;
   savedAt: string;
 }
 
@@ -220,7 +216,6 @@ router.get(
 
       const saves = await prisma.save.findMany({
         where: { userId, itemType: 'spot' },
-        include: { collection: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' },
       });
       const spotIds = saves.map((s) => s.itemId);
@@ -247,8 +242,6 @@ router.get(
             categoryTag: spot.categoryTag,
             imageUrl: spot.media[0]?.url ?? null,
             saveCount: spot.saveCount,
-            collectionId: s.collection.id,
-            collectionName: s.collection.name,
             savedAt: s.createdAt.toISOString(),
           };
         })
@@ -275,7 +268,6 @@ router.get(
 
       const saves = await prisma.save.findMany({
         where: { userId, itemType: 'event' },
-        include: { collection: { select: { id: true, name: true } } },
         orderBy: { createdAt: 'desc' },
       });
       const eventIds = saves.map((s) => s.itemId);
@@ -314,8 +306,6 @@ router.get(
               thumbnailUrl: m.thumbnailUrl,
             })),
             user: { id: event.user.id, name: event.user.name },
-            collectionId: s.collection.id,
-            collectionName: s.collection.name,
             savedAt: s.createdAt.toISOString(),
           };
         })

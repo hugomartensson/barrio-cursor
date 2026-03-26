@@ -101,7 +101,7 @@ export const raEventFetcher = createTool({
               name?: string;
               address?: string;
               area?: { name?: string };
-              location?: { lat?: number; lng?: number };
+              location?: { latitude?: number; longitude?: number };
             };
             artists?: Array<{ name?: string }>;
           } | null;
@@ -118,9 +118,8 @@ export const raEventFetcher = createTool({
         return { ...empty, error: 'Event not found in RA GraphQL response' };
       }
 
-      // Build image URL from first image filename
-      const filename = ev.images?.[0]?.filename;
-      const imageUrl = filename ? `https://ra.co/images/events/${filename}` : null;
+      // filename is already a full URL (https://images.ra.co/...) — use directly
+      const imageUrl = ev.images?.[0]?.filename ?? null;
 
       return {
         name: ev.title ?? null,
@@ -131,8 +130,8 @@ export const raEventFetcher = createTool({
         venueName: ev.venue?.name ?? null,
         address: ev.venue?.address ?? null,
         neighborhood: ev.venue?.area?.name ?? null,
-        latitude: ev.venue?.location?.lat ?? null,
-        longitude: ev.venue?.location?.lng ?? null,
+        latitude: ev.venue?.location?.latitude ?? null,
+        longitude: ev.venue?.location?.longitude ?? null,
         artists: (ev.artists ?? []).map((a) => a.name ?? '').filter(Boolean),
         error: null,
       };

@@ -62,6 +62,79 @@ interface CollectionData {
   owned: boolean;
   ownerHandle?: string | null;
   ownerInitials?: string | null;
+  coverImageURL?: string | null;
+  previewSpotImageURLs?: string[];
+  saveCount?: number;
+}
+
+/** Fetch the hero image + up to 2 preview image URLs for each collection ID. */
+async function fetchCollectionImageData(
+  collectionIds: string[]
+): Promise<
+  Map<string, { coverImageURL: string | null; previewSpotImageURLs: string[] }>
+> {
+  if (collectionIds.length === 0) {
+    return new Map();
+  }
+
+  // Top 3 items per collection (most recently added first)
+  const allTopItems = await Promise.all(
+    collectionIds.map((id) =>
+      prisma.collectionItem.findMany({
+        where: { collectionId: id },
+        orderBy: { createdAt: 'desc' },
+        take: 3,
+      })
+    )
+  );
+
+  const itemsByCollection = new Map(
+    collectionIds.map((id, i) => [id, allTopItems[i] ?? []])
+  );
+  const allItems = allTopItems.flat();
+
+  const spotIds = [
+    ...new Set(allItems.filter((i) => i.itemType === 'spot').map((i) => i.itemId)),
+  ];
+  const eventIds = [
+    ...new Set(allItems.filter((i) => i.itemType === 'event').map((i) => i.itemId)),
+  ];
+
+  const [spots, events] = await Promise.all([
+    spotIds.length > 0
+      ? prisma.spot.findMany({
+          where: { id: { in: spotIds } },
+          include: { media: { orderBy: { order: 'asc' }, take: 1 } },
+        })
+      : [],
+    eventIds.length > 0
+      ? prisma.event.findMany({
+          where: { id: { in: eventIds } },
+          include: { media: { orderBy: { order: 'asc' }, take: 1 } },
+        })
+      : [],
+  ]);
+
+  const spotMap = new Map(spots.map((s) => [s.id, s.media[0]?.url ?? null]));
+  const eventMap = new Map(events.map((e) => [e.id, e.media[0]?.url ?? null]));
+
+  const result = new Map<
+    string,
+    { coverImageURL: string | null; previewSpotImageURLs: string[] }
+  >();
+  for (const id of collectionIds) {
+    const items = itemsByCollection.get(id) ?? [];
+    const urls = items
+      .map((item) =>
+        item.itemType === 'spot' ? spotMap.get(item.itemId) : eventMap.get(item.itemId)
+      )
+      .filter((u): u is string => typeof u === 'string');
+    result.set(id, {
+      coverImageURL: urls[0] ?? null,
+      previewSpotImageURLs: urls.slice(1),
+    });
+  }
+  return result;
 }
 
 /**
@@ -93,7 +166,9 @@ router.post(
         },
       });
 
-      const count = await prisma.save.count({ where: { collectionId: collection.id } });
+      const count = await prisma.collectionItem.count({
+        where: { collectionId: collection.id },
+      });
       res.status(201).json({
         data: {
           id: collection.id,
@@ -125,7 +200,11 @@ router.get(
       const authReq = req as AuthenticatedRequest;
       const userId = authReq.user.userId;
 
-      const [owned, savedLinks] = await Promise.all([
+      const [currentUser, owned, savedLinks] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { handle: true, initials: true },
+        }),
         prisma.collection.findMany({
           where: { userId },
           orderBy: { updatedAt: 'desc' },
@@ -143,14 +222,22 @@ router.get(
         }),
       ]);
 
-      const ownedCounts = await Promise.all(
-        owned.map((c) => prisma.save.count({ where: { collectionId: c.id } }))
-      );
-      const savedCounts = await Promise.all(
-        savedLinks.map((sc) =>
-          prisma.save.count({ where: { collectionId: sc.collection.id } })
-        )
-      );
+      const allCollectionIds = [
+        ...owned.map((c) => c.id),
+        ...savedLinks.map((sc) => sc.collection.id),
+      ];
+
+      const [ownedCounts, savedCounts, imageData] = await Promise.all([
+        Promise.all(
+          owned.map((c) => prisma.collectionItem.count({ where: { collectionId: c.id } }))
+        ),
+        Promise.all(
+          savedLinks.map((sc) =>
+            prisma.collectionItem.count({ where: { collectionId: sc.collection.id } })
+          )
+        ),
+        fetchCollectionImageData(allCollectionIds),
+      ]);
 
       const ownedData: CollectionData[] = owned.map((c, i) => ({
         id: c.id,
@@ -162,6 +249,9 @@ router.get(
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         owned: true,
+        ownerHandle: currentUser?.handle ?? null,
+        ownerInitials: currentUser?.initials ?? null,
+        ...imageData.get(c.id),
       }));
 
       const savedData: CollectionData[] = savedLinks.map((sc, i) => ({
@@ -176,6 +266,7 @@ router.get(
         owned: false,
         ownerHandle: sc.collection.user.handle,
         ownerInitials: sc.collection.user.initials,
+        ...imageData.get(sc.collection.id),
       }));
 
       const data = [...ownedData, ...savedData].sort(
@@ -203,9 +294,11 @@ router.get(
         take: RECOMMENDED_LIMIT,
         include: {
           user: { select: { id: true, handle: true, initials: true } },
-          _count: { select: { saves: true } },
+          _count: { select: { items: true, savedBy: true } },
         },
       });
+
+      const imageData = await fetchCollectionImageData(collections.map((c) => c.id));
 
       const data: CollectionData[] = collections.map((c) => ({
         id: c.id,
@@ -213,12 +306,14 @@ router.get(
         name: c.name,
         description: c.description,
         visibility: c.visibility,
-        itemCount: c._count.saves,
+        itemCount: c._count.items,
+        saveCount: c._count.savedBy,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
         owned: false,
         ownerHandle: c.user.handle,
         ownerInitials: c.user.initials,
+        ...imageData.get(c.id),
       }));
 
       res.json({ data });
@@ -254,13 +349,17 @@ router.get(
         throw ApiError.forbidden('You cannot view this collection');
       }
 
-      const saves = await prisma.save.findMany({
-        where: { collectionId, userId: collection.userId },
+      const collectionItems = await prisma.collectionItem.findMany({
+        where: { collectionId },
         orderBy: { createdAt: 'desc' },
       });
 
-      const spotIds = saves.filter((s) => s.itemType === 'spot').map((s) => s.itemId);
-      const eventIds = saves.filter((s) => s.itemType === 'event').map((s) => s.itemId);
+      const spotIds = collectionItems
+        .filter((s) => s.itemType === 'spot')
+        .map((s) => s.itemId);
+      const eventIds = collectionItems
+        .filter((s) => s.itemType === 'event')
+        .map((s) => s.itemId);
 
       const [spots, events] = await Promise.all([
         spotIds.length > 0
@@ -286,7 +385,7 @@ router.get(
       const spotMap = new Map(spots.map((s) => [s.id, s]));
       const eventMap = new Map(events.map((e) => [e.id, e]));
 
-      const data: CollectionItemEntry[] = saves.map((s) => {
+      const data: CollectionItemEntry[] = collectionItems.map((s) => {
         const addedAt = s.createdAt.toISOString();
         if (s.itemType === 'spot') {
           const spot = spotMap.get(s.itemId);
@@ -366,7 +465,9 @@ router.get(
         throw ApiError.forbidden('You cannot view this collection');
       }
 
-      const itemCount = await prisma.save.count({ where: { collectionId: id } });
+      const itemCount = await prisma.collectionItem.count({
+        where: { collectionId: id },
+      });
       const owned = collection.userId === userId;
 
       res.json({
@@ -428,7 +529,9 @@ router.patch(
           ...(input.visibility !== undefined && { visibility: input.visibility }),
         },
       });
-      const itemCount = await prisma.save.count({ where: { collectionId: id } });
+      const itemCount = await prisma.collectionItem.count({
+        where: { collectionId: id },
+      });
 
       res.json({
         data: {
@@ -595,28 +698,36 @@ router.post(
         }
       }
 
-      const existing = await prisma.save.findUnique({
-        where: { userId_collectionId_itemId: { userId, collectionId, itemId } },
+      const existing = await prisma.collectionItem.findFirst({
+        where: { collectionId, itemId },
       });
       if (existing) {
         res.json({ data: { saved: true } });
         return;
       }
 
+      // Add to collection, and also bookmark the item if not already saved
+      const alreadySaved = await prisma.save.findUnique({
+        where: { userId_itemType_itemId: { userId, itemType, itemId } },
+      });
+
       await prisma.$transaction(async (tx) => {
-        await tx.save.create({
-          data: { userId, collectionId, itemType, itemId },
+        await tx.collectionItem.create({
+          data: { collectionId, itemType, itemId },
         });
-        if (itemType === 'event') {
-          await tx.event.update({
-            where: { id: itemId },
-            data: { saveCount: { increment: 1 } },
-          });
-        } else {
-          await tx.spot.update({
-            where: { id: itemId },
-            data: { saveCount: { increment: 1 } },
-          });
+        if (!alreadySaved) {
+          await tx.save.create({ data: { userId, itemType, itemId } });
+          if (itemType === 'event') {
+            await tx.event.update({
+              where: { id: itemId },
+              data: { saveCount: { increment: 1 } },
+            });
+          } else {
+            await tx.spot.update({
+              where: { id: itemId },
+              data: { saveCount: { increment: 1 } },
+            });
+          }
         }
       });
 
@@ -673,51 +784,18 @@ router.delete(
         throw ApiError.forbidden('You can only remove items from your own collections');
       }
 
-      const existing = await prisma.save.findUnique({
-        where: { userId_collectionId_itemId: { userId, collectionId, itemId } },
+      const existing = await prisma.collectionItem.findFirst({
+        where: { collectionId, itemId },
       });
       if (!existing) {
         res.json({ data: { saved: false } });
         return;
       }
 
-      const spotExists = await prisma.spot.findUnique({
-        where: { id: itemId },
-        select: { id: true },
-      });
-      const isEvent = !spotExists;
+      // Remove from collection only; the user's bookmark (Save) remains independent
+      await prisma.collectionItem.delete({ where: { id: existing.id } });
 
-      await prisma.$transaction(async (tx) => {
-        await tx.save.delete({
-          where: { userId_collectionId_itemId: { userId, collectionId, itemId } },
-        });
-        if (isEvent) {
-          await tx.event.update({
-            where: { id: itemId },
-            data: { saveCount: { decrement: 1 } },
-          });
-        } else {
-          await tx.spot.update({
-            where: { id: itemId },
-            data: { saveCount: { decrement: 1 } },
-          });
-        }
-      });
-
-      const saveCount = isEvent
-        ? (
-            await prisma.event.findUnique({
-              where: { id: itemId },
-              select: { saveCount: true },
-            })
-          )?.saveCount
-        : (
-            await prisma.spot.findUnique({
-              where: { id: itemId },
-              select: { saveCount: true },
-            })
-          )?.saveCount;
-      res.json({ data: { saved: false, saveCount } });
+      res.json({ data: { saved: false } });
     }
   )
 );

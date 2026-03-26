@@ -1,31 +1,6 @@
 import { prisma } from './prisma.js';
 import type { Collection } from '@prisma/client';
 
-const DEFAULT_SAVED_COLLECTION_NAME = 'Saved';
-
-/**
- * Get or create the default "Saved" collection for a user.
- */
-export async function getOrCreateDefaultSavedCollectionId(
-  userId: string
-): Promise<string> {
-  let collection = await prisma.collection.findFirst({
-    where: { userId, name: DEFAULT_SAVED_COLLECTION_NAME },
-    select: { id: true },
-  });
-  if (!collection) {
-    collection = await prisma.collection.create({
-      data: {
-        userId,
-        name: DEFAULT_SAVED_COLLECTION_NAME,
-        visibility: 'private',
-      },
-      select: { id: true },
-    });
-  }
-  return collection.id;
-}
-
 /**
  * Check if viewer follows the given user (viewer is follower, userId is following).
  */

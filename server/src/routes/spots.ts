@@ -14,7 +14,6 @@ import {
 } from '../schemas/spots.js';
 import type { CreateSpotInput, UpdateSpotInput } from '../schemas/spots.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
-import { getOrCreateDefaultSavedCollectionId } from '../services/collectionService.js';
 import { geocodeAddress } from '../services/geocoding.js';
 
 const router = Router();
@@ -382,18 +381,15 @@ router.post(
         throw ApiError.notFound('Spot');
       }
 
-      const collectionId = await getOrCreateDefaultSavedCollectionId(userId);
       const existing = await prisma.save.findUnique({
-        where: {
-          userId_collectionId_itemId: { userId, collectionId, itemId: spotId },
-        },
+        where: { userId_itemType_itemId: { userId, itemType: 'spot', itemId: spotId } },
       });
 
       if (existing) {
         await prisma.$transaction([
           prisma.save.delete({
             where: {
-              userId_collectionId_itemId: { userId, collectionId, itemId: spotId },
+              userId_itemType_itemId: { userId, itemType: 'spot', itemId: spotId },
             },
           }),
           prisma.spot.update({
@@ -404,12 +400,7 @@ router.post(
       } else {
         await prisma.$transaction([
           prisma.save.create({
-            data: {
-              userId,
-              collectionId,
-              itemType: 'spot',
-              itemId: spotId,
-            },
+            data: { userId, itemType: 'spot', itemId: spotId },
           }),
           prisma.spot.update({
             where: { id: spotId },
@@ -423,9 +414,7 @@ router.post(
         select: { saveCount: true },
       });
       const isSaved = await prisma.save.findUnique({
-        where: {
-          userId_collectionId_itemId: { userId, collectionId, itemId: spotId },
-        },
+        where: { userId_itemType_itemId: { userId, itemType: 'spot', itemId: spotId } },
       });
 
       res.json({

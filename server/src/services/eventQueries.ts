@@ -29,7 +29,7 @@ export async function fetchNearbyEvents(
   if (followingOnly) {
     return prisma.$queryRawUnsafe<NearbyEventRow[]>(
       `
-      SELECT e.id, e.title, e.description, e.category, e.address, e.latitude, e.longitude,
+      SELECT e.id, e.title, e.description, e.category, e.address, e.neighborhood, e.latitude, e.longitude,
              e.start_time, e.end_time, e.created_at, e.save_count,
              ST_Distance(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) as distance,
              e.user_id, u.name as user_name
@@ -49,7 +49,7 @@ export async function fetchNearbyEvents(
   } else {
     return prisma.$queryRawUnsafe<NearbyEventRow[]>(
       `
-      SELECT e.id, e.title, e.description, e.category, e.address, e.latitude, e.longitude,
+      SELECT e.id, e.title, e.description, e.category, e.address, e.neighborhood, e.latitude, e.longitude,
              e.start_time, e.end_time, e.created_at, e.save_count,
              ST_Distance(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography) as distance,
              e.user_id, u.name as user_name

@@ -91,6 +91,7 @@ router.post(
           description: input.description,
           category: input.category,
           address: input.address,
+          neighborhood: input.neighborhood ?? null,
           latitude: lat,
           longitude: lng,
           startTime: new Date(input.startTime),

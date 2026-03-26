@@ -12,6 +12,7 @@ export interface EventData {
   description: string;
   category: string;
   address: string;
+  neighborhood?: string | null;
   latitude: number;
   longitude: number;
   startTime: string;

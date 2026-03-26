@@ -6,8 +6,6 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { eventIdSchema } from '../schemas/events.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
-import { getOrCreateDefaultSavedCollectionId } from '../services/collectionService.js';
-
 const router = Router();
 
 interface SaveResponse {
@@ -21,7 +19,7 @@ type SaveReq = Request<{ id: string }, SaveResponse | ApiErrorResponse>;
 
 /**
  * POST /events/:id/save — Toggle save on an event.
- * Uses Save model with the user's default "Saved" collection.
+ * Saves are pure bookmarks, independent of any collection.
  */
 router.post(
   '/:id/save',
@@ -37,18 +35,15 @@ router.post(
       throw ApiError.notFound('Event');
     }
 
-    const collectionId = await getOrCreateDefaultSavedCollectionId(userId);
     const existing = await prisma.save.findUnique({
-      where: {
-        userId_collectionId_itemId: { userId, collectionId, itemId: eventId },
-      },
+      where: { userId_itemType_itemId: { userId, itemType: 'event', itemId: eventId } },
     });
 
     if (existing) {
       await prisma.$transaction([
         prisma.save.delete({
           where: {
-            userId_collectionId_itemId: { userId, collectionId, itemId: eventId },
+            userId_itemType_itemId: { userId, itemType: 'event', itemId: eventId },
           },
         }),
         prisma.event.update({
@@ -59,12 +54,7 @@ router.post(
     } else {
       await prisma.$transaction([
         prisma.save.create({
-          data: {
-            userId,
-            collectionId,
-            itemType: 'event',
-            itemId: eventId,
-          },
+          data: { userId, itemType: 'event', itemId: eventId },
         }),
         prisma.event.update({
           where: { id: eventId },
@@ -78,9 +68,7 @@ router.post(
       select: { saveCount: true },
     });
     const isSaved = await prisma.save.findUnique({
-      where: {
-        userId_collectionId_itemId: { userId, collectionId, itemId: eventId },
-      },
+      where: { userId_itemType_itemId: { userId, itemType: 'event', itemId: eventId } },
     });
 
     res.json({

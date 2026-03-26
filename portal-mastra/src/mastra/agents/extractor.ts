@@ -55,7 +55,7 @@ KULTURNATT STOCKHOLM: For URLs from kulturnattstockholm.se:
 - If googlePlacesFetcher returns no results, use tavily-web-search for "[venue name] Stockholm adress" to find the street address.
 - Use the venue's Google Places photos as the image (real interior/exterior photos), not any event poster from the Kulturnatt page.
 
-NEVER hallucinate. If a fetcher returns empty or irrelevant content, do NOT invent a venue or use data from a different place. Use null / empty for fields you cannot confirm, and add those fields to flaggedFields. It is better to return an incomplete draft than a wrong one.
+NEVER hallucinate. Every field you set must come directly from tool output — not from your training knowledge about a venue or URL. If raEventFetcher or websiteFetcher returns an error or empty content, do NOT invent data. Set name, description, address, startTime, endTime, imageUrl to null, add them all to flaggedFields, and return. It is far better to return an incomplete draft than a wrong one.
 
 Always use tools instead of guessing addresses or names.`,
   model: 'google/gemini-2.5-flash',

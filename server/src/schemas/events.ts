@@ -19,6 +19,7 @@ export const createEventSchema = z
       .max(2000, 'Description too long'),
     category: categoryEnum,
     address: z.string().min(1, 'Address is required'),
+    neighborhood: z.string().optional(),
     startTime: z.string().datetime({ message: 'Invalid start time format' }),
     endTime: z
       .string()

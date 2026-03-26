@@ -6,6 +6,7 @@ export interface NearbyEventRow {
   description: string;
   category: string;
   address: string;
+  neighborhood: string | null;
   latitude: number;
   longitude: number;
   start_time: Date;
@@ -24,6 +25,7 @@ export function formatEvent(
     description: string;
     category: string;
     address: string;
+    neighborhood?: string | null;
     latitude: number;
     longitude: number;
     startTime: Date;
@@ -47,6 +49,7 @@ export function formatEvent(
     description: event.description,
     category: event.category,
     address: event.address,
+    neighborhood: event.neighborhood ?? null,
     latitude: event.latitude,
     longitude: event.longitude,
     startTime: event.startTime.toISOString(),
@@ -75,6 +78,7 @@ export function formatNearbyEvent(
     description: e.description,
     category: e.category,
     address: e.address,
+    neighborhood: e.neighborhood ?? null,
     latitude: e.latitude,
     longitude: e.longitude,
     startTime: e.start_time.toISOString(),
