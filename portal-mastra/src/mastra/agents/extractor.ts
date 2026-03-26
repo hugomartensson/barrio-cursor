@@ -16,6 +16,7 @@ WORKFLOW FOR A URL INPUT:
    - Google Maps / maps.app.goo.gl → googlePlacesFetcher (mapsUrl)
    - facebook.com/events → facebookEventFetcher
    - instagram.com → instagramFetcher
+   - ra.co/events/* → DO NOT use websiteFetcher (page is JS-rendered, returns empty shell). Instead: use tavilySearchTool to search for the full RA URL (e.g. "ra.co/events/2392108") to get event title, venue, date, and time from cached/indexed results. Then look up the venue with googlePlacesFetcher.
    - Otherwise → websiteFetcher
 2. If googlePlacesFetcher returns a website URL, also call websiteFetcher on it.
 3. Cross-check: call googlePlacesFetcher with venueName + city to verify name and address. Prefer Google Places for name and full address when available.
@@ -52,6 +53,8 @@ KULTURNATT STOCKHOLM: For URLs from kulturnattstockholm.se:
 - The page lists a venue name (e.g. "Ungerska kulturhuset", "Spårvägsmuseet", etc.). Extract that name, then call googlePlacesFetcher with "[venue name] Stockholm" to get the address and photos.
 - If googlePlacesFetcher returns no results, use tavily-web-search for "[venue name] Stockholm adress" to find the street address.
 - Use the venue's Google Places photos as the image (real interior/exterior photos), not any event poster from the Kulturnatt page.
+
+NEVER hallucinate. If a fetcher returns empty or irrelevant content, do NOT invent a venue or use data from a different place. Use null / empty for fields you cannot confirm, and add those fields to flaggedFields. It is better to return an incomplete draft than a wrong one.
 
 Always use tools instead of guessing addresses or names.`,
   model: 'google/gemini-2.5-flash',
