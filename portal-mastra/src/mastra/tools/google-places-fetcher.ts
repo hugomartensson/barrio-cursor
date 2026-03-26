@@ -127,10 +127,18 @@ Returns name, address, category (Portal enum), website, photo URLs, placeId. Use
     const detailsJson = (await detailsRes.json()) as { result?: PlaceResult };
     const d = detailsJson.result ?? place;
 
-    const photoUrls =
+    const rawPhotoUrls =
       d.photos
         ?.map((p) => (p.photo_reference ? placePhotoUrl(p.photo_reference, key) : null))
         .filter((x): x is string => Boolean(x)) ?? [];
+
+    // Resolve redirects so callers get stable lh3.googleusercontent.com URLs
+    // instead of API proxy URLs with embedded keys. Limit to first 8 to stay fast.
+    const photoUrls = await Promise.all(
+      rawPhotoUrls.slice(0, 8).map((u) =>
+        resolveUrl(u).catch(() => u)
+      )
+    );
 
     return {
       name: d.name ?? null,
