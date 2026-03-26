@@ -80,7 +80,8 @@ export async function resolvePlaceCoordinates(input: {
     [name, addr, input.neighborhood?.trim()].filter(Boolean).join(', '),
   ];
   if (name) {
-    queries.push(`${name} Barcelona`);
+    // Try name-only without hardcoded city — the address already contains the city
+    queries.push(name);
   }
 
   let placeId: string | undefined;
