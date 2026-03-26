@@ -91,6 +91,12 @@ type ValidateErr = {
   error: { message: string; details?: Record<string, string> };
 };
 
+/** GET /ingest/maps-config — returns the Google Maps JS API key for the admin autocomplete widget. */
+router.get('/maps-config', requireAuth, (_req, res) => {
+  const key = config.GOOGLE_MAPS_API_KEY ?? config.GOOGLE_PLACES_API_KEY ?? null;
+  res.json({ key });
+});
+
 /**
  * POST /ingest/validate-draft — same validation as create spot/event, runs geocode when lat/lng omitted.
  * Returns coordinates so clients can pass them to POST /spots or /events and avoid a second geocode.

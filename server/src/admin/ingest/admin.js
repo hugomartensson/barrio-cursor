@@ -503,9 +503,51 @@
       }
     });
 
+    async function initAddressAutocomplete() {
+      try {
+        const { key } = await fetchJson('/ingest/maps-config');
+        if (!key) return;
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places`;
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+        const addressEl = document.getElementById('address');
+        // eslint-disable-next-line no-undef
+        const ac = new google.maps.places.Autocomplete(addressEl, {
+          types: ['establishment', 'geocode'],
+          componentRestrictions: { country: 'es' },
+          fields: ['formatted_address', 'geometry', 'address_components'],
+        });
+        ac.addListener('place_changed', () => {
+          const place = ac.getPlace();
+          if (!place.geometry?.location) return;
+          addressEl.value = place.formatted_address || '';
+          const comps = place.address_components || [];
+          const neighborhood =
+            comps.find((c) => c.types.includes('sublocality_level_1'))?.long_name ||
+            comps.find((c) => c.types.includes('neighborhood'))?.long_name ||
+            comps.find((c) => c.types.includes('sublocality'))?.long_name ||
+            '';
+          document.getElementById('neighborhood').value = neighborhood;
+          if (currentDraft) {
+            currentDraft.latitude = place.geometry.location.lat();
+            currentDraft.longitude = place.geometry.location.lng();
+          }
+          void validateDraft();
+        });
+      } catch {
+        /* autocomplete optional — address still works without it */
+      }
+    }
+
     if (getToken()) {
       setAuthed(true);
-      void loadDetail().catch((e) => showStatus('error', errMsg(e)));
+      void loadDetail()
+        .then(() => initAddressAutocomplete())
+        .catch((e) => showStatus('error', errMsg(e)));
     }
   }
 })();
