@@ -3,6 +3,7 @@ import { facebookEventFetcher } from '../tools/facebook-event-fetcher.js';
 import { googlePlacesFetcher } from '../tools/google-places-fetcher.js';
 import { imageValidator } from '../tools/image-validator.js';
 import { instagramFetcher } from '../tools/instagram-fetcher.js';
+import { raEventFetcher } from '../tools/ra-event-fetcher.js';
 import { tavilySearchTool } from '../tools/tavily-search.js';
 import { websiteFetcher } from '../tools/website-fetcher.js';
 
@@ -16,7 +17,7 @@ WORKFLOW FOR A URL INPUT:
    - Google Maps / maps.app.goo.gl → googlePlacesFetcher (mapsUrl)
    - facebook.com/events → facebookEventFetcher
    - instagram.com → instagramFetcher
-   - ra.co/events/* → DO NOT use websiteFetcher (page is JS-rendered, returns empty shell). Instead: use tavilySearchTool to search for the full RA URL (e.g. "ra.co/events/2392108") to get event title, venue, date, and time from cached/indexed results. Then look up the venue with googlePlacesFetcher.
+   - ra.co/events/* → use raEventFetcher (direct GraphQL API, returns all structured data). Do NOT use websiteFetcher or tavilySearchTool for RA event URLs. After getting the result: if raEventFetcher returns venueName, call googlePlacesFetcher with "[venueName] [city]" to get real photos. Use the latitude/longitude and address from raEventFetcher directly.
    - Otherwise → websiteFetcher
 2. If googlePlacesFetcher returns a website URL, also call websiteFetcher on it.
 3. Cross-check: call googlePlacesFetcher with venueName + city to verify name and address. Prefer Google Places for name and full address when available.
@@ -63,6 +64,7 @@ Always use tools instead of guessing addresses or names.`,
     googlePlacesFetcher,
     facebookEventFetcher,
     instagramFetcher,
+    raEventFetcher,
     tavilySearchTool,
     imageValidator,
   },
