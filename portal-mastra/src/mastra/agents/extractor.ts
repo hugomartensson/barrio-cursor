@@ -46,7 +46,11 @@ FIELD RULES:
 - flaggedFields: field names you could not fill confidently.
 - startTime / endTime: ISO 8601 strings for events, else null.
 
-KULTURNATT STOCKHOLM: For URLs from kulturnattstockholm.se, all events take place on April 18, 2026. The individual event page will show the time but may not show the date. Use 2026-04-18 as the date and combine with the time found on the page for startTime/endTime.
+KULTURNATT STOCKHOLM: For URLs from kulturnattstockholm.se:
+- All events take place on April 18, 2026. The individual event page shows the time but may not show the date. Use 2026-04-18 as the date, combine with the time from the page for startTime/endTime.
+- The page lists a venue name (e.g. "Ungerska kulturhuset", "Spårvägsmuseet", etc.). Extract that name, then call googlePlacesFetcher with "[venue name] Stockholm" to get the address and photos.
+- If googlePlacesFetcher returns no results, use tavily-web-search for "[venue name] Stockholm adress" to find the street address.
+- Use the venue's Google Places photos as the image (real interior/exterior photos), not any event poster from the Kulturnatt page.
 
 Always use tools instead of guessing addresses or names.`,
   model: 'google/gemini-2.5-flash',
