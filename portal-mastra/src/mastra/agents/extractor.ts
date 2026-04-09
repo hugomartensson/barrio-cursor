@@ -2,7 +2,6 @@ import { Agent } from '@mastra/core/agent';
 import { facebookEventFetcher } from '../tools/facebook-event-fetcher.js';
 import { googlePlacesFetcher } from '../tools/google-places-fetcher.js';
 import { imageValidator } from '../tools/image-validator.js';
-import { instagramFetcher } from '../tools/instagram-fetcher.js';
 import { raEventFetcher } from '../tools/ra-event-fetcher.js';
 import { tavilySearchTool } from '../tools/tavily-search.js';
 import { websiteFetcher } from '../tools/website-fetcher.js';
@@ -16,20 +15,34 @@ WORKFLOW FOR A URL INPUT:
 1. Call the right fetcher first:
    - Google Maps / maps.app.goo.gl → googlePlacesFetcher (mapsUrl)
    - facebook.com/events → facebookEventFetcher
-   - instagram.com → instagramFetcher
-   - ra.co/events/* → use raEventFetcher (direct GraphQL API, returns all structured data). Do NOT use websiteFetcher or tavilySearchTool for RA event URLs. After getting the result: if raEventFetcher returns venueName, call googlePlacesFetcher with "[venueName] [city]" to get real photos. Use the latitude/longitude and address from raEventFetcher directly.
+   - ra.co/events/* → use raEventFetcher (direct GraphQL API, returns all structured data). Do NOT use websiteFetcher or tavilySearchTool for RA event URLs. After getting the result: if raEventFetcher returns venueName, call googlePlacesFetcher with "[venueName] [city]" to get photos. Use the latitude/longitude and address from raEventFetcher directly.
    - Otherwise → websiteFetcher
 2. If googlePlacesFetcher returns a website URL, also call websiteFetcher on it.
 3. Cross-check: call googlePlacesFetcher with venueName + city to verify name and address. Prefer Google Places for name and full address when available.
 4. If address missing, use tavily-web-search to find it.
-5. Best image — PHOTOS OF THE ACTUAL PLACE ONLY:
-   - The image must show the real physical space: interior (tables, bar, room), exterior (facade, terrace), food/drinks on the table, or crowd/atmosphere.
-   - NEVER use: logos, brand illustrations, drawings, icons, text-only graphics, menus, or abstract art — even if they look nice. If it is not a photograph of the real place, discard it.
-   - Priority order for sources: Google Places photos > Instagram photos > press/blog photos > website og:image.
-   - Always call googlePlacesFetcher first to get Place photos — these are almost always real photos of the space.
-   - Collect all candidates, call image-validator on the top 3–5 distinct URLs.
-   - If every candidate from the website is a logo or illustration, DO NOT use any of them. Instead search Tavily for "[venue name] [city] interior" or "[venue name] [city] photos" and fetch those pages to find a real photo.
-   - Only set imageUrl to null if you genuinely cannot find a real photo after exhausting all sources.
+5. Best image — magazine-quality visual that represents the place or event:
+
+   IMAGE RULES BY TYPE:
+   - SPOTS (restaurants, bars, venues, galleries, markets, etc.):
+     The image MUST be a real photograph of the physical space — interior (tables, bar, seating, room atmosphere), exterior (facade, terrace), or food/drinks served there. Logos, brand illustrations, icons, text graphics, menus, and abstract art are NEVER acceptable for spots.
+   - EVENTS:
+     A real photograph of the event space, stage, gallery, crowd, or performance is ideal. A high-quality event poster or lineup graphic is also acceptable if it is visually striking. Reject only generic, blurry, or low-quality images.
+
+   QUALITY BAR (applies to both types):
+   Imagine the photo on the cover of a city lifestyle magazine. It must be sharp, well-lit, and atmospheric. Reject anything blurry, poorly lit, pixelated, or purely functional (e.g. a plain product shot or a screenshot).
+
+   PRIORITY ORDER FOR IMAGE SOURCES:
+   1. Original URL (websiteFetcher og:image and JSON-LD images) — always try these first.
+   2. Press or blog pages found via tavily-web-search ("[venue/event name] [city] interior" or "[venue/event name] [city] photos").
+   3. Google Places photos — only fall back here if sources 1–2 yield nothing that passes validation.
+
+   PROCESS:
+   - Collect all image candidates from the original URL first.
+   - Call image-validator on the top 3–5 distinct candidate URLs.
+   - If the original URL's best image passes validation (isPhoto = true for spots, qualityScore ≥ 7, and matches the type rules above), use it — do NOT replace it with a Google Places photo.
+   - Only fall back to Tavily press photos or Google Places photos if all original URL images fail validation.
+   - Only set imageUrl to null if you genuinely cannot find a qualifying image after exhausting all sources.
+
 6. Produce one JSON object matching the required structured output schema (see tool/schema). No extra keys.
 
 WORKFLOW FOR TEXT-ONLY INPUT:
@@ -38,7 +51,10 @@ WORKFLOW FOR TEXT-ONLY INPUT:
 FIELD RULES:
 - type: "event" if there are specific event start/end times from the source; otherwise "spot".
 - name: Real venue or event name only — not page titles with "Home", "Inicio", "| Barcelona", etc. Prefer Google Places name.
-- description: 2–3 warm, discovery-style sentences. No hashtag spam, no generic SEO filler.
+- description: 2–3 warm, discovery-style sentences. No hashtag spam, no generic SEO filler. End the description with a newline and a website link on its own line:
+    - For spots: use the venue's own website URL (from googlePlacesFetcher `website` field if available, otherwise sourceUrl). Skip if neither is available.
+    - For events: use the original event page URL (sourceUrl).
+    - Format: "Website: [url]" — plain URL, no markdown.
 - category: one of food, drinks, music, art, markets, community.
 - address: full street address including the city when possible.
 - neighborhood: local neighbourhood name for whatever city the venue is in (e.g. El Born, Gràcia, Eixample for Barcelona; Södermalm, Vasastan, Östermalm for Stockholm).
@@ -63,7 +79,6 @@ Always use tools instead of guessing addresses or names.`,
     websiteFetcher,
     googlePlacesFetcher,
     facebookEventFetcher,
-    instagramFetcher,
     raEventFetcher,
     tavilySearchTool,
     imageValidator,
