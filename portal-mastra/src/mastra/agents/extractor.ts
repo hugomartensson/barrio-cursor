@@ -52,7 +52,7 @@ FIELD RULES:
 - type: "event" if there are specific event start/end times from the source; otherwise "spot".
 - name: Real venue or event name only — not page titles with "Home", "Inicio", "| Barcelona", etc. Prefer Google Places name.
 - description: 2–3 warm, discovery-style sentences. No hashtag spam, no generic SEO filler. End the description with a newline and a website link on its own line:
-    - For spots: use the venue's own website URL (from googlePlacesFetcher `website` field if available, otherwise sourceUrl). Skip if neither is available.
+    - For spots: use the venue's own website URL (from googlePlacesFetcher "website" field if available, otherwise sourceUrl). Skip if neither is available.
     - For events: use the original event page URL (sourceUrl).
     - Format: "Website: [url]" — plain URL, no markdown.
 - category: one of food, drinks, music, art, markets, community.
