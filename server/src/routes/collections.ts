@@ -49,6 +49,48 @@ export interface CollectionItemEntry {
 }
 
 const RECOMMENDED_LIMIT = 20;
+/** Default radius for Discover: match spots/events near search (5 km). */
+const DEFAULT_NEAR_RADIUS_M = 5000;
+
+/** Public collections that have at least one spot or non-expired event within `radiusMeters` of (lat, lng). */
+async function fetchPublicCollectionIdsNear(
+  lat: number,
+  lng: number,
+  radiusMeters: number
+): Promise<string[]> {
+  const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
+    `
+    SELECT DISTINCT c.id
+    FROM collections c
+    INNER JOIN collection_items ci ON ci.collection_id = c.id
+    LEFT JOIN spots s ON ci.item_type = 'spot' AND ci.item_id = s.id
+    LEFT JOIN events e ON ci.item_type = 'event' AND ci.item_id = e.id
+    WHERE c.visibility = 'public'
+      AND (
+        (ci.item_type = 'spot' AND s.id IS NOT NULL
+          AND ST_DWithin(
+            ST_SetSRID(ST_MakePoint(s.longitude, s.latitude), 4326)::geography,
+            ST_SetSRID(ST_MakePoint($2::float8, $1::float8), 4326)::geography,
+            $3::float8
+          )
+        )
+        OR
+        (ci.item_type = 'event' AND e.id IS NOT NULL
+          AND ST_DWithin(
+            ST_SetSRID(ST_MakePoint(e.longitude, e.latitude), 4326)::geography,
+            ST_SetSRID(ST_MakePoint($2::float8, $1::float8), 4326)::geography,
+            $3::float8
+          )
+          AND ((e.end_time IS NULL AND e.start_time > NOW()) OR (e.end_time IS NOT NULL AND e.end_time > NOW()))
+        )
+      )
+    `,
+    lat,
+    lng,
+    radiusMeters
+  );
+  return rows.map((r) => r.id);
+}
 
 interface CollectionData {
   id: string;
@@ -288,8 +330,30 @@ router.get(
       req: Request,
       res: Response<{ data: CollectionData[] } | ApiErrorResponse>
     ) => {
+      const latRaw = req.query['lat'];
+      const lngRaw = req.query['lng'];
+      const radiusRaw = req.query['radiusM'];
+      const lat = latRaw !== undefined ? Number(latRaw) : NaN;
+      const lng = lngRaw !== undefined ? Number(lngRaw) : NaN;
+      const radiusM =
+        radiusRaw !== undefined && !Number.isNaN(Number(radiusRaw))
+          ? Number(radiusRaw)
+          : DEFAULT_NEAR_RADIUS_M;
+
+      let nearIds: string[] | null = null;
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        nearIds = await fetchPublicCollectionIdsNear(lat, lng, radiusM);
+        if (nearIds.length === 0) {
+          res.json({ data: [] });
+          return;
+        }
+      }
+
       const collections = await prisma.collection.findMany({
-        where: { visibility: 'public' },
+        where: {
+          visibility: 'public',
+          ...(nearIds !== null ? { id: { in: nearIds } } : {}),
+        },
         orderBy: { savedBy: { _count: 'desc' } },
         take: RECOMMENDED_LIMIT,
         include: {

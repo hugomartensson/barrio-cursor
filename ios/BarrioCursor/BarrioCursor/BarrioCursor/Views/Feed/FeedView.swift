@@ -82,11 +82,23 @@ struct DiscoverView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    /// NavigationStack + sheets only; reduces type-checker load.
+    /// NavigationStack + destinations + sheets (no AnyView — keeps `navigationDestination` reliable).
     @ViewBuilder
     private var discoverWithSheets: some View {
         NavigationStack(path: $discoverNavPath) {
             discoverRootContent
+                .navigationDestination(for: Event.self) { event in
+                    EventDetailView(event: event, isSaved: viewModel.savedEventIds.contains(event.id))
+                        .environmentObject(authManager)
+                }
+                .navigationDestination(for: CollectionRoute.self) { route in
+                    CollectionDetailView(collectionId: route.id, name: route.name)
+                        .environmentObject(authManager)
+                }
+        }
+        .sheet(item: $selectedSpotIdWrapper, onDismiss: { selectedSpotIdWrapper = nil }) { wrapper in
+            spotDetailCover(wrapper: wrapper)
+                .presentationDragIndicator(.visible)
         }
         .sheet(item: $eventToShare) { event in
             ShareSheet(
@@ -123,31 +135,12 @@ struct DiscoverView: View {
         }
     }
 
-    /// Navigation destinations + fullScreenCover; type-erased to avoid complex type-check.
-    private var discoverWithDestinations: some View {
-        AnyView(
-            discoverWithSheets
-                .navigationDestination(for: Event.self) { event in
-                    EventDetailView(event: event, isSaved: viewModel.savedEventIds.contains(event.id))
-                        .environmentObject(authManager)
-                }
-                .navigationDestination(for: CollectionRoute.self) { route in
-                    CollectionDetailView(collectionId: route.id, name: route.name)
-                        .environmentObject(authManager)
-                }
-                .sheet(item: $selectedSpotIdWrapper, onDismiss: { selectedSpotIdWrapper = nil }) { wrapper in
-                    spotDetailCover(wrapper: wrapper)
-                        .presentationDragIndicator(.visible)
-                }
-        )
-    }
-
     private func syncDetailPresented() {
         discoverFilters.isDetailPresented = (discoverNavPath.count > 0 || selectedSpotIdWrapper != nil)
     }
 
     private var discoverWithDetailSync: some View {
-        discoverWithDestinations
+        discoverWithSheets
             .onChange(of: discoverNavPath.count) { _, _ in syncDetailPresented() }
             .onChange(of: selectedSpotIdWrapper) { _, _ in syncDetailPresented() }
     }
@@ -671,7 +664,8 @@ struct DiscoverView: View {
                                 PortalEventCard(
                                     event: event,
                                     isSaved: eventSaved,
-                                    onSaveToggle: nil
+                                    onSaveToggle: nil,
+                                    reserveTrailingForExternalSave: Self.discoverEventSaveTrailingReserve
                                 )
                                 .environmentObject(authManager)
                             }
@@ -682,7 +676,7 @@ struct DiscoverView: View {
                                 guard let token = authManager.token else { return }
                                 Task { await viewModel.toggleSaveEvent(eventId: event.id, token: token) }
                             }
-                            .padding(10)
+                            .padding(8)
                             .zIndex(1)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -699,6 +693,7 @@ struct DiscoverView: View {
                 Section(header: sectionHeader(title: "SPOTS", expanded: spotsExpanded, count: filteredSpots.count) { spotsExpanded.toggle() }) {
                     if spotsExpanded {
                         ForEach(filteredSpots.map { PortalSpotItem(from: $0) }, id: \.id) { spot in
+                            let spotSaved = viewModel.savedSpotIds.contains(spot.id)
                             ZStack(alignment: .topTrailing) {
                                 Button {
                                     selectedSpotIdWrapper = SpotIdWrapper(id: spot.id)
@@ -708,7 +703,7 @@ struct DiscoverView: View {
                                         PortalSpotCard(
                                             spot: spot,
                                             cardWidth: Self.expandedSpotCardWidth,
-                                            isSaved: viewModel.savedSpotIds.contains(spot.id),
+                                            isSaved: spotSaved,
                                             onSaveToggle: nil,
                                             isExpanded: true
                                         )
@@ -719,11 +714,10 @@ struct DiscoverView: View {
                                 .buttonStyle(.plain)
                                 .contentShape(Rectangle())
                                 .zIndex(0)
-                                let spotSaved = viewModel.savedSpotIds.contains(spot.id)
                                 PortalSaveButton(
                                     isSaved: spotSaved,
                                     count: max(spot.saveCount, spotSaved ? 1 : 0),
-                                    surface: .light
+                                    surface: .dark
                                 ) {
                                     guard let token = authManager.token else { return }
                                     Task { await viewModel.toggleSaveSpot(spotId: spot.id, token: token) }
@@ -757,6 +751,7 @@ struct DiscoverView: View {
                 Section(header: sectionHeader(title: "COLLECTIONS", expanded: collectionsExpanded, count: viewModel.recommendedCollections.count) { collectionsExpanded.toggle() }) {
                     if collectionsExpanded {
                         ForEach(viewModel.recommendedCollections.map { PortalCollectionItem(from: $0) }, id: \.id) { collection in
+                            let collSaved = viewModel.savedCollectionIds.contains(collection.id)
                             ZStack(alignment: .topTrailing) {
                                 Button {
                                     discoverNavPath.append(CollectionRoute(id: collection.id, name: collection.title))
@@ -765,7 +760,7 @@ struct DiscoverView: View {
                                         Spacer(minLength: 0)
                                         PortalCollectionCard(
                                             collection: collection,
-                                            isSaved: viewModel.savedCollectionIds.contains(collection.id),
+                                            isSaved: collSaved,
                                             onSaveToggle: nil,
                                             cardWidth: Self.expandedCollectionCardWidth,
                                             isExpanded: true
@@ -777,8 +772,7 @@ struct DiscoverView: View {
                                 .buttonStyle(.plain)
                                 .contentShape(Rectangle())
                                 .zIndex(0)
-                                let collSaved = viewModel.savedCollectionIds.contains(collection.id)
-                                PortalSaveButton(isSaved: collSaved, count: collection.saveCount ?? 0, surface: .light) {
+                                PortalSaveButton(isSaved: collSaved, count: collection.saveCount ?? 0, surface: .dark) {
                                     guard let token = authManager.token else { return }
                                     Task { await viewModel.toggleSaveCollection(collectionId: collection.id, token: token) }
                                 }
@@ -817,6 +811,8 @@ struct DiscoverView: View {
     /// Max width for centered Spot/Collection cards in "See more" (expanded) view.
     private static let expandedSpotCardWidth: CGFloat = 320
     private static let expandedCollectionCardWidth: CGFloat = 340
+    /// Room for the top-trailing save control so the title wraps above the white card area, not under the button.
+    private static let discoverEventSaveTrailingReserve: CGFloat = 52
 
     /// Sticky section header: label + "See more (N)" or "See less" so user can collapse when scrolled.
     private func sectionHeader(title: String, expanded: Bool, count: Int, onToggle: @escaping () -> Void) -> some View {
@@ -867,24 +863,24 @@ struct DiscoverView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: .portalCardGap) {
                 ForEach(filteredSpots.map { PortalSpotItem(from: $0) }, id: \.id) { spot in
+                    let rowSpotSaved = viewModel.savedSpotIds.contains(spot.id)
                     ZStack(alignment: .topTrailing) {
                         Button {
                             selectedSpotIdWrapper = SpotIdWrapper(id: spot.id)
                         } label: {
                             PortalSpotCard(
                                 spot: spot,
-                                isSaved: viewModel.savedSpotIds.contains(spot.id),
+                                isSaved: rowSpotSaved,
                                 onSaveToggle: nil
                             )
                         }
                         .buttonStyle(.plain)
                         .contentShape(Rectangle())
                         .zIndex(0)
-                        let rowSpotSaved = viewModel.savedSpotIds.contains(spot.id)
                         PortalSaveButton(
                             isSaved: rowSpotSaved,
                             count: max(spot.saveCount, rowSpotSaved ? 1 : 0),
-                            surface: .light
+                            surface: .dark
                         ) {
                             guard let token = authManager.token else { return }
                             Task { await viewModel.toggleSaveSpot(spotId: spot.id, token: token) }
@@ -933,21 +929,21 @@ struct DiscoverView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: .portalCardGap) {
                 ForEach(viewModel.recommendedCollections.map { PortalCollectionItem(from: $0) }, id: \.id) { collection in
+                    let rowCollSaved = viewModel.savedCollectionIds.contains(collection.id)
                     ZStack(alignment: .topTrailing) {
                         Button {
                             discoverNavPath.append(CollectionRoute(id: collection.id, name: collection.title))
                         } label: {
                             PortalCollectionCard(
                                 collection: collection,
-                                isSaved: viewModel.savedCollectionIds.contains(collection.id),
+                                isSaved: rowCollSaved,
                                 onSaveToggle: nil
                             )
                         }
                         .buttonStyle(.plain)
                         .contentShape(Rectangle())
                         .zIndex(0)
-                        let rowCollSaved = viewModel.savedCollectionIds.contains(collection.id)
-                        PortalSaveButton(isSaved: rowCollSaved, count: collection.saveCount ?? 0, surface: .light) {
+                        PortalSaveButton(isSaved: rowCollSaved, count: collection.saveCount ?? 0, surface: .dark) {
                             guard let token = authManager.token else { return }
                             Task { await viewModel.toggleSaveCollection(collectionId: collection.id, token: token) }
                         }
@@ -1115,7 +1111,7 @@ struct DiscoverView: View {
         await viewModel.loadSpots(location: location, token: token)
         await viewModel.loadSavedSpotIds(token: token)
         await viewModel.loadSavedEventIds(token: token)
-        await viewModel.loadRecommendedCollections(token: token)
+        await viewModel.loadRecommendedCollections(location: location, token: token)
         await viewModel.loadSuggestedUsers(token: token)
     }
 }
@@ -1526,11 +1522,12 @@ class FeedViewModel: ObservableObject {
         }
     }
     
-    func loadRecommendedCollections(token: String) async {
+    func loadRecommendedCollections(location: CLLocationCoordinate2D, token: String) async {
         guard !token.isEmpty else { return }
+        guard location.latitude.isFinite, location.longitude.isFinite else { return }
         do {
             let (rec, mine) = try await (
-                api.getRecommendedCollections(token: token),
+                api.getRecommendedCollections(lat: location.latitude, lng: location.longitude, token: token),
                 api.getCollections(token: token)
             )
             recommendedCollections = rec.data

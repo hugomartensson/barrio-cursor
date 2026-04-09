@@ -64,7 +64,14 @@ extension PortalCollectionItem {
         id = c.id
         title = c.name
         subtitle = c.description ?? ""
-        imageURL = c.coverImageURL
+        let cover = c.coverImageURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let cover, !cover.isEmpty {
+            imageURL = cover
+        } else if let first = c.previewSpotImageURLs?.first?.trimmingCharacters(in: .whitespacesAndNewlines), !first.isEmpty {
+            imageURL = first
+        } else {
+            imageURL = nil
+        }
         ownerHandle = c.ownerHandle ?? "?"
         ownerInitial = c.ownerInitials.flatMap { $0.prefix(1).uppercased() } ?? String(ownerHandle.prefix(1)).uppercased()
         accentColor = collectionAccentColors[abs(c.id.hashValue) % collectionAccentColors.count]
@@ -205,24 +212,21 @@ struct PortalCollectionCard: View {
     private var bylineFontSize: CGFloat { isExpanded ? 14 : 13 }
     private var curatorAvatarSize: CGFloat { isExpanded ? 26 : 22 }
     private var curatorInitialFontSize: CGFloat { 13 }
+    private var cardHeight: CGFloat { effectiveWidth * (5 / 4) }
 
     var body: some View {
         HStack(spacing: 0) {
-            // Main cover image (flex-1)
-            GeometryReader { geo in
-                ZStack(alignment: .bottom) {
-                    AsyncImage(url: portalMediaURL(collection.imageURL)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().aspectRatio(contentMode: .fill)
-                        default:
-                            Rectangle().fill(Color.portalMuted)
-                        }
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height)
-                    .clipped()
+            // Main cover image — fixed height so `CachedRemoteImage` always has a non-zero frame (GeometryReader was collapsing in some layouts).
+            ZStack(alignment: .bottom) {
+                CachedRemoteImage(
+                    url: portalMediaURL(collection.imageURL),
+                    placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
+                    failure: { Rectangle().fill(Color.portalMuted) }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
 
-                    EditorialBottomGradient(heightFraction: 0.65, cardHeight: geo.size.height)
+                EditorialBottomGradient(heightFraction: 0.65, cardHeight: cardHeight)
 
                 VStack {
                     HStack {
@@ -273,9 +277,10 @@ struct PortalCollectionCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(isExpanded ? 16 : 12)
-                }
             }
             .frame(maxWidth: .infinity)
+            .frame(height: cardHeight)
+            .clipped()
 
             // Right — vertical miniature strip (real spot thumbnails when previewImageURLs provided)
             VStack(spacing: 4) {
@@ -283,14 +288,11 @@ struct PortalCollectionCard: View {
                 if !urls.isEmpty {
                     ForEach(Array(urls.enumerated()), id: \.offset) { _, urlString in
                         if let url = portalMediaURL(urlString) {
-                            AsyncImage(url: url) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image.resizable().aspectRatio(contentMode: .fill)
-                                default:
-                                    Rectangle().fill(Color.portalMuted)
-                                }
-                            }
+                            CachedRemoteImage(
+                                url: url,
+                                placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
+                                failure: { Rectangle().fill(Color.portalMuted) }
+                            )
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 20)
                             .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
@@ -328,7 +330,7 @@ struct PortalCollectionCard: View {
             .background(Color.portalForeground.opacity(0.05))
         }
         .frame(width: effectiveWidth)
-        .frame(height: effectiveWidth * (5/4)) // 4:5 aspect
+        .frame(height: cardHeight) // 4:5 aspect
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
         .overlay(

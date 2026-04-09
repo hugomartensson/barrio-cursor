@@ -13,6 +13,8 @@ struct PortalEventCard: View {
     /// When set, the bookmark shows save state and is tappable; saved state uses theme green (.portalPrimary).
     var isSaved: Bool = false
     var onSaveToggle: (() -> Void)? = nil
+    /// Extra trailing padding on the text column when Discover overlays a save control on the card (keeps title from sitting under the button).
+    var reserveTrailingForExternalSave: CGFloat = 0
 
     private let monthFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -37,19 +39,16 @@ struct PortalEventCard: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left — Image strip (ticket stub); hover scale
+            // Left — Image strip (ticket stub). Discover may overlay save on the full card (top-trailing).
             ZStack(alignment: .trailing) {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .empty:
+                CachedRemoteImage(
+                    url: imageURL,
+                    placeholder: {
                         Rectangle()
                             .fill(Color.portalMuted)
                             .overlay { ProgressView() }
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    case .failure:
+                    },
+                    failure: {
                         Rectangle()
                             .fill(Color.portalMuted)
                             .overlay(
@@ -57,10 +56,8 @@ struct PortalEventCard: View {
                                     .font(.title2)
                                     .foregroundColor(.portalMutedForeground)
                             )
-                    @unknown default:
-                        Rectangle().fill(Color.portalMuted)
                     }
-                }
+                )
                 .frame(width: ticketImageStripWidth)
                 .frame(minHeight: 100)
                 .clipped()
@@ -99,6 +96,7 @@ struct PortalEventCard: View {
                     .font(.portalDisplay14)
                     .foregroundColor(.portalForeground)
                     .lineLimit(2)
+                    .multilineTextAlignment(.leading)
                     .padding(.top, 4)
                     .accessibilityIdentifier("event_title")
 
@@ -131,7 +129,7 @@ struct PortalEventCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: "mappin")
                                 .font(.portalMinText)
-                            Text(event.neighborhood ?? event.address)
+                            Text(event.displayCity)
                                 .font(.portalMetadata)
                                 .lineLimit(1)
                         }
@@ -141,7 +139,7 @@ struct PortalEventCard: View {
                 }
             }
             .padding(.leading, 8)
-            .padding(.trailing, 12)
+            .padding(.trailing, 12 + reserveTrailingForExternalSave)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
         }

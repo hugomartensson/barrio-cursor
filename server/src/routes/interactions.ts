@@ -54,7 +54,7 @@ router.post(
     } else {
       await prisma.$transaction([
         prisma.save.create({
-          data: { userId, itemType: 'event', itemId: eventId },
+          data: { userId, itemType: 'event', itemId: eventId, collectionId: null },
         }),
         prisma.event.update({
           where: { id: eventId },

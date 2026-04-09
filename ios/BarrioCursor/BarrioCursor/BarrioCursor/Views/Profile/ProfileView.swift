@@ -1498,9 +1498,14 @@ struct CollectionDetailView: View {
 
     var body: some View {
         Group {
-            if viewModel.isLoading && viewModel.collection == nil {
+            if viewModel.isLoading && viewModel.collection == nil && viewModel.loadError == nil {
                 ProgressView("Loading…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let err = viewModel.loadError {
+                ErrorView(error: err) {
+                    Task { await viewModel.load(token: authManager.token) }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -1570,15 +1575,13 @@ struct CollectionDetailView: View {
     private var collectionHeroImage: some View {
         Group {
             if let urlString = viewModel.collection?.coverImageURL.flatMap({ $0.isEmpty ? nil : $0 }),
-               let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    default:
-                        collectionHeroPlaceholder
-                    }
-                }
+               let url = URL(string: urlString),
+               url.scheme == "http" || url.scheme == "https" {
+                CachedRemoteImage(
+                    url: url,
+                    placeholder: { collectionHeroPlaceholder },
+                    failure: { collectionHeroPlaceholder }
+                )
             } else {
                 collectionHeroPlaceholder
             }
@@ -1942,6 +1945,8 @@ final class CollectionDetailViewModel: ObservableObject {
     @Published var savedSpotIds: Set<String> = []
     @Published var isLoading = false
     @Published var isSaved = false
+    /// Set when `load` fails (e.g. network or decode); use for `ErrorView` instead of silent empty state.
+    @Published var loadError: Error?
     /// Ordered list of spots and events in the collection (from GET /collections/:id/items).
     @Published var collectionItems: [CollectionRowItem] = []
 
@@ -1955,8 +1960,16 @@ final class CollectionDetailViewModel: ObservableObject {
     }
 
     func load(token: String?) async {
-        guard let token = token, !token.isEmpty else { return }
+        guard let token = token, !token.isEmpty else {
+            loadError = NSError(
+                domain: "CollectionDetail",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "Sign in to view this collection."]
+            )
+            return
+        }
         isLoading = true
+        loadError = nil
         defer { isLoading = false }
         do {
             async let collectionTask = api.getCollection(id: collectionId, token: token)
@@ -1964,6 +1977,7 @@ final class CollectionDetailViewModel: ObservableObject {
             async let itemsTask = api.getCollectionItems(collectionId: collectionId, token: token)
             let (collectionResponse, savedSpotsResponse, itemsResponse) = try await (collectionTask, savedSpotsTask, itemsTask)
             collection = collectionResponse.data
+            loadError = nil
             isSaved = false
             savedSpotIds = Set(savedSpotsResponse.data.map(\.id))
             collectionItems = itemsResponse.data.compactMap { entry -> CollectionRowItem? in
@@ -1971,7 +1985,7 @@ final class CollectionDetailViewModel: ObservableObject {
                     let spot = Spot(
                         id: payload.id,
                         name: payload.name,
-                        neighborhood: payload.neighborhood ?? payload.address,
+                        neighborhood: AddressFormatting.shortLocationLabel(neighborhood: payload.neighborhood, address: payload.address),
                         description: payload.description,
                         imageUrl: payload.imageUrl,
                         location: CLLocationCoordinate2D(latitude: payload.latitude, longitude: payload.longitude),
@@ -1988,23 +2002,8 @@ final class CollectionDetailViewModel: ObservableObject {
             }
             spotItems = collectionItems.compactMap { if case .spot(let s) = $0 { return s }; return nil }
         } catch {
-            collection = CollectionData(
-                id: collectionId,
-                name: initialName,
-                description: nil,
-                userId: nil,
-                itemCount: nil,
-                createdAt: nil,
-                updatedAt: nil,
-                visibility: nil,
-                owned: nil,
-                ownerHandle: nil,
-                ownerInitials: nil,
-                city: nil,
-                saveCount: nil,
-                coverImageURL: nil,
-                previewSpotImageURLs: nil
-            )
+            loadError = error
+            collection = nil
             collectionItems = []
             spotItems = []
         }

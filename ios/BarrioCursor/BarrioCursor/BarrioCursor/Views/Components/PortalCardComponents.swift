@@ -45,28 +45,27 @@ struct PortalSaveButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 5) {
-                ZStack {
-                    Circle()
-                        .fill(isSaved ? Color.portalPrimary : Color.clear)
-                        .overlay(
-                            Circle()
-                                .strokeBorder(isSaved ? Color.clear : idleStroke, lineWidth: 1.5)
-                        )
+            ZStack {
+                Circle()
+                    .fill(isSaved ? Color.portalPrimary : Color.clear)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(isSaved ? Color.clear : idleStroke, lineWidth: 1.5)
+                    )
+                VStack(spacing: 1) {
                     Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(isSaved ? Color.portalPrimaryForeground : idleIconColor)
+                    Text(formatCount(count))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(countTextColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
                 }
-                .frame(width: diameter, height: diameter)
-                Text(formatCount(count))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(countTextColor)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                .padding(.vertical, 4)
             }
-            .padding(.horizontal, 6)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
+            .frame(width: max(diameter, 44), height: max(diameter, 44))
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isSaved ? "Saved" : "Save")

@@ -1,5 +1,11 @@
 import SwiftUI
 
+private func spotCardMediaURL(_ string: String?) -> URL? {
+    guard let raw = string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+    guard let url = URL(string: raw), url.scheme == "http" || url.scheme == "https" else { return nil }
+    return url
+}
+
 // MARK: - Spot (portal Discover — from API GET /spots or mock)
 
 /// Display label for spot category tag — matches filter pills: "Music" not "music".
@@ -96,17 +102,14 @@ struct PortalSpotCard: View {
             // Image panel with overlay and text
             GeometryReader { geo in
                 ZStack(alignment: .bottom) {
-                    AsyncImage(url: URL(string: spot.imageURL ?? "")) { phase in
-                        switch phase {
-                        case .empty:
+                    CachedRemoteImage(
+                        url: spotCardMediaURL(spot.imageURL),
+                        placeholder: {
                             Rectangle()
                                 .fill(Color.portalMuted)
                                 .overlay { ProgressView() }
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure:
+                        },
+                        failure: {
                             Rectangle()
                                 .fill(Color.portalMuted)
                                 .overlay(
@@ -114,10 +117,8 @@ struct PortalSpotCard: View {
                                         .font(.title2)
                                         .foregroundColor(.portalMutedForeground)
                                 )
-                        @unknown default:
-                            Rectangle().fill(Color.portalMuted)
                         }
-                    }
+                    )
                     .frame(width: geo.size.width, height: geo.size.height)
                     .clipped()
 
@@ -257,17 +258,24 @@ struct SpotDetailView: View {
 
     private var spotHeroImage: some View {
         Group {
-            if let urlString = spot.imageURL, !urlString.isEmpty, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    default:
+            if let url = spotCardMediaURL(spot.imageURL) {
+                CachedRemoteImage(
+                    url: url,
+                    placeholder: {
                         Rectangle()
                             .fill(Color.portalMuted)
                             .overlay { ProgressView() }
+                    },
+                    failure: {
+                        Rectangle()
+                            .fill(Color.portalMuted)
+                            .overlay(
+                                Image(systemName: "fork.knife")
+                                    .font(.title)
+                                    .foregroundColor(.portalMutedForeground)
+                            )
                     }
-                }
+                )
             } else {
                 Rectangle()
                     .fill(Color.portalMuted)

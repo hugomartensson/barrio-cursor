@@ -130,7 +130,7 @@ extension Spot {
         self.init(
             id: data.id,
             name: data.name,
-            neighborhood: data.neighborhood ?? data.address,
+            neighborhood: AddressFormatting.shortLocationLabel(neighborhood: data.neighborhood, address: data.address),
             description: data.description,
             imageUrl: data.imageUrl,
             location: coord,

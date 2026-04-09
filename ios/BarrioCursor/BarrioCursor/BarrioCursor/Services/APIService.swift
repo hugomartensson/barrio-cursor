@@ -934,8 +934,9 @@ extension APIService {
     }
 
     // Portal: Recommended collections + save/unsave collection
-    func getRecommendedCollections(token: String) async throws -> CollectionsListResponse {
-        return try await get("/collections/recommended", token: token)
+    func getRecommendedCollections(lat: Double, lng: Double, radiusMeters: Double = 5000, token: String) async throws -> CollectionsListResponse {
+        let q = "lat=\(lat)&lng=\(lng)&radiusM=\(radiusMeters)"
+        return try await get("/collections/recommended?\(q)", token: token)
     }
 
     func saveCollection(collectionId: String, token: String) async throws -> SaveCollectionResponse {

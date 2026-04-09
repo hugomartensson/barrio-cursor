@@ -400,7 +400,7 @@ router.post(
       } else {
         await prisma.$transaction([
           prisma.save.create({
-            data: { userId, itemType: 'spot', itemId: spotId },
+            data: { userId, itemType: 'spot', itemId: spotId, collectionId: null },
           }),
           prisma.spot.update({
             where: { id: spotId },

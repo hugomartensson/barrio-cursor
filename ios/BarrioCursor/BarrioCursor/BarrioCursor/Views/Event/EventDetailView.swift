@@ -350,7 +350,7 @@ struct EventDetailView: View {
             Image(systemName: "mappin")
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
-            Text(event.address)
+            Text(event.displayCity)
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
         }
@@ -409,15 +409,14 @@ struct EventDetailView: View {
     // MARK: - Hero Image
     private var eventHeroImage: some View {
         Group {
-            if let urlString = event.media.first?.url, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    default:
-                        eventImagePlaceholder
-                    }
-                }
+            if let urlString = event.media.first?.url,
+               let url = URL(string: urlString),
+               url.scheme == "http" || url.scheme == "https" {
+                CachedRemoteImage(
+                    url: url,
+                    placeholder: { eventImagePlaceholder },
+                    failure: { eventImagePlaceholder }
+                )
             } else {
                 eventImagePlaceholder
             }

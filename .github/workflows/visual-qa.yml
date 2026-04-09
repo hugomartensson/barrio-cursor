@@ -1,0 +1,83 @@
+# Visual QA: captures screenshots of the Portal admin UI and reviews them
+# with Claude for objective visual defects (layout, contrast, truncation, etc.).
+#
+# Runs on every PR to main.
+# Fails the pipeline if any CRITICAL defect is found.
+# Posts the full report as a PR comment.
+#
+# Required secret: GEMINI_API_KEY
+# The job is skipped gracefully if the secret is not configured.
+
+name: Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  visual-qa:
+    name: Visual QA (admin UI)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: visual-qa
+        run: npm install
+
+      - name: Install Playwright browser
+        working-directory: visual-qa
+        run: npx playwright install chromium --with-deps
+
+      - name: Run visual QA
+        id: vqa
+        working-directory: visual-qa
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY secret not set — skipping visual QA."
+            echo "skipped=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node index.mjs
+        continue-on-error: true
+
+      - name: Upload screenshots
+        if: steps.vqa.outputs.skipped != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-screenshots
+          path: visual-qa/output/
+          if-no-files-found: ignore
+
+      - name: Post report as PR comment
+        if: steps.vqa.outputs.skipped != 'true' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const reportPath = 'visual-qa/output/report.md';
+            if (!fs.existsSync(reportPath)) {
+              console.log('No report file found — skipping comment.');
+              return;
+            }
+            const body = fs.readFileSync(reportPath, 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `<!-- visual-qa-report -->\n${body}`,
+            });
+
+      - name: Fail if CRITICAL issues found
+        if: steps.vqa.outcome == 'failure' && steps.vqa.outputs.skipped != 'true'
+        run: |
+          echo "Visual QA found CRITICAL issues. See the PR comment for the full report."
+          exit 1

@@ -39,6 +39,16 @@ nonisolated struct Event: Codable, Identifiable, Hashable {
         let now = Date()
         return startTime <= now && (endTime ?? startTime) > now
     }
+
+    /// Short place label for cards (neighborhood / district), not full postal address.
+    var displayNeighborhood: String {
+        AddressFormatting.shortLocationLabel(neighborhood: neighborhood, address: address)
+    }
+
+    /// City name for Discover cards (consistent, no postal codes).
+    var displayCity: String {
+        AddressFormatting.cityName(neighborhood: neighborhood, address: address)
+    }
 }
 
 nonisolated struct EventUser: Codable, Hashable {

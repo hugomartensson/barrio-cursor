@@ -10,8 +10,8 @@
 		E7536A012EE33F00002074D1 /* DMSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A022EE33F00002074D1 /* DMSans-Bold.ttf */; };
 		E7536A032EE33F00002074D1 /* DMSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A042EE33F00002074D1 /* DMSans-Medium.ttf */; };
 		E7536A052EE33F00002074D1 /* DMSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A062EE33F00002074D1 /* DMSans-Regular.ttf */; };
-		E7536A082EE33F00002074D1 /* DMSans-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A092EE33F00002074D1 /* DMSans-Black.ttf */; };
-		E7536A0A2EE33F00002074D1 /* DMSans-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A0B2EE33F00002074D1 /* DMSans-Italic.ttf */; };
+		E7536A082EE33F00002074D1 /* (null) in Resources */ = {isa = PBXBuildFile; };
+		E7536A0A2EE33F00002074D1 /* (null) in Resources */ = {isa = PBXBuildFile; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -208,9 +208,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E7536A082EE33F00002074D1 /* DMSans-Black.ttf in Resources */,
+				E7536A082EE33F00002074D1 /* (null) in Resources */,
 				E7536A012EE33F00002074D1 /* DMSans-Bold.ttf in Resources */,
-				E7536A0A2EE33F00002074D1 /* DMSans-Italic.ttf in Resources */,
+				E7536A0A2EE33F00002074D1 /* (null) in Resources */,
 				E7536A032EE33F00002074D1 /* DMSans-Medium.ttf in Resources */,
 				E7536A052EE33F00002074D1 /* DMSans-Regular.ttf in Resources */,
 			);
