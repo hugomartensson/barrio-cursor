@@ -1,0 +1,520 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		E7536A012EE33F00002074D1 /* DMSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A022EE33F00002074D1 /* DMSans-Bold.ttf */; };
+		E7536A032EE33F00002074D1 /* DMSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A042EE33F00002074D1 /* DMSans-Medium.ttf */; };
+		E7536A052EE33F00002074D1 /* DMSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A062EE33F00002074D1 /* DMSans-Regular.ttf */; };
+		E7536A082EE33F00002074D1 /* DMSans-Black.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A092EE33F00002074D1 /* DMSans-Black.ttf */; };
+		E7536A0A2EE33F00002074D1 /* DMSans-Italic.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E7536A0B2EE33F00002074D1 /* DMSans-Italic.ttf */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA00000700000000074D1000 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E75369C32EE32CE5002074D1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E75369CA2EE32CE5002074D1;
+			remoteInfo = BarrioCursor;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		AA00000100000000074D1000 /* BarrioCursorUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BarrioCursorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E75369CB2EE32CE5002074D1 /* BarrioCursor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BarrioCursor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E7536A022EE33F00002074D1 /* DMSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Bold.ttf"; sourceTree = "<group>"; };
+		E7536A042EE33F00002074D1 /* DMSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Medium.ttf"; sourceTree = "<group>"; };
+		E7536A062EE33F00002074D1 /* DMSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DMSans-Regular.ttf"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E7536AA52EE3849D002074D1 /* Exceptions for "BarrioCursor" folder in "BarrioCursor" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				"Resources/Fonts/DMSans-Black.ttf",
+				"Resources/Fonts/DMSans-Bold.ttf",
+				"Resources/Fonts/DMSans-Italic.ttf",
+				"Resources/Fonts/DMSans-Medium.ttf",
+				"Resources/Fonts/DMSans-Regular.ttf",
+			);
+			target = E75369CA2EE32CE5002074D1 /* BarrioCursor */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		AA00000200000000074D1000 /* BarrioCursorUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BarrioCursorUITests;
+			sourceTree = "<group>";
+		};
+		E75369E52EE32E6B002074D1 /* BarrioCursor */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E7536AA52EE3849D002074D1 /* Exceptions for "BarrioCursor" folder in "BarrioCursor" target */,
+			);
+			path = BarrioCursor;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA00000300000000074D1000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E75369C82EE32CE5002074D1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		E75369C22EE32CE5002074D1 = {
+			isa = PBXGroup;
+			children = (
+				E75369E52EE32E6B002074D1 /* BarrioCursor */,
+				E7536A072EE33F00002074D1 /* BarrioCursor/Resources/Fonts */,
+				AA00000200000000074D1000 /* BarrioCursorUITests */,
+				E75369CC2EE32CE5002074D1 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		E75369CC2EE32CE5002074D1 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E75369CB2EE32CE5002074D1 /* BarrioCursor.app */,
+				AA00000100000000074D1000 /* BarrioCursorUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		E7536A072EE33F00002074D1 /* BarrioCursor/Resources/Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				E7536A022EE33F00002074D1 /* DMSans-Bold.ttf */,
+				E7536A042EE33F00002074D1 /* DMSans-Medium.ttf */,
+				E7536A062EE33F00002074D1 /* DMSans-Regular.ttf */,
+			);
+			path = BarrioCursor/Resources/Fonts;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA00000600000000074D1000 /* BarrioCursorUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA00000B00000000074D1000 /* Build configuration list for PBXNativeTarget "BarrioCursorUITests" */;
+			buildPhases = (
+				AA00000400000000074D1000 /* Sources */,
+				AA00000300000000074D1000 /* Frameworks */,
+				AA00000500000000074D1000 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA00000800000000074D1000 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				AA00000200000000074D1000 /* BarrioCursorUITests */,
+			);
+			name = BarrioCursorUITests;
+			productName = BarrioCursorUITests;
+			productReference = AA00000100000000074D1000 /* BarrioCursorUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		E75369CA2EE32CE5002074D1 /* BarrioCursor */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E75369D62EE32CE9002074D1 /* Build configuration list for PBXNativeTarget "BarrioCursor" */;
+			buildPhases = (
+				E75369C72EE32CE5002074D1 /* Sources */,
+				E75369C82EE32CE5002074D1 /* Frameworks */,
+				E75369C92EE32CE5002074D1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E75369E52EE32E6B002074D1 /* BarrioCursor */,
+			);
+			name = BarrioCursor;
+			packageProductDependencies = (
+			);
+			productName = BarrioCursor;
+			productReference = E75369CB2EE32CE5002074D1 /* BarrioCursor.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		E75369C32EE32CE5002074D1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2610;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					AA00000600000000074D1000 = {
+						CreatedOnToolsVersion = 26.1.1;
+						TestTargetID = E75369CA2EE32CE5002074D1;
+					};
+					E75369CA2EE32CE5002074D1 = {
+						CreatedOnToolsVersion = 26.1.1;
+						LastSwiftMigration = 2610;
+					};
+				};
+			};
+			buildConfigurationList = E75369C62EE32CE5002074D1 /* Build configuration list for PBXProject "BarrioCursor" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = E75369C22EE32CE5002074D1;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = E75369CC2EE32CE5002074D1 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				E75369CA2EE32CE5002074D1 /* BarrioCursor */,
+				AA00000600000000074D1000 /* BarrioCursorUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA00000500000000074D1000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E75369C92EE32CE5002074D1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E7536A082EE33F00002074D1 /* DMSans-Black.ttf in Resources */,
+				E7536A012EE33F00002074D1 /* DMSans-Bold.ttf in Resources */,
+				E7536A0A2EE33F00002074D1 /* DMSans-Italic.ttf in Resources */,
+				E7536A032EE33F00002074D1 /* DMSans-Medium.ttf in Resources */,
+				E7536A052EE33F00002074D1 /* DMSans-Regular.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA00000400000000074D1000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E75369C72EE32CE5002074D1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA00000800000000074D1000 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E75369CA2EE32CE5002074D1 /* BarrioCursor */;
+			targetProxy = AA00000700000000074D1000 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		AA00000900000000074D1000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5PX2928L5Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugo.BarrioCursorUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BarrioCursor;
+			};
+			name = Debug;
+		};
+		AA00000A00000000074D1000 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5PX2928L5Q;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugo.BarrioCursorUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = BarrioCursor;
+			};
+			name = Release;
+		};
+		E75369D42EE32CE9002074D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 5PX2928L5Q;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		E75369D52EE32CE9002074D1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 5PX2928L5Q;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.1;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		E75369D72EE32CE9002074D1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5PX2928L5Q;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BarrioCursor/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "BarrioCursor needs camera access to take photos for spots, events, collections, and your profile.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "BarrioCursor needs your location to show nearby events and let you create events at your current location.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "BarrioCursor may save photos you create in the app to your photo library when you choose to.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "BarrioCursor needs access to your photo library so you can add cover photos to spots, events, collections, and your profile.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugo.BarrioCursor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		E75369D82EE32CE9002074D1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5PX2928L5Q;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = BarrioCursor/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "BarrioCursor needs camera access to take photos for spots, events, collections, and your profile.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "BarrioCursor needs your location to show nearby events and let you create events at your current location.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "BarrioCursor may save photos you create in the app to your photo library when you choose to.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "BarrioCursor needs access to your photo library so you can add cover photos to spots, events, collections, and your profile.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugo.BarrioCursor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA00000B00000000074D1000 /* Build configuration list for PBXNativeTarget "BarrioCursorUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA00000900000000074D1000 /* Debug */,
+				AA00000A00000000074D1000 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E75369C62EE32CE5002074D1 /* Build configuration list for PBXProject "BarrioCursor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E75369D42EE32CE9002074D1 /* Debug */,
+				E75369D52EE32CE9002074D1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E75369D62EE32CE9002074D1 /* Build configuration list for PBXNativeTarget "BarrioCursor" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E75369D72EE32CE9002074D1 /* Debug */,
+				E75369D82EE32CE9002074D1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = E75369C32EE32CE5002074D1 /* Project object */;
+}

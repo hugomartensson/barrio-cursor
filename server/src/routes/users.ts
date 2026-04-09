@@ -20,6 +20,7 @@ interface SuggestedUserSummary {
   initials: string | null;
   followerCount: number;
   cities: string[];
+  profilePictureUrl: string | null;
 }
 
 router.get(
@@ -54,6 +55,7 @@ router.get(
           initials: true,
           followerCount: true,
           cities: true,
+          profilePictureUrl: true,
         },
       });
 
@@ -64,6 +66,7 @@ router.get(
           initials: u.initials,
           followerCount: u.followerCount,
           cities: u.cities,
+          profilePictureUrl: u.profilePictureUrl ?? null,
         })),
       });
     }
