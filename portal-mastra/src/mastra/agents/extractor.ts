@@ -3,6 +3,7 @@ import { facebookEventFetcher } from '../tools/facebook-event-fetcher.js';
 import { googlePlacesFetcher } from '../tools/google-places-fetcher.js';
 import { imageValidator } from '../tools/image-validator.js';
 import { raEventFetcher } from '../tools/ra-event-fetcher.js';
+import { tavilyImageSearch } from '../tools/tavily-image-search.js';
 import { tavilySearchTool } from '../tools/tavily-search.js';
 import { websiteFetcher } from '../tools/website-fetcher.js';
 
@@ -33,14 +34,15 @@ WORKFLOW FOR A URL INPUT:
 
    PRIORITY ORDER FOR IMAGE SOURCES:
    1. Original URL (websiteFetcher og:image and JSON-LD images) — always try these first.
-   2. Press or blog pages found via tavily-web-search ("[venue/event name] [city] interior" or "[venue/event name] [city] photos").
+   2. Web image search via tavily-image-search — search for "[venue/event name] [city]" and validate the returned image URLs. Use this before falling back to Google Places.
    3. Google Places photos — only fall back here if sources 1–2 yield nothing that passes validation.
 
    PROCESS:
    - Collect all image candidates from the original URL first.
    - Call image-validator on the top 3–5 distinct candidate URLs.
    - If the original URL's best image passes validation (isPhoto = true for spots, qualityScore ≥ 7, and matches the type rules above), use it — do NOT replace it with a Google Places photo.
-   - Only fall back to Tavily press photos or Google Places photos if all original URL images fail validation.
+   - If the original URL yields no qualifying image, call tavily-image-search with "[venue/event name] [city]" and validate the top results (up to 10 returned). Pick the best qualifying one.
+   - Only fall back to Google Places photos if both the original URL and tavily-image-search fail to produce a qualifying image.
    - Only set imageUrl to null if you genuinely cannot find a qualifying image after exhausting all sources.
 
 6. Produce one JSON object matching the required structured output schema (see tool/schema). No extra keys.
@@ -81,6 +83,7 @@ Always use tools instead of guessing addresses or names.`,
     facebookEventFetcher,
     raEventFetcher,
     tavilySearchTool,
+    tavilyImageSearch,
     imageValidator,
   },
 });

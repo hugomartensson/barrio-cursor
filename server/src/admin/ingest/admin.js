@@ -553,7 +553,7 @@
         showStatus('error', 'Could not read draft from run.');
         return;
       }
-      document.getElementById('title').textContent = `Review: ${draft.name || 'Unnamed'}`;
+      document.getElementById('title').textContent = draft.name || 'Unnamed';
       applyDraftToForm(draft);
       formWrap.hidden = false;
       const approveBtn = document.getElementById('approveBtn');
