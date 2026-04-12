@@ -41,8 +41,8 @@ WORKFLOW FOR A URL INPUT:
    - Collect all image candidates from the original URL first.
    - Call image-validator on the top 3–5 distinct candidate URLs.
    - If the original URL's best image passes validation (isPhoto = true for spots, qualityScore ≥ 7, and matches the type rules above), use it — do NOT replace it with a Google Places photo.
-   - If the original URL yields no qualifying image, call tavily-image-search with "[venue/event name] [city]" and validate the top results (up to 10 returned). Pick the best qualifying one.
-   - Only fall back to Google Places photos if both the original URL and tavily-image-search fail to produce a qualifying image.
+   - If the original URL yields no qualifying image, you MUST call tavily-image-search with "[venue/event name] [city]" before touching Google Places. Validate the returned URLs with image-validator and pick the best qualifying one.
+   - Only fall back to Google Places photos if BOTH the original URL AND tavily-image-search fail to produce a qualifying image. Do not skip the tavily-image-search step.
    - Only set imageUrl to null if you genuinely cannot find a qualifying image after exhausting all sources.
 
 6. Produce one JSON object matching the required structured output schema (see tool/schema). No extra keys.
