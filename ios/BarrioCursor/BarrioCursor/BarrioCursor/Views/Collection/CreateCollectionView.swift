@@ -22,6 +22,10 @@ struct CreateCollectionView: View {
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
+    /// When set, form submits as PATCH /collections/:id (edit mode).
+    var collectionToEdit: CollectionData? = nil
+    /// Called after successful update in edit mode (e.g. reload detail).
+    var onUpdated: (() -> Void)? = nil
     /// Called after successful create (no new id).
     var onCreated: (() -> Void)?
     /// Called after successful create with the new collection id (e.g. to add current item and dismiss).
@@ -41,14 +45,18 @@ struct CreateCollectionView: View {
     @State private var savedSpots: [SavedSpotEntry] = []
     @State private var selectedSavedSpotIds: Set<String> = []
     @State private var isLoadingSavedSpots = false
+    /// Edit mode: user tapped remove on the existing server cover (PATCH clears cover).
+    @State private var removedExistingCoverImage = false
 
     @FocusState private var focusedField: Field?
     private enum Field { case name, description }
 
     private var isFormValid: Bool {
-        !name.isEmpty &&
-        !description.isEmpty &&
-        selectedCategory != nil
+        let hasBasics = !name.isEmpty && !description.isEmpty
+        if collectionToEdit != nil {
+            return hasBasics
+        }
+        return hasBasics && selectedCategory != nil
     }
 
     private static let maxContentWidth: CGFloat = 512
@@ -64,7 +72,7 @@ struct CreateCollectionView: View {
             }
             .buttonStyle(.plain)
             Spacer()
-            Text("New Collection")
+            Text(collectionToEdit == nil ? "New Collection" : "Edit Collection")
                 .font(.portalDisplay22)
                 .foregroundColor(.portalForeground)
             Spacer()
@@ -94,6 +102,39 @@ struct CreateCollectionView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     Button {
                         imageData = nil
+                        selectedPhotoItems = []
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 28, height: 28)
+                            .background(Circle().fill(Color.portalForeground.opacity(0.6)))
+                    }
+                    .padding(12)
+                }
+                .frame(maxWidth: .infinity)
+                .aspectRatio(4/1, contentMode: .fit)
+            } else if collectionToEdit != nil, !removedExistingCoverImage,
+                      let url = MediaURL.httpsURL(from: collectionToEdit?.coverImageURL) {
+                ZStack(alignment: .topTrailing) {
+                    CachedRemoteImage(
+                        url: url,
+                        placeholder: {
+                            Rectangle()
+                                .fill(Color.portalMuted)
+                                .aspectRatio(4/1, contentMode: .fit)
+                                .overlay { ProgressView() }
+                        },
+                        failure: {
+                            Rectangle()
+                                .fill(Color.portalMuted)
+                                .aspectRatio(4/1, contentMode: .fit)
+                        }
+                    )
+                    .aspectRatio(4/1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    Button {
+                        removedExistingCoverImage = true
                         selectedPhotoItems = []
                     } label: {
                         Image(systemName: "xmark")
@@ -289,9 +330,9 @@ struct CreateCollectionView: View {
                     LinearGradient(colors: [Color.portalBackground.opacity(0), Color.portalBackground], startPoint: .top, endPoint: .bottom)
                         .frame(height: 24)
                     Button {
-                        Task { await createCollection() }
+                        Task { await submitCollection() }
                     } label: {
-                        Text("Create Collection")
+                        Text(collectionToEdit == nil ? "Create Collection" : "Save Changes")
                             .font(.portalLabel)
                             .foregroundColor(isFormValid && !isSubmitting ? .portalPrimaryForeground : .portalMutedForeground)
                             .frame(maxWidth: .infinity)
@@ -365,6 +406,15 @@ struct CreateCollectionView: View {
         .task {
             await loadSavedSpotsForPicker()
         }
+        .onAppear {
+            guard let c = collectionToEdit else { return }
+            name = c.name
+            description = c.description ?? ""
+            if let v = c.visibility, let vis = CreateCollectionVisibility(rawValue: v) {
+                visibility = vis
+            }
+            selectedCategory = EventCategory.allCases.first
+        }
     }
 
     private func loadSavedSpotsForPicker() async {
@@ -392,13 +442,13 @@ struct CreateCollectionView: View {
         return resized.jpegData(compressionQuality: 0.75)
     }
 
-    private func createCollection() async {
+    private func submitCollection() async {
         guard let token = authManager.token else {
             errorMessage = "Not authenticated"
             return
         }
         isSubmitting = true
-        submissionProgress = "Creating..."
+        submissionProgress = collectionToEdit == nil ? "Creating…" : "Saving…"
         errorMessage = nil
         defer { isSubmitting = false; submissionProgress = nil }
         do {
@@ -413,6 +463,24 @@ struct CreateCollectionView: View {
                     token: token
                 )
             }
+
+            if let edit = collectionToEdit {
+                submissionProgress = "Saving…"
+                let clearCover = removedExistingCoverImage && coverURL == nil
+                _ = try await APIService.shared.updateCollection(
+                    id: edit.id,
+                    name: name,
+                    description: description.isEmpty ? nil : description,
+                    visibility: visibility.rawValue,
+                    coverImageUrl: coverURL,
+                    clearCoverImage: clearCover,
+                    token: token
+                )
+                onUpdated?()
+                dismiss()
+                return
+            }
+
             submissionProgress = "Creating…"
             let response = try await APIService.shared.createCollection(
                 name: name,

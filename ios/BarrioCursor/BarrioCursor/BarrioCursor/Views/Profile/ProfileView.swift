@@ -805,10 +805,6 @@ struct MyEventsView: View {
                 .environmentObject(LocationManager())
             }
         }
-        .navigationDestination(for: Event.self) { event in
-            EventDetailView(event: event)
-                .environmentObject(authManager)
-        }
         .refreshable {
             await viewModel.loadEvents(token: authManager.token ?? "")
         }
@@ -1219,10 +1215,6 @@ struct SavedEventsView: View {
         }
         .navigationTitle("Saved Events")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: Event.self) { event in
-            EventDetailView(event: event, isSaved: true)
-                .environmentObject(authManager)
-        }
         .task {
             await viewModel.load(token: authManager.token ?? "")
         }
@@ -1288,10 +1280,6 @@ struct MySavesView: View {
         }
         .navigationTitle("My Saves")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(for: Event.self) { event in
-            EventDetailView(event: event, isSaved: true)
-                .environmentObject(authManager)
-        }
         .task {
             await viewModel.load(token: authManager.token ?? "")
         }
@@ -1526,6 +1514,8 @@ struct CollectionDetailView: View {
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: CollectionDetailViewModel
+    @State private var showEditSheet = false
+    @State private var showDeleteAlert = false
 
     init(collectionId: String, name: String) {
         self.collectionId = collectionId
@@ -1570,16 +1560,44 @@ struct CollectionDetailView: View {
             )
             .environmentObject(authManager)
         }
-        .navigationDestination(for: Event.self) { event in
-            EventDetailView(event: event, isSaved: false)
-                .environmentObject(authManager)
-        }
         .task {
             await viewModel.load(token: authManager.token)
         }
         .refreshable {
             await viewModel.load(token: authManager.token)
         }
+        .sheet(isPresented: $showEditSheet) {
+            Group {
+                if let col = viewModel.collection {
+                    CreateCollectionView(
+                        collectionToEdit: col,
+                        onUpdated: {
+                            Task { await viewModel.load(token: authManager.token) }
+                        }
+                    )
+                    .environmentObject(authManager)
+                }
+            }
+        }
+        .alert("Delete Collection", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                Task {
+                    let ok = await viewModel.deleteCollection(token: authManager.token)
+                    if ok { dismiss() }
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this collection? This cannot be undone.")
+        }
+    }
+
+    private var isCollectionOwner: Bool {
+        if viewModel.collection?.owned == true { return true }
+        if let uid = authManager.currentUser?.id, let cid = viewModel.collection?.userId {
+            return uid == cid
+        }
+        return false
     }
 
     // MARK: - Hero (16:10, editorial)
@@ -1615,8 +1633,7 @@ struct CollectionDetailView: View {
     private var collectionHeroImage: some View {
         Group {
             if let urlString = viewModel.collection?.coverImageURL.flatMap({ $0.isEmpty ? nil : $0 }),
-               let url = URL(string: urlString),
-               url.scheme == "http" || url.scheme == "https" {
+               let url = MediaURL.httpsURL(from: urlString) {
                 CachedRemoteImage(
                     url: url,
                     placeholder: { collectionHeroPlaceholder },
@@ -1662,8 +1679,31 @@ struct CollectionDetailView: View {
             }
             .buttonStyle(.plain)
             Spacer(minLength: 0)
-            PortalSaveButton(isSaved: viewModel.isSaved, count: viewModel.collection?.saveCount ?? 0, surface: .dark) {
-                Task { await viewModel.toggleSave(token: authManager.token) }
+            HStack(spacing: .portalCardGap) {
+                if isCollectionOwner {
+                    Menu {
+                        Button {
+                            showEditSheet = true
+                        } label: {
+                            Label("Edit Collection", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            showDeleteAlert = true
+                        } label: {
+                            Label("Delete Collection", systemImage: "trash")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 16))
+                            .foregroundColor(.portalForeground)
+                            .frame(width: 36, height: 36)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay(Circle().stroke(Color.portalBorder.opacity(0.5), lineWidth: 1))
+                    }
+                }
+                PortalSaveButton(isSaved: viewModel.isSaved, count: viewModel.collection?.saveCount ?? 0, surface: .dark) {
+                    Task { await viewModel.toggleSave(token: authManager.token) }
+                }
             }
         }
     }
@@ -2061,6 +2101,16 @@ final class CollectionDetailViewModel: ObservableObject {
                 isSaved = true
             }
         } catch { }
+    }
+
+    func deleteCollection(token: String?) async -> Bool {
+        guard let token = token, !token.isEmpty else { return false }
+        do {
+            _ = try await api.deleteCollection(id: collectionId, token: token)
+            return true
+        } catch {
+            return false
+        }
     }
 
     func toggleSpotSave(spotId: String, token: String) async {

@@ -876,12 +876,44 @@ extension APIService {
         return try await get("/collections/\(collectionId)/items", token: token)
     }
 
-    func updateCollection(id: String, name: String?, description: String?, token: String) async throws -> CollectionResponse {
+    func updateCollection(
+        id: String,
+        name: String?,
+        description: String?,
+        visibility: String? = nil,
+        coverImageUrl: String? = nil,
+        clearCoverImage: Bool = false,
+        token: String
+    ) async throws -> CollectionResponse {
+        /// Omitted keys are left unchanged on the server (no accidental `null` clears).
         struct UpdateCollectionBody: Encodable {
             let name: String?
             let description: String?
+            let visibility: String?
+            let coverImageUrl: String?
+            let clearCoverImage: Bool
+            enum CodingKeys: String, CodingKey {
+                case name, description, visibility, coverImageUrl
+            }
+            func encode(to encoder: Encoder) throws {
+                var c = encoder.container(keyedBy: CodingKeys.self)
+                try c.encodeIfPresent(name, forKey: .name)
+                try c.encodeIfPresent(description, forKey: .description)
+                try c.encodeIfPresent(visibility, forKey: .visibility)
+                if clearCoverImage {
+                    try c.encodeNil(forKey: .coverImageUrl)
+                } else {
+                    try c.encodeIfPresent(coverImageUrl, forKey: .coverImageUrl)
+                }
+            }
         }
-        let body = UpdateCollectionBody(name: name, description: description)
+        let body = UpdateCollectionBody(
+            name: name,
+            description: description,
+            visibility: visibility,
+            coverImageUrl: coverImageUrl,
+            clearCoverImage: clearCoverImage
+        )
         return try await patch("/collections/\(id)", body: body, token: token)
     }
 

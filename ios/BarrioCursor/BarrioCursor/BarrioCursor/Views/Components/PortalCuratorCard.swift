@@ -217,20 +217,82 @@ struct PortalCollectionCard: View {
     private var curatorAvatarSize: CGFloat { isExpanded ? 26 : 22 }
     private var curatorInitialFontSize: CGFloat { 13 }
     private var cardHeight: CGFloat { effectiveWidth * (5 / 4) }
+    /// Magazine panel is everything except the fixed 52pt miniature strip (do not use `maxWidth: .infinity` here — it can swallow the strip in `HStack` layout).
+    private var mainPanelWidth: CGFloat { effectiveWidth - collectionStripWidth }
+
+    /// Thumbnail column: fixed width; row heights derived from `rowCount` so tiles are not crushed to ~20pt.
+    private var collectionMiniatureStrip: some View {
+        let pad: CGFloat = 4
+        let innerW = collectionStripWidth - pad * 2
+        let urls = Array((collection.previewImageURLs ?? []).prefix(2))
+        let showBadge = (collection.itemCount ?? 0) > 2
+        let badgeH: CGFloat = showBadge ? 26 : 0
+        let gap: CGFloat = 4
+        let rowCount: Int = {
+            if !urls.isEmpty { return urls.count }
+            return min(2, collection.itemCount ?? 2)
+        }()
+        let gapAfterRows = showBadge && rowCount > 0 ? gap : 0
+        let gapBetweenRows = rowCount > 1 ? CGFloat(rowCount - 1) * gap : 0
+        let availableH = cardHeight - pad * 2 - badgeH - gapBetweenRows - gapAfterRows
+        let thumbH: CGFloat = rowCount > 0 ? max(30, availableH / CGFloat(rowCount)) : 0
+
+        return VStack(spacing: gap) {
+            if !urls.isEmpty {
+                ForEach(Array(urls.enumerated()), id: \.offset) { _, urlString in
+                    if let url = portalMediaURL(urlString) {
+                        CachedRemoteImage(
+                            url: url,
+                            placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
+                            failure: { Rectangle().fill(Color.portalMuted) }
+                        )
+                        .frame(width: innerW, height: thumbH)
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
+                    } else {
+                        Rectangle()
+                            .fill(Color.portalMuted)
+                            .frame(width: innerW, height: thumbH)
+                            .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
+                    }
+                }
+            } else {
+                ForEach(0..<min(2, collection.itemCount ?? 2), id: \.self) { _ in
+                    Rectangle()
+                        .fill(Color.portalMuted)
+                        .frame(width: innerW, height: thumbH)
+                        .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
+                }
+            }
+            if let n = collection.itemCount, n > 2 {
+                RoundedRectangle(cornerRadius: .portalRadiusSm)
+                    .fill(Color.portalForeground.opacity(0.3))
+                    .overlay(
+                        Text("+\(n - 2)")
+                            .font(.portalBadge)
+                            .foregroundColor(.portalCard.opacity(0.8))
+                    )
+                    .frame(width: innerW, height: badgeH)
+            }
+        }
+        .padding(pad)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            // Main cover image — fixed height so `CachedRemoteImage` always has a non-zero frame (GeometryReader was collapsing in some layouts).
-            ZStack(alignment: .bottom) {
+            // Main cover — width is explicit so the strip always reserves 52pt.
+            ZStack(alignment: .bottomLeading) {
                 CachedRemoteImage(
                     url: portalMediaURL(collection.resolvedCoverImageURLString),
                     placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
                     failure: { Rectangle().fill(Color.portalMuted) }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(width: mainPanelWidth, height: cardHeight)
                 .clipped()
 
-                EditorialBottomGradient(heightFraction: 0.78, cardHeight: cardHeight)
+                EditorialBottomGradient(heightFraction: 0.62, cardHeight: cardHeight)
+                    .frame(width: mainPanelWidth, height: cardHeight)
                     .zIndex(0)
 
                 VStack {
@@ -247,6 +309,7 @@ struct PortalCollectionCard: View {
                     .padding(.top, 10)
                     Spacer(minLength: 0)
                 }
+                .frame(width: mainPanelWidth, height: cardHeight)
                 .zIndex(1)
 
                 VStack(alignment: .leading, spacing: isExpanded ? 8 : 6) {
@@ -265,7 +328,9 @@ struct PortalCollectionCard: View {
                     Text(collection.title)
                         .font(.portalDisplayBlack(size: titleFontSize))
                         .foregroundColor(.portalCard)
+                        .multilineTextAlignment(.leading)
                         .lineLimit(2)
+                        .minimumScaleFactor(0.88)
                         .shadow(color: .black.opacity(0.45), radius: 4, x: 0, y: 1)
                     HStack(spacing: 6) {
                         Circle()
@@ -282,60 +347,18 @@ struct PortalCollectionCard: View {
                             .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(isExpanded ? 16 : 12)
+                .padding(.horizontal, isExpanded ? 16 : 12)
+                .padding(.bottom, isExpanded ? 16 : 12)
+                .frame(width: mainPanelWidth, alignment: .bottomLeading)
                 .zIndex(3)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: cardHeight)
+            .frame(width: mainPanelWidth, height: cardHeight)
             .clipped()
 
             // Right — vertical miniature strip (real spot thumbnails when previewImageURLs provided)
-            VStack(spacing: 4) {
-                let urls = (collection.previewImageURLs ?? []).prefix(2)
-                if !urls.isEmpty {
-                    ForEach(Array(urls.enumerated()), id: \.offset) { _, urlString in
-                        if let url = portalMediaURL(urlString) {
-                            CachedRemoteImage(
-                                url: url,
-                                placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
-                                failure: { Rectangle().fill(Color.portalMuted) }
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 20)
-                            .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-                        } else {
-                            Rectangle()
-                                .fill(Color.portalMuted)
-                                .frame(maxWidth: .infinity)
-                                .frame(minHeight: 20)
-                                .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-                        }
-                    }
-                } else {
-                    ForEach(0..<min(2, collection.itemCount ?? 2), id: \.self) { _ in
-                        Rectangle()
-                            .fill(Color.portalMuted)
-                            .frame(maxWidth: .infinity)
-                            .frame(minHeight: 20)
-                            .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-                    }
-                }
-                if let n = collection.itemCount, n > 2 {
-                    RoundedRectangle(cornerRadius: .portalRadiusSm)
-                        .fill(Color.portalForeground.opacity(0.3))
-                        .overlay(
-                            Text("+\(n - 2)")
-                                .font(.portalBadge)
-                                .foregroundColor(.portalCard.opacity(0.8))
-                        )
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: 24)
-                }
-            }
-            .padding(4)
-            .frame(width: collectionStripWidth)
-            .background(Color.portalForeground.opacity(0.05))
+            collectionMiniatureStrip
+                .frame(width: collectionStripWidth, height: cardHeight)
+                .background(Color.portalForeground.opacity(0.05))
         }
         .frame(width: effectiveWidth)
         .frame(height: cardHeight) // 4:5 aspect
