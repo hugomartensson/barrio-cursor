@@ -3,7 +3,6 @@ import { facebookEventFetcher } from '../tools/facebook-event-fetcher.js';
 import { googlePlacesFetcher } from '../tools/google-places-fetcher.js';
 import { imageValidator } from '../tools/image-validator.js';
 import { raEventFetcher } from '../tools/ra-event-fetcher.js';
-import { tavilyImageSearch } from '../tools/tavily-image-search.js';
 import { tavilySearchTool } from '../tools/tavily-search.js';
 import { websiteFetcher } from '../tools/website-fetcher.js';
 
@@ -34,15 +33,15 @@ WORKFLOW FOR A URL INPUT:
 
    PRIORITY ORDER FOR IMAGE SOURCES:
    1. Original URL (websiteFetcher og:image and JSON-LD images) — always try these first.
-   2. Web image search via tavily-image-search — search for "[venue/event name] [city]" and validate the returned image URLs. Use this before falling back to Google Places.
-   3. Google Places photos — only fall back here if sources 1–2 yield nothing that passes validation.
+   2. Press and blog pages — if step 1 fails, call tavily-web-search for "[venue/event name] [city] photos" (or "[name] event" for events), then call websiteFetcher on the top 2–3 result URLs and extract their og:image. Validate each with image-validator.
+   3. Google Places photos — only fall back here if steps 1–2 yield nothing that passes validation.
 
    PROCESS:
    - Collect all image candidates from the original URL first.
    - Call image-validator on the top 3–5 distinct candidate URLs.
    - If the original URL's best image passes validation (isPhoto = true for spots, qualityScore ≥ 7, and matches the type rules above), use it — do NOT replace it with a Google Places photo.
-   - If the original URL yields no qualifying image, you MUST call tavily-image-search with "[venue/event name] [city]" before touching Google Places. Validate the returned URLs with image-validator and pick the best qualifying one.
-   - Only fall back to Google Places photos if BOTH the original URL AND tavily-image-search fail to produce a qualifying image. Do not skip the tavily-image-search step.
+   - If the original URL yields no qualifying image, you MUST search Tavily for press/blog pages and fetch their images before touching Google Places. Do not skip this step.
+   - Only fall back to Google Places photos if BOTH the original URL AND the Tavily press pages fail to produce a qualifying image.
    - Only set imageUrl to null if you genuinely cannot find a qualifying image after exhausting all sources.
 
 6. Produce one JSON object matching the required structured output schema (see tool/schema). No extra keys.
@@ -53,10 +52,10 @@ WORKFLOW FOR TEXT-ONLY INPUT:
 FIELD RULES:
 - type: "event" if there are specific event start/end times from the source; otherwise "spot".
 - name: Real venue or event name only — not page titles with "Home", "Inicio", "| Barcelona", etc. Prefer Google Places name.
-- description: 2–3 warm, discovery-style sentences. No hashtag spam, no generic SEO filler. End the description with a newline and a website link on its own line:
+- description: 2–3 warm, discovery-style sentences. No hashtag spam, no generic SEO filler. End the description with a blank line followed by the website URL on its own line:
     - For spots: use the venue's own website URL (from googlePlacesFetcher "website" field if available, otherwise sourceUrl). Skip if neither is available.
     - For events: use the original event page URL (sourceUrl).
-    - Format: "Website: [url]" — plain URL, no markdown.
+    - Format: "[2–3 sentences]\n\nWebsite: [url]" — one blank line between the prose and the URL. Plain URL, no markdown.
 - category: one of food, drinks, music, art, markets, community.
 - address: full street address including the city when possible.
 - neighborhood: local neighbourhood name for whatever city the venue is in (e.g. El Born, Gràcia, Eixample for Barcelona; Södermalm, Vasastan, Östermalm for Stockholm).
@@ -83,7 +82,6 @@ Always use tools instead of guessing addresses or names.`,
     facebookEventFetcher,
     raEventFetcher,
     tavilySearchTool,
-    tavilyImageSearch,
     imageValidator,
   },
 });

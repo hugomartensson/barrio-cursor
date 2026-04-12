@@ -11,7 +11,7 @@ Fix common issues and return the FULL corrected object plus verifierNotes.
 
 NAME: Remove nav cruft ("Masa - Inicio", "| Home"). Prefer concise venue name. If the name looks wrong but you have no confirmed alternative in the draft data, leave it as-is.
 
-DESCRIPTION: If it reads like meta/SEO spam, rewrite 2–3 friendly discovery sentences using ONLY facts already in the description field. Do not add facts not present in the draft. IMPORTANT: If the description ends with a line starting "Website: https://..." — preserve that line exactly as-is at the end of your rewrite. Never remove it.
+DESCRIPTION: If it reads like meta/SEO spam, rewrite 2–3 friendly discovery sentences using ONLY facts already in the description field. Do not add facts not present in the draft. CRITICAL: The description may end with "\n\nWebsite: https://...". You MUST preserve this entire suffix exactly — including the blank line before it. Do not remove, reformat, or move it. If it is missing, do not add it yourself.
 
 CATEGORY: e.g. wine bar → drinks (not food unless primarily restaurant).
 
