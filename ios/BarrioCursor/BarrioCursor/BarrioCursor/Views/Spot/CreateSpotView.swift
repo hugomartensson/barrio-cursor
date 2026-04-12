@@ -27,6 +27,7 @@ struct CreateSpotView: View {
     @State private var addressSuggestions: [MKMapItem] = []
     @State private var showAddressSuggestions = false
     @State private var suppressAddressSearch = false
+    @State private var addressSearchTask: Task<Void, Never>?
 
     @FocusState private var focusedField: Field?
     private enum Field { case name, description, address }
@@ -142,6 +143,10 @@ struct CreateSpotView: View {
 
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 4) {
+            Text("DESCRIPTION")
+                .font(.portalSectionLabel)
+                .tracking(0.5)
+                .foregroundColor(.portalMutedForeground)
             ZStack(alignment: .topLeading) {
                 if description.isEmpty {
                     Text("What's this spot about?")
@@ -218,14 +223,27 @@ struct CreateSpotView: View {
                 TextField("Address or venue name", text: $manualAddress)
                     .font(.portalBody)
                     .foregroundColor(.portalForeground)
+                    .textContentType(.none)
+                    .autocorrectionDisabled()
                     .focused($focusedField, equals: .address)
                     .onSubmit { Task { await geocodeAddress() } }
-                    .onChange(of: manualAddress) { _, _ in
+                    .onChange(of: manualAddress) { _, newValue in
+                        addressSearchTask?.cancel()
                         if suppressAddressSearch { suppressAddressSearch = false; return }
-                        Task {
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            if !manualAddress.isEmpty { searchAddresses() }
-                            else { addressSuggestions = []; showAddressSuggestions = false }
+                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard trimmed.count >= 2 else {
+                            addressSuggestions = []
+                            showAddressSuggestions = false
+                            return
+                        }
+                        addressSearchTask = Task {
+                            try? await Task.sleep(nanoseconds: 550_000_000)
+                            guard !Task.isCancelled else { return }
+                            await MainActor.run {
+                                let current = manualAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard current == trimmed else { return }
+                                searchAddresses()
+                            }
                         }
                     }
             }
@@ -347,6 +365,7 @@ struct CreateSpotView: View {
                     }
                 }
             )
+            .environmentObject(locationManager)
         }
         .sheet(isPresented: $showCameraSheet) {
             ImagePicker(
@@ -403,14 +422,8 @@ struct CreateSpotView: View {
 
     private func populateInitialLocation() {
         guard !locationManager.isLocationDenied else { return }
+        locationManager.requestLocationIfNeeded()
         selectedLocation = locationManager.coordinate
-        Task {
-            do {
-                let address = try await locationManager.reverseGeocode(locationManager.coordinate)
-                suppressAddressSearch = true
-                manualAddress = address
-            } catch { }
-        }
     }
 
     private func searchAddresses() {
@@ -421,7 +434,7 @@ struct CreateSpotView: View {
         }
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = manualAddress
-        request.resultTypes = .address
+        request.resultTypes = [.address, .pointOfInterest]
         if let location = selectedLocation ?? locationManager.location?.coordinate {
             request.region = MKCoordinateRegion(
                 center: location,
@@ -451,15 +464,23 @@ struct CreateSpotView: View {
     }
 
     private func formatAddress(from item: MKMapItem) -> String {
-        let p = item.placemark
-        var components: [String] = []
-        if let n = p.subThoroughfare, let s = p.thoroughfare {
-            components.append("\(n) \(s)")
-        } else if let s = p.thoroughfare {
-            components.append(s)
+        let placemark = item.placemark
+        let venueName = item.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var streetParts: [String] = []
+        if let n = placemark.subThoroughfare, let s = placemark.thoroughfare {
+            streetParts.append("\(n) \(s)")
+        } else if let s = placemark.thoroughfare {
+            streetParts.append(s)
         }
-        if let city = p.locality { components.append(city) }
-        return components.isEmpty ? (item.name ?? "") : components.joined(separator: ", ")
+        let city = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !venueName.isEmpty, streetParts.isEmpty || venueName.lowercased() != streetParts.joined().lowercased() {
+            if !city.isEmpty { return "\(venueName), \(city)" }
+            if !streetParts.isEmpty { return "\(venueName), \(streetParts[0])" }
+            return venueName
+        }
+        var components = streetParts
+        if !city.isEmpty { components.append(city) }
+        return components.isEmpty ? venueName : components.joined(separator: ", ")
     }
 
     private func geocodeAddress() async {

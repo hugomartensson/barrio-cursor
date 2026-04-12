@@ -23,6 +23,8 @@ struct PortalSpotItem: Identifiable, Hashable {
     let id: String
     let name: String
     let neighborhood: String
+    /// Full address line from API when available — used for city-style labels on cards.
+    let addressLine: String
     let imageURL: String?
     let categoryLabel: String?
     let ownerHandle: String
@@ -37,6 +39,7 @@ struct PortalSpotItem: Identifiable, Hashable {
         id: String,
         name: String,
         neighborhood: String,
+        addressLine: String = "",
         imageURL: String?,
         categoryLabel: String?,
         ownerHandle: String,
@@ -50,6 +53,7 @@ struct PortalSpotItem: Identifiable, Hashable {
         self.id = id
         self.name = name
         self.neighborhood = neighborhood
+        self.addressLine = addressLine
         self.imageURL = imageURL
         self.categoryLabel = categoryLabel
         self.ownerHandle = ownerHandle
@@ -59,6 +63,15 @@ struct PortalSpotItem: Identifiable, Hashable {
         self.tags = tags
         self.distanceText = distanceText
         self.friendsWhoSaved = friendsWhoSaved
+    }
+
+    /// City-only label for cards (matches event `displayCity`).
+    var displayCity: String {
+        let addr = addressLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !addr.isEmpty {
+            return AddressFormatting.cityName(neighborhood: nil, address: addr)
+        }
+        return AddressFormatting.cityName(neighborhood: neighborhood, address: "")
     }
 }
 
@@ -70,6 +83,7 @@ extension PortalSpotItem {
             id: spot.id,
             name: spot.name,
             neighborhood: spot.neighborhood,
+            addressLine: spot.address,
             imageURL: spot.imageUrl,
             categoryLabel: spot.tags.first,
             ownerHandle: primaryOwner?.handle ?? "?",
@@ -155,7 +169,7 @@ struct PortalSpotCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: "mappin")
                                 .font(.system(size: neighborhoodFontSize))
-                            Text(spot.neighborhood)
+                            Text(spot.displayCity)
                                 .font(.portalItalic(size: neighborhoodFontSize))
                         }
                         .foregroundColor(Color.portalCard.opacity(0.7))
@@ -411,7 +425,7 @@ struct SpotDetailView: View {
             Image(systemName: "mappin")
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
-            Text(spot.neighborhood)
+            Text(spot.displayCity)
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
         }

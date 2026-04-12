@@ -88,7 +88,7 @@ struct MapView: View {
                                 if let idx = viewModel.spots.firstIndex(where: { $0.id == spot.id }) {
                                     let old = viewModel.spots[idx]
                                     var newSpots = viewModel.spots
-                                    newSpots[idx] = Spot(id: old.id, name: old.name, neighborhood: old.neighborhood, description: old.description, imageUrl: old.imageUrl, location: old.location, tags: old.tags, owners: old.owners, saveCount: response.saveCount)
+                                    newSpots[idx] = Spot(id: old.id, name: old.name, address: old.address, neighborhood: old.neighborhood, description: old.description, imageUrl: old.imageUrl, location: old.location, tags: old.tags, owners: old.owners, saveCount: response.saveCount)
                                     viewModel.spots = newSpots
                                 }
                             }

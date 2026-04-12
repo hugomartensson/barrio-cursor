@@ -147,9 +147,9 @@ struct EditorialBottomGradient: View {
             LinearGradient(
                 colors: [
                     Color.portalForeground.opacity(0),
-                    Color.portalForeground.opacity(0.2),
-                    Color.portalForeground.opacity(0.4),
-                    Color.portalForeground.opacity(0.85)
+                    Color.portalForeground.opacity(0.25),
+                    Color.portalForeground.opacity(0.55),
+                    Color.portalForeground.opacity(0.95)
                 ],
                 startPoint: .top,
                 endPoint: .bottom

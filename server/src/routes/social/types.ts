@@ -40,6 +40,7 @@ export interface FollowRequestResponse {
     id: string;
     fromUserId: string;
     fromUserName: string;
+    fromUserHandle: string | null;
     fromUserProfilePictureUrl: string | null;
     status: 'pending' | 'accepted' | 'declined';
     createdAt: string;

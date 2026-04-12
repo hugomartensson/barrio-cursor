@@ -21,12 +21,29 @@ class LocationManager: NSObject, ObservableObject {
     override init() {
         super.init()
         manager.delegate = self
+        authorizationStatus = manager.authorizationStatus
         // Use best accuracy for precise location tracking on map
         // Location updates are separate from API event fetching
         manager.desiredAccuracy = kCLLocationAccuracyBest
         // Update location every 15 meters for smooth map tracking
         // This is just visual - event API calls are debounced separately
         manager.distanceFilter = 15.0
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
+            startUpdating()
+        }
+    }
+
+    /// Call when Discover (or other flows) appears so we prompt for permission if needed and start updates when authorized.
+    func requestLocationIfNeeded() {
+        authorizationStatus = manager.authorizationStatus
+        switch authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse, .authorizedAlways:
+            startUpdating()
+        default:
+            break
+        }
     }
     
     func requestPermission() {

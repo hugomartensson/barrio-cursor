@@ -109,12 +109,10 @@ interface CollectionData {
   saveCount?: number;
 }
 
-/** Fetch the hero image + up to 2 preview image URLs for each collection ID. */
+/** Ordered first-media URLs per collection item (up to 3 items), for merging with DB `coverImageUrl`. */
 async function fetchCollectionImageData(
   collectionIds: string[]
-): Promise<
-  Map<string, { coverImageURL: string | null; previewSpotImageURLs: string[] }>
-> {
+): Promise<Map<string, { itemImageUrls: string[] }>> {
   if (collectionIds.length === 0) {
     return new Map();
   }
@@ -160,10 +158,7 @@ async function fetchCollectionImageData(
   const spotMap = new Map(spots.map((s) => [s.id, s.media[0]?.url ?? null]));
   const eventMap = new Map(events.map((e) => [e.id, e.media[0]?.url ?? null]));
 
-  const result = new Map<
-    string,
-    { coverImageURL: string | null; previewSpotImageURLs: string[] }
-  >();
+  const result = new Map<string, { itemImageUrls: string[] }>();
   for (const id of collectionIds) {
     const items = itemsByCollection.get(id) ?? [];
     const urls = items
@@ -171,12 +166,27 @@ async function fetchCollectionImageData(
         item.itemType === 'spot' ? spotMap.get(item.itemId) : eventMap.get(item.itemId)
       )
       .filter((u): u is string => typeof u === 'string');
-    result.set(id, {
-      coverImageURL: urls[0] ?? null,
-      previewSpotImageURLs: urls.slice(1),
-    });
+    result.set(id, { itemImageUrls: urls });
   }
   return result;
+}
+
+/** DB cover wins for main panel; item URLs go to the right strip only. Without DB cover, first item is main cover. */
+function mergeCollectionCoverAndPreviews(
+  dbCover: string | null | undefined,
+  itemImageUrls: string[]
+): { coverImageURL: string | null; previewSpotImageURLs: string[] } {
+  const trimmed = dbCover?.trim();
+  if (trimmed) {
+    return {
+      coverImageURL: trimmed,
+      previewSpotImageURLs: itemImageUrls.slice(0, 2),
+    };
+  }
+  return {
+    coverImageURL: itemImageUrls[0] ?? null,
+    previewSpotImageURLs: itemImageUrls.slice(1),
+  };
 }
 
 /**
@@ -198,6 +208,8 @@ router.post(
       const authReq = req as AuthenticatedRequest;
       const userId = authReq.user.userId;
       const input = req.body;
+      const coverRaw = input.coverImageUrl?.trim();
+      const coverImageUrl = coverRaw && coverRaw.length > 0 ? coverRaw : null;
 
       const collection = await prisma.collection.create({
         data: {
@@ -205,12 +217,16 @@ router.post(
           name: input.name,
           description: input.description ?? null,
           visibility: (input.visibility as 'private' | 'friends' | 'public') ?? 'private',
+          coverImageUrl,
         },
       });
 
       const count = await prisma.collectionItem.count({
         where: { collectionId: collection.id },
       });
+      const imageData = await fetchCollectionImageData([collection.id]);
+      const itemUrls = imageData.get(collection.id)?.itemImageUrls ?? [];
+      const merged = mergeCollectionCoverAndPreviews(collection.coverImageUrl, itemUrls);
       res.status(201).json({
         data: {
           id: collection.id,
@@ -222,6 +238,8 @@ router.post(
           createdAt: collection.createdAt.toISOString(),
           updatedAt: collection.updatedAt.toISOString(),
           owned: true,
+          coverImageURL: merged.coverImageURL,
+          previewSpotImageURLs: merged.previewSpotImageURLs,
         },
       });
     }
@@ -281,35 +299,46 @@ router.get(
         fetchCollectionImageData(allCollectionIds),
       ]);
 
-      const ownedData: CollectionData[] = owned.map((c, i) => ({
-        id: c.id,
-        userId: c.userId,
-        name: c.name,
-        description: c.description,
-        visibility: c.visibility,
-        itemCount: ownedCounts[i] ?? 0,
-        createdAt: c.createdAt.toISOString(),
-        updatedAt: c.updatedAt.toISOString(),
-        owned: true,
-        ownerHandle: currentUser?.handle ?? null,
-        ownerInitials: currentUser?.initials ?? null,
-        ...imageData.get(c.id),
-      }));
+      const ownedData: CollectionData[] = owned.map((c, i) => {
+        const itemUrls = imageData.get(c.id)?.itemImageUrls ?? [];
+        const merged = mergeCollectionCoverAndPreviews(c.coverImageUrl, itemUrls);
+        return {
+          id: c.id,
+          userId: c.userId,
+          name: c.name,
+          description: c.description,
+          visibility: c.visibility,
+          itemCount: ownedCounts[i] ?? 0,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+          owned: true,
+          ownerHandle: currentUser?.handle ?? null,
+          ownerInitials: currentUser?.initials ?? null,
+          coverImageURL: merged.coverImageURL,
+          previewSpotImageURLs: merged.previewSpotImageURLs,
+        };
+      });
 
-      const savedData: CollectionData[] = savedLinks.map((sc, i) => ({
-        id: sc.collection.id,
-        userId: sc.collection.userId,
-        name: sc.collection.name,
-        description: sc.collection.description,
-        visibility: sc.collection.visibility,
-        itemCount: savedCounts[i] ?? 0,
-        createdAt: sc.collection.createdAt.toISOString(),
-        updatedAt: sc.collection.updatedAt.toISOString(),
-        owned: false,
-        ownerHandle: sc.collection.user.handle,
-        ownerInitials: sc.collection.user.initials,
-        ...imageData.get(sc.collection.id),
-      }));
+      const savedData: CollectionData[] = savedLinks.map((sc, i) => {
+        const col = sc.collection;
+        const itemUrls = imageData.get(col.id)?.itemImageUrls ?? [];
+        const merged = mergeCollectionCoverAndPreviews(col.coverImageUrl, itemUrls);
+        return {
+          id: col.id,
+          userId: col.userId,
+          name: col.name,
+          description: col.description,
+          visibility: col.visibility,
+          itemCount: savedCounts[i] ?? 0,
+          createdAt: col.createdAt.toISOString(),
+          updatedAt: col.updatedAt.toISOString(),
+          owned: false,
+          ownerHandle: col.user.handle,
+          ownerInitials: col.user.initials,
+          coverImageURL: merged.coverImageURL,
+          previewSpotImageURLs: merged.previewSpotImageURLs,
+        };
+      });
 
       const data = [...ownedData, ...savedData].sort(
         (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -364,21 +393,26 @@ router.get(
 
       const imageData = await fetchCollectionImageData(collections.map((c) => c.id));
 
-      const data: CollectionData[] = collections.map((c) => ({
-        id: c.id,
-        userId: c.userId,
-        name: c.name,
-        description: c.description,
-        visibility: c.visibility,
-        itemCount: c._count.items,
-        saveCount: c._count.savedBy,
-        createdAt: c.createdAt.toISOString(),
-        updatedAt: c.updatedAt.toISOString(),
-        owned: false,
-        ownerHandle: c.user.handle,
-        ownerInitials: c.user.initials,
-        ...imageData.get(c.id),
-      }));
+      const data: CollectionData[] = collections.map((c) => {
+        const itemUrls = imageData.get(c.id)?.itemImageUrls ?? [];
+        const merged = mergeCollectionCoverAndPreviews(c.coverImageUrl, itemUrls);
+        return {
+          id: c.id,
+          userId: c.userId,
+          name: c.name,
+          description: c.description,
+          visibility: c.visibility,
+          itemCount: c._count.items,
+          saveCount: c._count.savedBy,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+          owned: false,
+          ownerHandle: c.user.handle,
+          ownerInitials: c.user.initials,
+          coverImageURL: merged.coverImageURL,
+          previewSpotImageURLs: merged.previewSpotImageURLs,
+        };
+      });
 
       res.json({ data });
     }
@@ -534,6 +568,10 @@ router.get(
       });
       const owned = collection.userId === userId;
 
+      const imageData = await fetchCollectionImageData([id]);
+      const itemUrls = imageData.get(id)?.itemImageUrls ?? [];
+      const merged = mergeCollectionCoverAndPreviews(collection.coverImageUrl, itemUrls);
+
       res.json({
         data: {
           id: collection.id,
@@ -545,6 +583,8 @@ router.get(
           createdAt: collection.createdAt.toISOString(),
           updatedAt: collection.updatedAt.toISOString(),
           owned,
+          coverImageURL: merged.coverImageURL,
+          previewSpotImageURLs: merged.previewSpotImageURLs,
           ...(owned
             ? {}
             : {
@@ -591,11 +631,21 @@ router.patch(
           ...(input.name !== undefined && { name: input.name }),
           ...(input.description !== undefined && { description: input.description }),
           ...(input.visibility !== undefined && { visibility: input.visibility }),
+          ...(input.coverImageUrl !== undefined && {
+            coverImageUrl:
+              input.coverImageUrl === null || input.coverImageUrl.trim() === ''
+                ? null
+                : input.coverImageUrl.trim(),
+          }),
         },
       });
       const itemCount = await prisma.collectionItem.count({
         where: { collectionId: id },
       });
+
+      const imageData = await fetchCollectionImageData([id]);
+      const itemUrls = imageData.get(id)?.itemImageUrls ?? [];
+      const merged = mergeCollectionCoverAndPreviews(updated.coverImageUrl, itemUrls);
 
       res.json({
         data: {
@@ -608,6 +658,8 @@ router.patch(
           createdAt: updated.createdAt.toISOString(),
           updatedAt: updated.updatedAt.toISOString(),
           owned: true,
+          coverImageURL: merged.coverImageURL,
+          previewSpotImageURLs: merged.previewSpotImageURLs,
         },
       });
     }

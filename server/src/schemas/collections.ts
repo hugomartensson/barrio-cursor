@@ -7,12 +7,15 @@ export const createCollectionSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
   description: z.string().max(500).optional(),
   visibility: visibilitySchema.optional(),
+  /** Supabase public URL for collection cover (optional). */
+  coverImageUrl: z.string().max(2048).optional(),
 });
 
 export const updateCollectionSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).optional().nullable(),
   visibility: visibilitySchema.optional(),
+  coverImageUrl: z.string().max(2048).optional().nullable(),
 });
 
 export const collectionIdSchema = z.object({

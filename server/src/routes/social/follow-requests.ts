@@ -53,6 +53,7 @@ router.get(
             select: {
               id: true,
               name: true,
+              handle: true,
               profilePictureUrl: true,
             },
           },
@@ -64,6 +65,7 @@ router.get(
         id: req.id,
         fromUserId: req.fromUser.id,
         fromUserName: req.fromUser.name,
+        fromUserHandle: req.fromUser.handle ?? null,
         fromUserProfilePictureUrl: req.fromUser.profilePictureUrl,
         status: req.status as 'pending' | 'accepted' | 'declined',
         createdAt: req.createdAt.toISOString(),

@@ -15,24 +15,20 @@ struct PortalCoverImagePickerEmptyState: View {
         Button {
             showSourceChooser = true
         } label: {
-            VStack(spacing: 12) {
-                Image(systemName: "photo.badge.plus")
-                    .font(.system(size: 32, weight: .medium))
-                    .foregroundColor(.portalPrimary)
-                Text("Add cover image")
-                    .font(.portalBody)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.portalPrimary)
-            }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(aspectRatio, contentMode: .fit)
-            .background(Color.portalPrimary.opacity(0.06))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
-                    .foregroundColor(.portalPrimary.opacity(0.4))
-            )
-            .contentShape(Rectangle())
+            Text("Add cover image")
+                .font(.portalMetadata)
+                .fontWeight(.medium)
+                .foregroundColor(.portalPrimary)
+                .padding(.vertical, 20)
+                .frame(maxWidth: .infinity)
+                .aspectRatio(aspectRatio, contentMode: .fit)
+                .background(Color.portalPrimary.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
+                        .foregroundColor(.portalPrimary.opacity(0.4))
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .confirmationDialog("Add cover image", isPresented: $showSourceChooser, titleVisibility: .visible) {

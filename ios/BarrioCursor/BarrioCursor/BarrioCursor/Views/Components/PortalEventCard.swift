@@ -5,6 +5,7 @@ import SwiftUI
 
 private let ticketImageStripWidth: CGFloat = 112
 private let ticketDividerWidth: CGFloat = 16
+private let ticketCardFixedHeight: CGFloat = 120
 private let perforationCircleSize: CGFloat = 16
 
 struct PortalEventCard: View {
@@ -43,6 +44,7 @@ struct PortalEventCard: View {
             ZStack(alignment: .trailing) {
                 CachedRemoteImage(
                     url: imageURL,
+                    contentMode: .fill,
                     placeholder: {
                         Rectangle()
                             .fill(Color.portalMuted)
@@ -58,8 +60,7 @@ struct PortalEventCard: View {
                             )
                     }
                 )
-                .frame(width: ticketImageStripWidth)
-                .frame(minHeight: 100)
+                .frame(width: ticketImageStripWidth, height: ticketCardFixedHeight)
                 .clipped()
                 LinearGradient(
                     colors: [Color.clear, Color.portalCard.opacity(0.2)],
@@ -67,9 +68,9 @@ struct PortalEventCard: View {
                     endPoint: .trailing
                 )
                 .frame(width: 24)
-                .frame(maxHeight: .infinity)
+                .frame(height: ticketCardFixedHeight)
             }
-            .frame(width: ticketImageStripWidth)
+            .frame(width: ticketImageStripWidth, height: ticketCardFixedHeight)
             .clipped()
 
             // Center — Perforated tear-line divider
@@ -100,7 +101,7 @@ struct PortalEventCard: View {
                     .padding(.top, 4)
                     .accessibilityIdentifier("event_title")
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 0)
 
                 // Details: date block + time & venue
                 HStack(alignment: .center, spacing: 12) {
@@ -141,9 +142,9 @@ struct PortalEventCard: View {
             .padding(.leading, 8)
             .padding(.trailing, 12 + reserveTrailingForExternalSave)
             .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
-        .frame(minHeight: 120)
+        .frame(height: ticketCardFixedHeight)
         .background(Color.portalCard)
         .clipShape(RoundedRectangle(cornerRadius: .portalRadius))
         .overlay(

@@ -164,6 +164,7 @@ nonisolated struct FollowRequest: Codable, Identifiable {
     let id: String
     let fromUserId: String
     let fromUserName: String
+    let fromUserHandle: String?
     let fromUserProfilePictureUrl: String?
     let status: String // "pending" | "accepted" | "declined"
     let createdAt: String

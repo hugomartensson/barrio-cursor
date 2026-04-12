@@ -379,6 +379,19 @@ struct CreateCollectionView: View {
         }
     }
 
+    /// Resize + compress an image for cover upload. Target: 1280 px wide max, quality 0.75.
+    /// Keeps the payload well under 1 MB as base64.
+    private func prepareImageForUpload(_ image: UIImage) -> Data? {
+        let maxWidth: CGFloat = 1280
+        let scale = image.size.width > maxWidth ? maxWidth / image.size.width : 1.0
+        let targetSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        let resized = renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+        return resized.jpegData(compressionQuality: 0.75)
+    }
+
     private func createCollection() async {
         guard let token = authManager.token else {
             errorMessage = "Not authenticated"
@@ -389,10 +402,23 @@ struct CreateCollectionView: View {
         errorMessage = nil
         defer { isSubmitting = false; submissionProgress = nil }
         do {
+            var coverURL: String?
+            if let raw = imageData, let uiImage = UIImage(data: raw),
+               let jpegData = prepareImageForUpload(uiImage) {
+                submissionProgress = "Uploading cover…"
+                let b64 = jpegData.base64EncodedString()
+                coverURL = try await APIService.shared.uploadImage(
+                    base64Image: b64,
+                    contentType: "image/jpeg",
+                    token: token
+                )
+            }
+            submissionProgress = "Creating…"
             let response = try await APIService.shared.createCollection(
                 name: name,
                 description: description.isEmpty ? nil : description,
                 visibility: visibility.rawValue,
+                coverImageURL: coverURL,
                 token: token
             )
             let newId = response.data.id

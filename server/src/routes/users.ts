@@ -89,6 +89,9 @@ interface UserProfileResponse {
     collectionsCount?: number;
     followedCount?: number;
     selectedCity?: string | null;
+    /** True when viewer is not allowed to see full profile details yet (private account, not following). */
+    profileLocked?: boolean;
+    followRequestPending?: boolean;
   };
 }
 
@@ -337,6 +340,7 @@ router.get(
           id: true,
           email: true,
           name: true,
+          handle: true,
           profilePictureUrl: true,
           isPrivate: true,
           followerCount: true,
@@ -360,7 +364,31 @@ router.get(
         });
 
         if (!isFollowing) {
-          throw ApiError.forbidden('Profile is private');
+          const outgoingPending = await prisma.followRequest.findFirst({
+            where: {
+              fromUserId: authReq.user.userId,
+              toUserId: userId,
+              status: 'pending',
+            },
+            select: { id: true },
+          });
+          // Return a minimal profile so the app can show “private account” + Follow, not a generic error.
+          res.json({
+            data: {
+              id: user.id,
+              email: '',
+              name: user.name,
+              handle: user.handle ?? undefined,
+              profilePictureUrl: user.profilePictureUrl,
+              isPrivate: true,
+              followerCount: user.followerCount,
+              followingCount: user.followingCount,
+              bio: undefined,
+              profileLocked: true,
+              followRequestPending: Boolean(outgoingPending),
+            },
+          });
+          return;
         }
       }
 
@@ -369,11 +397,14 @@ router.get(
           id: user.id,
           email: user.email,
           name: user.name,
+          handle: user.handle ?? undefined,
           profilePictureUrl: user.profilePictureUrl,
           isPrivate: user.isPrivate,
           followerCount: user.followerCount,
           followingCount: user.followingCount,
           bio: user.bio ?? undefined,
+          profileLocked: false,
+          followRequestPending: false,
         },
       });
     }

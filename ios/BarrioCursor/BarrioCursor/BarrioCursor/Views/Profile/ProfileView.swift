@@ -397,69 +397,78 @@ struct ProfileView: View {
                 switch selectedTab {
                 case .collections:
                     collectionsTabContent
+                        .frame(maxWidth: .infinity)
                 case .spots:
                     spotsTabContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .events:
                     eventsTabContent
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
+    @ViewBuilder
     private var collectionsTabContent: some View {
-        Group {
-            if profileVM.collections.isEmpty {
-                ProfileEmptyStateView(
-                    icon: "bookmark",
-                    title: "No collections yet",
-                    subtitle: "Save or create collections to see them here."
-                )
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: .portalCardGap) {
-                        ForEach(profileVM.collectionItems) { item in
-                            ZStack(alignment: .topTrailing) {
-                                NavigationLink(value: ProfileCollectionRoute(id: item.id, name: item.title)) {
-                                    PortalCollectionCard(
-                                        collection: item,
-                                        isSaved: profileVM.savedCollectionIds.contains(item.id) || profileVM.isCollectionOwned(item.id),
-                                        onSaveToggle: nil,
-                                        cardWidth: nil,
-                                        isExpanded: false
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .contentShape(Rectangle())
-                                .zIndex(0)
-                                let collSaved = profileVM.savedCollectionIds.contains(item.id) || profileVM.isCollectionOwned(item.id)
-                                PortalSaveButton(isSaved: collSaved, count: item.saveCount ?? 0, surface: .light) {
-                                    guard let token = authManager.token else { return }
-                                    Task { await profileVM.toggleSaveCollection(collectionId: item.id, token: token) }
-                                }
-                                .padding(10)
-                                .zIndex(1)
+        if profileVM.collections.isEmpty {
+            ProfileEmptyStateView(
+                icon: "bookmark",
+                title: "No collections yet",
+                subtitle: "Save or create collections to see them here."
+            )
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: .portalCardGap) {
+                    ForEach(profileVM.collectionItems) { item in
+                        ZStack(alignment: .topTrailing) {
+                            NavigationLink(value: ProfileCollectionRoute(id: item.id, name: item.title)) {
+                                PortalCollectionCard(
+                                    collection: item,
+                                    isSaved: profileVM.savedCollectionIds.contains(item.id) || profileVM.isCollectionOwned(item.id),
+                                    onSaveToggle: nil,
+                                    cardWidth: nil,
+                                    isExpanded: false
+                                )
                             }
-                            .contextMenu {
-                                if profileVM.isCollectionOwned(item.id) {
-                                    Button(role: .destructive) {
-                                        collectionIdPendingDelete = item.id
-                                        showDeleteCollectionConfirm = true
-                                    } label: {
-                                        Label("Delete collection", systemImage: "trash")
-                                    }
+                            .buttonStyle(.plain)
+                            .contentShape(Rectangle())
+                            .zIndex(0)
+                            let collSaved = profileVM.savedCollectionIds.contains(item.id) || profileVM.isCollectionOwned(item.id)
+                            PortalSaveButton(isSaved: collSaved, count: item.saveCount ?? 0, surface: .light) {
+                                guard let token = authManager.token else { return }
+                                Task { await profileVM.toggleSaveCollection(collectionId: item.id, token: token) }
+                            }
+                            .padding(10)
+                            .zIndex(1)
+                        }
+                        .frame(height: 336, alignment: .top)
+                        .clipped()
+                        .contextMenu {
+                            if profileVM.isCollectionOwned(item.id) {
+                                Button(role: .destructive) {
+                                    collectionIdPendingDelete = item.id
+                                    showDeleteCollectionConfirm = true
+                                } label: {
+                                    Label("Delete collection", systemImage: "trash")
                                 }
                             }
                         }
                     }
-                    .padding(.horizontal, .portalPagePadding)
-                    .padding(.vertical, 4)
                 }
-                .frame(height: 330)
-                .scrollBounceBehavior(.basedOnSize)
+                .padding(.horizontal, .portalPagePadding)
+                // Horizontal row only: avoid extra vertical space that feels like vertical scrolling.
+                .fixedSize(horizontal: false, vertical: true)
             }
+            // Card height 325pt; keep row height tight so the horizontal scroller does not scroll vertically.
+            .frame(height: 336, alignment: .top)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .clipped()
+            .frame(maxWidth: .infinity, alignment: .top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var spotsTabContent: some View {
@@ -529,7 +538,8 @@ struct ProfileView: View {
                                     PortalEventCard(
                                         event: event,
                                         isSaved: profileVM.savedEventIds.contains(event.id),
-                                        onSaveToggle: nil
+                                        onSaveToggle: nil,
+                                        reserveTrailingForExternalSave: 52
                                     )
                                     .environmentObject(authManager)
                                 }
@@ -591,6 +601,7 @@ extension PortalSpotItem {
             id: saved.id,
             name: saved.name,
             neighborhood: saved.neighborhood ?? "",
+            addressLine: saved.address ?? "",
             imageURL: saved.imageUrl,
             categoryLabel: nil,
             ownerHandle: "?",
@@ -601,10 +612,20 @@ extension PortalSpotItem {
 }
 
 // MARK: - Follow Requests & Followers (own profile: pending requests + followers list)
+
+private func followRequestHandleSubtitle(_ request: FollowRequest) -> String {
+    if let h = request.fromUserHandle?.trimmingCharacters(in: .whitespacesAndNewlines), !h.isEmpty {
+        return "@\(h)"
+    }
+    return ""
+}
+
 struct FollowRequestsView: View {
     let currentUserId: String
     @EnvironmentObject var authManager: AuthManager
     @StateObject private var viewModel = FollowRequestsViewModel()
+    /// Programmatic push so the row isn’t one giant `NavigationLink` (which was stealing taps / hit-testing vs Accept).
+    @State private var profileNavigationUserId: String?
 
     var body: some View {
         Group {
@@ -615,27 +636,42 @@ struct FollowRequestsView: View {
                     if !viewModel.requests.isEmpty {
                         Section("Follow requests") {
                             ForEach(viewModel.requests.filter { $0.status == "pending" }) { request in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(request.fromUserName)
-                                            .font(.system(size: 15, weight: .medium))
-                                        Text("@\(request.fromUserId)")
-                                            .font(.caption)
-                                            .foregroundColor(.portalMutedForeground)
-                                    }
-                                    Spacer()
-                                    HStack(spacing: 8) {
-                                        Button("Decline") {
-                                            Task { await viewModel.decline(requestId: request.id, token: authManager.token) }
+                                HStack(alignment: .center, spacing: 12) {
+                                    Button {
+                                        profileNavigationUserId = request.fromUserId
+                                    } label: {
+                                        HStack(alignment: .center, spacing: 12) {
+                                            Circle()
+                                                .fill(Color.portalPrimary.opacity(0.25))
+                                                .frame(width: 40, height: 40)
+                                                .overlay(
+                                                    Text(request.fromUserName.prefix(1).uppercased())
+                                                        .font(.system(size: 16, weight: .semibold))
+                                                        .foregroundColor(.portalForeground)
+                                                )
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(request.fromUserName)
+                                                    .font(.system(size: 15, weight: .medium))
+                                                    .foregroundColor(.portalForeground)
+                                                Text(followRequestHandleSubtitle(request))
+                                                    .font(.caption)
+                                                    .foregroundColor(.portalMutedForeground)
+                                            }
                                         }
-                                        .font(.system(size: 13, weight: .medium))
-                                        .foregroundColor(.portalMutedForeground)
-                                        Button("Accept") {
-                                            Task { await viewModel.accept(requestId: request.id, token: authManager.token) }
-                                        }
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(.portalPrimary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
                                     }
+                                    .buttonStyle(.plain)
+                                    Button("Decline") {
+                                        Task { await viewModel.decline(requestId: request.id, token: authManager.token) }
+                                    }
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.portalMutedForeground)
+                                    Button("Accept") {
+                                        Task { await viewModel.accept(requestId: request.id, token: authManager.token) }
+                                    }
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.portalPrimary)
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -668,6 +704,10 @@ struct FollowRequestsView: View {
         }
         .navigationTitle("Followers")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $profileNavigationUserId) { uid in
+            UserProfileView(userId: uid)
+                .environmentObject(authManager)
+        }
         .task {
             await viewModel.load(currentUserId: currentUserId, token: authManager.token)
         }
@@ -1985,6 +2025,7 @@ final class CollectionDetailViewModel: ObservableObject {
                     let spot = Spot(
                         id: payload.id,
                         name: payload.name,
+                        address: payload.address,
                         neighborhood: AddressFormatting.shortLocationLabel(neighborhood: payload.neighborhood, address: payload.address),
                         description: payload.description,
                         imageUrl: payload.imageUrl,

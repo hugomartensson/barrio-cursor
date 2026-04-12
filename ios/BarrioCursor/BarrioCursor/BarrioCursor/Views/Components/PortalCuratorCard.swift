@@ -1,10 +1,8 @@
 import SwiftUI
 
-/// Non-empty absolute HTTP(S) URL for `AsyncImage` (avoids invalid `URL(string: "")`).
+/// Non-empty loadable URL for remote images (absolute https or Supabase-relative paths).
 private func portalMediaURL(_ string: String?) -> URL? {
-    guard let raw = string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
-    guard let url = URL(string: raw), url.scheme == "http" || url.scheme == "https" else { return nil }
-    return url
+    MediaURL.httpsURL(from: string)
 }
 
 // MARK: - portal· Suggested user (People you know) — from API GET /users/suggested or mock
@@ -55,6 +53,12 @@ struct PortalCollectionItem: Identifiable {
     let categoryLabels: [String]
     /// First 2–3 spot image URLs for the right-hand strip miniatures. When nil, strip shows placeholders.
     let previewImageURLs: [String]?
+
+    /// Cover for the main panel: explicit cover, else first preview thumbnail (helps when API omits `coverImageURL`).
+    var resolvedCoverImageURLString: String? {
+        if let u = imageURL?.trimmingCharacters(in: .whitespacesAndNewlines), !u.isEmpty { return u }
+        return previewImageURLs?.first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+    }
 }
 
 private let collectionAccentColors: [Color] = [.portalAccent, .portalLive, .portalPrimary]
@@ -219,14 +223,15 @@ struct PortalCollectionCard: View {
             // Main cover image — fixed height so `CachedRemoteImage` always has a non-zero frame (GeometryReader was collapsing in some layouts).
             ZStack(alignment: .bottom) {
                 CachedRemoteImage(
-                    url: portalMediaURL(collection.imageURL),
+                    url: portalMediaURL(collection.resolvedCoverImageURLString),
                     placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
                     failure: { Rectangle().fill(Color.portalMuted) }
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
 
-                EditorialBottomGradient(heightFraction: 0.65, cardHeight: cardHeight)
+                EditorialBottomGradient(heightFraction: 0.78, cardHeight: cardHeight)
+                    .zIndex(0)
 
                 VStack {
                     HStack {
@@ -261,6 +266,7 @@ struct PortalCollectionCard: View {
                         .font(.portalDisplayBlack(size: titleFontSize))
                         .foregroundColor(.portalCard)
                         .lineLimit(2)
+                        .shadow(color: .black.opacity(0.45), radius: 4, x: 0, y: 1)
                     HStack(spacing: 6) {
                         Circle()
                             .fill(Color.portalPrimary)
@@ -273,10 +279,12 @@ struct PortalCollectionCard: View {
                         Text("by \(collection.ownerHandle)")
                             .font(.portalItalic(size: bylineFontSize))
                             .foregroundColor(.portalCard.opacity(0.7))
+                            .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(isExpanded ? 16 : 12)
+                .zIndex(3)
             }
             .frame(maxWidth: .infinity)
             .frame(height: cardHeight)

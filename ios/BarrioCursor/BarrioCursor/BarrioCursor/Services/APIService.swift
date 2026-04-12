@@ -437,6 +437,10 @@ nonisolated struct UserProfile: Codable {
     let profilePictureUrl: String?
     let isPrivate: Bool?
     let bio: String?
+    /// When true, the viewer only sees basic info until they follow (private account).
+    let profileLocked: Bool?
+    /// True when the current user has a pending follow request to this private profile.
+    let followRequestPending: Bool?
     let followerCount: Int?
     let followingCount: Int?
     /// Portal: count of Save records (saved spots + events)
@@ -828,13 +832,34 @@ extension APIService {
     
     // MARK: - Portal: Collections
 
-    func createCollection(name: String, description: String?, visibility: String, token: String) async throws -> CollectionResponse {
+    /// POST/DELETE collection items — server returns `{ data: { saved, saveCount? } }`, not `message`.
+    nonisolated struct CollectionItemMutationResponse: Codable {
+        let data: CollectionItemMutationData
+    }
+    nonisolated struct CollectionItemMutationData: Codable {
+        let saved: Bool
+        let saveCount: Int?
+    }
+
+    func createCollection(
+        name: String,
+        description: String?,
+        visibility: String,
+        coverImageURL: String?,
+        token: String
+    ) async throws -> CollectionResponse {
         struct CreateCollectionBody: Encodable {
             let name: String
             let description: String?
             let visibility: String
+            let coverImageUrl: String?
         }
-        let body = CreateCollectionBody(name: name, description: description, visibility: visibility)
+        let body = CreateCollectionBody(
+            name: name,
+            description: description,
+            visibility: visibility,
+            coverImageUrl: coverImageURL
+        )
         return try await post("/collections", body: body, token: token)
     }
 
@@ -864,7 +889,7 @@ extension APIService {
         return try await delete("/collections/\(id)", token: token)
     }
 
-    func addItemToCollection(collectionId: String, itemType: String, itemId: String, token: String) async throws -> SuccessResponse {
+    func addItemToCollection(collectionId: String, itemType: String, itemId: String, token: String) async throws -> CollectionItemMutationResponse {
         struct AddItemBody: Encodable {
             let itemType: String
             let itemId: String
@@ -873,7 +898,7 @@ extension APIService {
         return try await post("/collections/\(collectionId)/items", body: body, token: token)
     }
 
-    func removeItemFromCollection(collectionId: String, itemId: String, token: String) async throws -> SuccessResponse {
+    func removeItemFromCollection(collectionId: String, itemId: String, token: String) async throws -> CollectionItemMutationResponse {
         return try await delete("/collections/\(collectionId)/items/\(itemId)", token: token)
     }
 

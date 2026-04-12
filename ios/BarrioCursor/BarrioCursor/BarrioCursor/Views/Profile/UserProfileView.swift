@@ -7,11 +7,13 @@ struct UserProfileView: View {
     
     let userId: String
     @State private var userName: String = ""
+    @State private var userHandle: String = ""
     @State private var profilePictureUrl: String? = nil
     @State private var followerCount: Int = 0
     @State private var followingCount: Int = 0
     @State private var isFollowing: Bool = false
     @State private var isPrivate: Bool = false
+    @State private var profileLocked: Bool = false
     @State private var followRequestStatus: String? = nil // "pending" | nil
     @State private var events: [Event] = []
     @State private var interestedEvents: [Event] = []
@@ -21,6 +23,7 @@ struct UserProfileView: View {
     @State private var error: Error? = nil // PRD Section 9.1: Store Error instead of String
     @State private var showFollowers = false
     @State private var showFollowing = false
+    @State private var selectedTab: ProfileTab = .collections
     
     var isOwnProfile: Bool {
         authManager.currentUser?.id == userId
@@ -28,8 +31,8 @@ struct UserProfileView: View {
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                if isLoading && userName.isEmpty && error == nil {
+            Group {
+                if isLoading {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.1)
@@ -40,146 +43,11 @@ struct UserProfileView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.portalBackground)
-                }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Profile header
-                    HStack(spacing: 16) {
-                        // Profile picture
-                        if let profilePictureUrl = profilePictureUrl, let url = URL(string: profilePictureUrl) {
-                            AsyncImage(url: url) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Circle()
-                                    .fill(Color.gray.opacity(0.3))
-                                    .overlay {
-                                        Text(userName.prefix(1).uppercased())
-                                            .font(.title2)
-                                            .foregroundColor(.gray)
-                                    }
-                            }
-                            .frame(width: 80, height: 80)
-                            .clipShape(Circle())
-                        } else {
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 80, height: 80)
-                                .overlay {
-                                    Text(userName.prefix(1).uppercased())
-                                        .font(.title2)
-                                        .foregroundColor(.gray)
-                                }
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(userName)
-                                .font(.title2.weight(.bold))
-                            
-                            // Stats
-                            HStack(spacing: 24) {
-                                Button {
-                                    showFollowers = true
-                                } label: {
-                                    VStack {
-                                        Text("\(followerCount)")
-                                            .font(.headline)
-                                        Text("Followers")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .disabled(isPrivate && !isFollowing && !isOwnProfile)
-                                
-                                Button {
-                                    showFollowing = true
-                                } label: {
-                                    VStack {
-                                        Text("\(followingCount)")
-                                            .font(.headline)
-                                        Text("Following")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .disabled(isPrivate && !isFollowing && !isOwnProfile)
-                            }
-                        }
-                        
-                        Spacer()
-                    }
-                    .padding()
-                    
-                    // Follow button (not shown for own profile)
-                    if !isOwnProfile {
-                        Button {
-                            Task { await toggleFollow() }
-                        } label: {
-                            HStack {
-                                if followRequestStatus == "pending" {
-                                    Text("Requested")
-                                        .foregroundColor(.secondary)
-                                } else if isFollowing {
-                                    Text("Following")
-                                        .foregroundColor(.white)
-                                } else {
-                                    Text("Follow")
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(
-                                followRequestStatus == "pending" || isFollowing
-                                    ? AnyShapeStyle(Color.gray.opacity(0.3))
-                                    : AnyShapeStyle(Color.portalGradientPrimary)
-                            )
-                            .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-                    }
-                    
-                    Divider()
-                    
-                    // Error display
-                    if let error = error {
-                        ErrorView(
-                            error: error,
-                            retry: {
-                                Task {
-                                    await loadProfile()
-                                }
-                            },
-                            dismiss: {
-                                self.error = nil
-                            }
-                        )
-                        .padding()
-                    }
-                    
-                    // Carousels (other users only; own profile uses ProfileView tab)
-                    if !isOwnProfile && (!interestedEvents.isEmpty || !organizingEvents.isEmpty || !organizedEvents.isEmpty) {
-                        profileCarouselsSection
-                    } else if events.isEmpty && interestedEvents.isEmpty && !isLoading && error == nil {
-                        VStack(spacing: 16) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 48, weight: .light))
-                                .foregroundColor(.portalMutedForeground)
-                            Text("No events yet")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                            Text("This user hasn't created any events.")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
-                    }
+                } else {
+                    profileScrollContent
                 }
             }
-            .opacity(isLoading && userName.isEmpty && error == nil ? 0 : 1)
-            }
+            .background(Color.portalBackground)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -190,11 +58,13 @@ struct UserProfileView: View {
             }
             .sheet(isPresented: $showFollowers) {
                 FollowersListView(userId: userId, isFollowers: true)
+                    .environmentObject(authManager)
             }
             .sheet(isPresented: $showFollowing) {
                 FollowersListView(userId: userId, isFollowers: false)
+                    .environmentObject(authManager)
             }
-            .task {
+            .task(id: userId) {
                 await loadProfile()
             }
             .navigationDestination(for: Event.self) { event in
@@ -202,58 +72,289 @@ struct UserProfileView: View {
                     .environmentObject(authManager)
             }
         }
+        .id(userId)
     }
-    
-    private var profileCarouselsSection: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            // COLLECTIONS — public (and friends-only if following). Placeholder until GET /users/:id/collections exists.
-            Text("COLLECTIONS")
+
+    private var profileAvatar: some View {
+        let initial = userName.isEmpty ? "?" : String(userName.prefix(1)).uppercased()
+        return Group {
+            if let url = MediaURL.httpsURL(from: profilePictureUrl) {
+                CachedRemoteImage(
+                    url: url,
+                    placeholder: {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .overlay { ProgressView() }
+                    },
+                    failure: {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .overlay { Text(initial).font(.title2).foregroundColor(.gray) }
+                    }
+                )
+                .frame(width: 80, height: 80)
+                .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 80, height: 80)
+                    .overlay {
+                        Text(initial)
+                            .font(.title2)
+                            .foregroundColor(.gray)
+                    }
+            }
+        }
+    }
+
+    private var otherUserTabBar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(ProfileTab.allCases, id: \.self) { tab in
+                    Button {
+                        selectedTab = tab
+                    } label: {
+                        VStack(spacing: 8) {
+                            Text(tab.rawValue)
+                                .font(.portalLabelSemibold)
+                                .foregroundColor(selectedTab == tab ? .portalForeground : .portalMutedForeground)
+                            Rectangle()
+                                .fill(selectedTab == tab ? Color.portalPrimary : Color.clear)
+                                .frame(height: 2)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                }
+            }
+            .padding(.horizontal, .portalPagePadding)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            Rectangle()
+                .fill(Color.portalBorder.opacity(0.5))
+                .frame(height: 1)
+        }
+        .background(Color.portalBackground)
+    }
+
+    private var profileScrollContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 16) {
+                    profileAvatar
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(userName.isEmpty ? "Profile" : userName)
+                            .font(.title2.weight(.bold))
+                        if !userHandle.isEmpty {
+                            Text("@\(userHandle)")
+                                .font(.portalMetadata)
+                                .foregroundColor(.portalMutedForeground)
+                        }
+                        HStack(spacing: 24) {
+                            Button {
+                                showFollowers = true
+                            } label: {
+                                VStack {
+                                    Text("\(followerCount)")
+                                        .font(.headline)
+                                    Text("Followers")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .disabled(profileLocked && !isOwnProfile)
+
+                            Button {
+                                showFollowing = true
+                            } label: {
+                                VStack {
+                                    Text("\(followingCount)")
+                                        .font(.headline)
+                                    Text("Following")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .disabled(profileLocked && !isOwnProfile)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal)
+
+                if profileLocked && !isOwnProfile {
+                    privateAccountBanner
+                }
+
+                if let error = error, !profileLocked {
+                    ErrorView(
+                        error: error,
+                        retry: { Task { await loadProfile() } },
+                        dismiss: { self.error = nil }
+                    )
+                    .padding(.horizontal)
+                }
+
+                if !isOwnProfile {
+                    Button {
+                        Task { await toggleFollow() }
+                    } label: {
+                        HStack {
+                            if followRequestStatus == "pending" {
+                                Text("Requested")
+                                    .foregroundColor(.secondary)
+                            } else if isFollowing {
+                                Text("Following")
+                                    .foregroundColor(.white)
+                            } else {
+                                Text("Follow")
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            followRequestStatus == "pending" || isFollowing
+                                ? AnyShapeStyle(Color.gray.opacity(0.3))
+                                : AnyShapeStyle(Color.portalGradientPrimary)
+                        )
+                        .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    .disabled(followRequestStatus == "pending")
+
+                    otherUserTabBar
+
+                    otherUserTabContent
+                        .padding(.bottom, 32)
+                } else {
+                    Text("Use the Profile tab to manage your account.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal)
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private var privateAccountBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("This account is private")
                 .font(.headline)
+            Text("Send a follow request. When it’s approved, you’ll see their collections, spots, and events.")
+                .font(.subheadline)
                 .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .padding(.horizontal)
+    }
+
+    @ViewBuilder
+    private var otherUserTabContent: some View {
+        if profileLocked {
+            lockedOtherUserTabPlaceholder
+        } else {
+            switch selectedTab {
+            case .collections:
+                otherUserCollectionsTab
+            case .spots:
+                otherUserSpotsTab
+            case .events:
+                otherUserEventsTab
+            }
+        }
+    }
+
+    private var lockedOtherUserTabPlaceholder: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 36, weight: .light))
+                .foregroundColor(.portalMutedForeground)
+            Text("Content is hidden")
+                .font(.headline)
+            Text("Follow this account to see collections, spots, and events after they approve.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
+    }
+
+    private var otherUserCollectionsTab: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text("No public collections")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
-                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, .portalPagePadding)
+    }
 
-            // SAVED SPOTS — visible only if following; otherwise locked.
-            Text("SAVED SPOTS")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            if !isOwnProfile && !isFollowing {
+    private var otherUserSpotsTab: some View {
+        Group {
+            if !isOwnProfile && !isFollowing && isPrivate {
                 LockedSavesView(userName: userName)
+                    .padding(.horizontal, .portalPagePadding)
             } else {
-                Text("No saved spots")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 8)
+                VStack(spacing: 12) {
+                    Image(systemName: "mappin.circle")
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundColor(.portalMutedForeground)
+                    Text("No saved spots")
+                        .font(.headline)
+                    Text("Saved spots will appear here when available.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
             }
+        }
+    }
 
-            // SAVED EVENTS — visible only if following; otherwise locked.
-            Text("SAVED EVENTS")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            if !isOwnProfile && !isFollowing {
-                LockedSavesView(userName: userName)
-            } else if !interestedEvents.isEmpty {
+    private var otherUserEventsTab: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            if !interestedEvents.isEmpty {
                 ProfileCarouselSection(title: "Saved events", events: interestedEvents)
-            } else {
-                Text("No saved events")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .padding(.vertical, 8)
             }
-
             if !organizingEvents.isEmpty {
                 ProfileCarouselSection(title: "Events they're hosting", events: organizingEvents)
             }
             if !organizedEvents.isEmpty {
                 ProfileCarouselSection(title: "Past events", events: organizedEvents)
             }
+            if interestedEvents.isEmpty && organizingEvents.isEmpty && organizedEvents.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 48, weight: .light))
+                        .foregroundColor(.portalMutedForeground)
+                    Text("No events yet")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                    Text("This user hasn’t created or saved any events.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
+            }
         }
-        .padding()
+        .padding(.horizontal)
     }
     
-    private func loadProfile() async {
+    private func loadProfile(skipLoadingUI: Bool = false) async {
         guard let token = authManager.token else {
             #if DEBUG
             print("❌ UserProfileView: No auth token available")
@@ -281,27 +382,55 @@ struct UserProfileView: View {
         print("📱 UserProfileView: Loading profile for user \(userId)")
         #endif
         await MainActor.run {
-            isLoading = true
+            if !skipLoadingUI {
+                isLoading = true
+                userName = ""
+                userHandle = ""
+                profilePictureUrl = nil
+                followerCount = 0
+                followingCount = 0
+                events = []
+                interestedEvents = []
+                organizingEvents = []
+                organizedEvents = []
+                isFollowing = false
+                profileLocked = false
+                followRequestStatus = nil
+            }
             error = nil
-            userName = ""
-            profilePictureUrl = nil
-            followerCount = 0
-            followingCount = 0
-            isFollowing = false
-            events = []
-            interestedEvents = []
-            organizingEvents = []
-            organizedEvents = []
         }
         
         do {
             let profile = try await APIService.shared.getUserProfile(userId: userId, token: token)
+            let data = profile.data
+            let locked = data.profileLocked == true
+            let pendingOutgoing = data.followRequestPending == true
+            
             await MainActor.run {
-                userName = profile.data.name
-                profilePictureUrl = profile.data.profilePictureUrl
-                followerCount = profile.data.followerCount ?? 0
-                followingCount = profile.data.followingCount ?? 0
-                isPrivate = profile.data.isPrivate ?? false
+                userName = data.name
+                userHandle = data.handle ?? ""
+                profilePictureUrl = data.profilePictureUrl
+                followerCount = data.followerCount ?? 0
+                followingCount = data.followingCount ?? 0
+                isPrivate = data.isPrivate ?? false
+                profileLocked = locked
+                followRequestStatus = pendingOutgoing ? "pending" : nil
+            }
+            
+            if locked {
+                await MainActor.run {
+                    events = []
+                    interestedEvents = []
+                    organizingEvents = []
+                    organizedEvents = []
+                    isFollowing = false
+                    error = nil
+                    isLoading = false
+                }
+                #if DEBUG
+                print("✅ UserProfileView: Loaded locked profile for user \(userId)")
+                #endif
+                return
             }
             
             let eventsResponse = try await APIService.shared.getUserEvents(userId: userId, token: token)
@@ -326,30 +455,24 @@ struct UserProfileView: View {
                 interested = savedRes?.data ?? []
             }
             
+            let followers = try await APIService.shared.getFollowers(userId: userId, token: token)
+            let currentUserId = authManager.currentUser?.id
+            let followingStatus = currentUserId != nil && followers.data.contains { $0.id == currentUserId }
+            
             await MainActor.run {
                 events = hosted
                 organizingEvents = organizing
                 organizedEvents = organized
                 interestedEvents = interested
-            }
-            
-            // Check if following
-            let followers = try await APIService.shared.getFollowers(userId: userId, token: token)
-            // Check if current user follows this user
-            let currentUserId = authManager.currentUser?.id
-            let followingStatus = currentUserId != nil && followers.data.contains { $0.id == currentUserId }
-            
-            // Check for pending follow request (if not following and private account)
-            var requestStatus: String? = nil
-            if !followingStatus && isPrivate && !isOwnProfile {
-                let requests = try await APIService.shared.getFollowRequests(token: token)
-                requestStatus = requests.data.first(where: { $0.fromUserId == userId })?.status
-            }
-            
-            await MainActor.run {
                 isFollowing = followingStatus
-                followRequestStatus = requestStatus
-                error = nil // Clear error on success
+                if followingStatus {
+                    followRequestStatus = nil
+                } else if isPrivate && !isOwnProfile {
+                    followRequestStatus = pendingOutgoing ? "pending" : nil
+                } else {
+                    followRequestStatus = nil
+                }
+                error = nil
                 isLoading = false
             }
             #if DEBUG
@@ -374,19 +497,11 @@ struct UserProfileView: View {
         
         do {
             if isFollowing {
-                let response = try await APIService.shared.unfollowUser(userId: userId, token: token)
-                isFollowing = response.data.following
-                followerCount = response.data.followerCount
+                _ = try await APIService.shared.unfollowUser(userId: userId, token: token)
             } else {
-                let response = try await APIService.shared.followUser(userId: userId, token: token)
-                isFollowing = response.data.following
-                followerCount = response.data.followerCount
-                
-                // If private account and not following yet, show "Requested" state
-                if !response.data.following {
-                    followRequestStatus = "pending"
-                }
+                _ = try await APIService.shared.followUser(userId: userId, token: token)
             }
+            await loadProfile(skipLoadingUI: true)
         } catch let err {
             #if DEBUG
             print("❌ UserProfileView: Failed to update follow status: \(err.localizedDescription)")
@@ -425,7 +540,7 @@ private struct ProfileCarouselMiniature: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            AsyncImage(url: URL(string: event.media.first?.url ?? "")) { img in
+            AsyncImage(url: MediaURL.httpsURL(from: event.media.first?.url)) { img in
                 img.resizable().aspectRatio(contentMode: .fill)
             } placeholder: {
                 Rectangle()
@@ -538,6 +653,7 @@ struct FollowersListView: View {
             ForEach(viewModel.users) { user in
                 NavigationLink {
                     UserProfileView(userId: user.id)
+                        .environmentObject(authManager)
                 } label: {
                     HStack(spacing: 12) {
                         Circle()

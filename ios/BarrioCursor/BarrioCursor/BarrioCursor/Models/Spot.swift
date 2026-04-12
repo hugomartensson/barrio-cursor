@@ -14,6 +14,8 @@ nonisolated struct SpotOwner: Codable, Hashable {
 nonisolated struct Spot: Identifiable, Codable, Hashable {
     let id: String
     let name: String
+    /// Raw address from API — used with `neighborhood` for city-style card labels.
+    let address: String
     let neighborhood: String
     let description: String?
     let imageUrl: String?
@@ -26,6 +28,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
     init(
         id: String,
         name: String,
+        address: String = "",
         neighborhood: String,
         description: String?,
         imageUrl: String?,
@@ -36,6 +39,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
     ) {
         self.id = id
         self.name = name
+        self.address = address
         self.neighborhood = neighborhood
         self.description = description
         self.imageUrl = imageUrl
@@ -49,6 +53,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
     private enum CodingKeys: String, CodingKey {
         case id
         case name
+        case address
         case neighborhood
         case description
         case imageUrl
@@ -63,6 +68,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
+        address = try container.decodeIfPresent(String.self, forKey: .address) ?? ""
         neighborhood = try container.decode(String.self, forKey: .neighborhood)
         description = try container.decodeIfPresent(String.self, forKey: .description)
         imageUrl = try container.decodeIfPresent(String.self, forKey: .imageUrl)
@@ -78,6 +84,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(name, forKey: .name)
+        try container.encode(address, forKey: .address)
         try container.encode(neighborhood, forKey: .neighborhood)
         try container.encodeIfPresent(description, forKey: .description)
         try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
@@ -92,6 +99,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
     static func == (lhs: Spot, rhs: Spot) -> Bool {
         return lhs.id == rhs.id &&
             lhs.name == rhs.name &&
+            lhs.address == rhs.address &&
             lhs.neighborhood == rhs.neighborhood &&
             lhs.description == rhs.description &&
             lhs.imageUrl == rhs.imageUrl &&
@@ -105,6 +113,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(name)
+        hasher.combine(address)
         hasher.combine(neighborhood)
         hasher.combine(description)
         hasher.combine(imageUrl)
@@ -130,6 +139,7 @@ extension Spot {
         self.init(
             id: data.id,
             name: data.name,
+            address: data.address,
             neighborhood: AddressFormatting.shortLocationLabel(neighborhood: data.neighborhood, address: data.address),
             description: data.description,
             imageUrl: data.imageUrl,

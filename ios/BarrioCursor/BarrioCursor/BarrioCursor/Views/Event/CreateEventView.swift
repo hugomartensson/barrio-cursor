@@ -39,6 +39,7 @@ struct CreateEventView: View {
     @State private var addressSuggestions: [MKMapItem] = []
     @State private var showAddressSuggestions = false
     @State private var suppressAddressSearch = false
+    @State private var addressSearchTask: Task<Void, Never>?
 
     private var isEditMode: Bool { eventToEdit != nil }
 
@@ -176,6 +177,10 @@ struct CreateEventView: View {
 
     private var descriptionSection: some View {
         VStack(alignment: .leading, spacing: 4) {
+            Text("DESCRIPTION")
+                .font(.portalSectionLabel)
+                .tracking(0.5)
+                .foregroundColor(.portalMutedForeground)
             ZStack(alignment: .topLeading) {
                 if description.isEmpty {
                     Text("What's this event about?")
@@ -252,14 +257,27 @@ struct CreateEventView: View {
                 TextField("Address or venue name", text: $manualAddress)
                     .font(.portalBody)
                     .foregroundColor(.portalForeground)
+                    .textContentType(.none)
+                    .autocorrectionDisabled()
                     .focused($focusedField, equals: .address)
                     .onSubmit { Task { await geocodeAddress() } }
-                    .onChange(of: manualAddress) { _, _ in
+                    .onChange(of: manualAddress) { _, newValue in
+                        addressSearchTask?.cancel()
                         if suppressAddressSearch { suppressAddressSearch = false; return }
-                        Task {
-                            try? await Task.sleep(nanoseconds: 300_000_000)
-                            if !manualAddress.isEmpty { searchAddresses() }
-                            else { addressSuggestions = []; showAddressSuggestions = false }
+                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard trimmed.count >= 2 else {
+                            addressSuggestions = []
+                            showAddressSuggestions = false
+                            return
+                        }
+                        addressSearchTask = Task {
+                            try? await Task.sleep(nanoseconds: 550_000_000)
+                            guard !Task.isCancelled else { return }
+                            await MainActor.run {
+                                let current = manualAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard current == trimmed else { return }
+                                searchAddresses()
+                            }
                         }
                     }
             }
@@ -472,6 +490,7 @@ struct CreateEventView: View {
                     }
                 }
             )
+            .environmentObject(locationManager)
         }
         .sheet(isPresented: $showCameraSheet) {
             ImagePicker(
@@ -628,30 +647,8 @@ struct CreateEventView: View {
             endDate = startDate.addingTimeInterval(3 * 60 * 60)
             if let loc = initialLocation {
                 selectedLocation = loc
-                Task {
-                    do {
-                        let address = try await locationManager.reverseGeocode(loc)
-                        suppressAddressSearch = true
-                        manualAddress = address
-                    } catch {
-                        #if DEBUG
-                        print("⚠️ CreateEventView: Reverse geocode failed: \(error)")
-                        #endif
-                    }
-                }
             } else if !locationManager.isLocationDenied {
                 selectedLocation = locationManager.coordinate
-                Task {
-                    do {
-                        let address = try await locationManager.reverseGeocode(locationManager.coordinate)
-                        suppressAddressSearch = true
-                        manualAddress = address
-                    } catch {
-                        #if DEBUG
-                        print("⚠️ CreateEventView: Reverse geocode failed: \(error)")
-                        #endif
-                    }
-                }
             }
         }
     }
@@ -790,7 +787,7 @@ struct CreateEventView: View {
         }
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = manualAddress
-        request.resultTypes = .address
+        request.resultTypes = [.address, .pointOfInterest]
         if let location = selectedLocation ?? locationManager.location?.coordinate {
             request.region = MKCoordinateRegion(
                 center: location,
@@ -826,17 +823,25 @@ struct CreateEventView: View {
     }
 
     private func formatAddressForDisplay(from item: MKMapItem) -> String {
-        var components: [String] = []
         let placemark = item.placemark
+        let venueName = item.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var streetParts: [String] = []
         if let streetNumber = placemark.subThoroughfare, let streetName = placemark.thoroughfare {
-            components.append("\(streetNumber) \(streetName)")
+            streetParts.append("\(streetNumber) \(streetName)")
         } else if let streetName = placemark.thoroughfare {
-            components.append(streetName)
+            streetParts.append(streetName)
         }
-        if let city = placemark.locality {
-            components.append(city)
+        let city = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        // POI / venue: prefer name + city (Google Maps–style).
+        if !venueName.isEmpty, streetParts.isEmpty || venueName.lowercased() != streetParts.joined().lowercased() {
+            if !city.isEmpty { return "\(venueName), \(city)" }
+            if !streetParts.isEmpty { return "\(venueName), \(streetParts[0])" }
+            return venueName
         }
-        return components.isEmpty ? (item.name ?? "") : components.joined(separator: ", ")
+        var components = streetParts
+        if !city.isEmpty { components.append(city) }
+        return components.isEmpty ? venueName : components.joined(separator: ", ")
     }
 
     private func geocodeAddress() async {
@@ -870,6 +875,7 @@ struct LocationPickerView: View {
     @Binding var selectedLocation: CLLocationCoordinate2D?
     let onLocationSelected: ((CLLocationCoordinate2D) -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var locationManager: LocationManager
 
     @State private var cameraPosition: MapCameraPosition
     @State private var pinLocation: CLLocationCoordinate2D
@@ -886,6 +892,16 @@ struct LocationPickerView: View {
         _pinLocation = State(initialValue: location)
     }
 
+    private func recenterOnUserLocation() {
+        locationManager.requestLocationIfNeeded()
+        let center = locationManager.coordinate
+        pinLocation = center
+        cameraPosition = .region(MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        ))
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -899,6 +915,27 @@ struct LocationPickerView: View {
                 Image(systemName: "plus")
                     .font(.system(size: 20, weight: .light))
                     .foregroundColor(.portalPrimary)
+                if !locationManager.isLocationDenied {
+                    VStack {
+                        Spacer(minLength: 0)
+                        HStack {
+                            Spacer(minLength: 0)
+                            Button {
+                                recenterOnUserLocation()
+                            } label: {
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.portalPrimary)
+                                    .padding(12)
+                                    .background(Circle().fill(.ultraThinMaterial))
+                                    .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(16)
+                            .accessibilityLabel("My location")
+                        }
+                    }
+                }
             }
             .navigationTitle("Select Location")
             .navigationBarTitleDisplayMode(.inline)

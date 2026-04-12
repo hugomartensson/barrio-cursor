@@ -147,7 +147,10 @@ struct DiscoverView: View {
 
     private var discoverWithLifecycleA: some View {
         discoverWithDetailSync
-            .onAppear { Task { await reloadEvents() } }
+            .onAppear {
+                locationManager.requestLocationIfNeeded()
+                Task { await reloadEvents() }
+            }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("EventCreated"))) { _ in
                 Task { await reloadEvents() }
             }
@@ -169,6 +172,12 @@ struct DiscoverView: View {
             }
             .onChange(of: locationManager.location) { _, _ in
                 if discoverFilters.searchLocation == nil { Task { await updateLocationLabel() } }
+            }
+            .onChange(of: locationManager.authorizationStatus) { _, newStatus in
+                if newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways {
+                    Task { await reloadEvents() }
+                    Task { await updateLocationLabel() }
+                }
             }
             .onAppear { Task { await updateLocationLabel() } }
     }
