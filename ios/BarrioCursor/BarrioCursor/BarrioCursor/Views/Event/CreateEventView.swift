@@ -54,6 +54,7 @@ struct CreateEventView: View {
         !description.isEmpty &&
         selectedCategory != nil &&
         selectedLocation != nil &&
+        !manualAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         imageData != nil &&
         endDate > startDate
     }
@@ -662,6 +663,10 @@ struct CreateEventView: View {
         }
         guard let location = selectedLocation else {
             errorMessage = "Please select a location"
+            return
+        }
+        guard !manualAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Please enter an address or venue name"
             return
         }
         guard let imageData = imageData else {

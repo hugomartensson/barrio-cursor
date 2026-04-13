@@ -28,23 +28,17 @@ export async function syncUserToDatabase(
     }
 
     if (existingUser) {
-      // User exists - update it
-      // Note: We can't update the primary key (id), so if the id changed,
-      // we need to handle it differently. For now, we'll just update name and email.
-      const updateData: { email: string; name: string } = {
-        email,
-        name,
-      };
-
-      // Only update if something actually changed
-      if (existingUser.email !== email || existingUser.name !== name) {
+      // User exists - only sync email (Supabase-authoritative).
+      // Name is user-editable in the app and must not be overwritten by JWT metadata
+      // on every request, otherwise PATCH /me name changes would be immediately reverted.
+      if (existingUser.email !== email) {
         await prisma.user.update({
           where: { id: existingUser.id },
-          data: updateData,
+          data: { email },
         });
         logger.debug(
           { userId: existingUser.id, email, action: 'updated' },
-          'User updated in database'
+          'User email updated in database'
         );
       } else {
         logger.debug(

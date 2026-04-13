@@ -504,6 +504,38 @@ router.get(
 );
 
 /**
+ * GET /users/me/spots — spots created by current user
+ */
+router.get(
+  '/me/spots',
+  requireAuth,
+  asyncHandler(
+    async (req: Request, res: Response<{ data: SavedSpotItem[] } | ApiErrorResponse>) => {
+      const authReq = req as AuthenticatedRequest;
+      const spots = await prisma.spot.findMany({
+        where: { ownerId: authReq.user.userId },
+        include: { media: { orderBy: { order: 'asc' }, take: 1 } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const data: SavedSpotItem[] = spots.map((spot) => ({
+        id: spot.id,
+        name: spot.name,
+        description: spot.description,
+        address: spot.address,
+        neighborhood: spot.neighborhood,
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        categoryTag: spot.categoryTag,
+        imageUrl: spot.media[0]?.url ?? null,
+        saveCount: spot.saveCount,
+        savedAt: spot.createdAt.toISOString(),
+      }));
+      res.json({ data });
+    }
+  )
+);
+
+/**
  * GET /users/me/saved — saved events for current user
  */
 router.get(

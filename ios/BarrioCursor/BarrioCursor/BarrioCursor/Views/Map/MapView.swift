@@ -118,6 +118,12 @@ struct MapView: View {
             }
         }
         .task {
+            if let searchLoc = discoverFilters.searchLocation {
+                viewModel.cameraPosition = .region(MKCoordinateRegion(
+                    center: searchLoc,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                ))
+            }
             await reloadEvents()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("NavigateToEventOnMap"))) { notification in
@@ -176,7 +182,13 @@ struct MapView: View {
         .onChange(of: discoverFilters.followingOnly) { _, _ in
             Task { await reloadEvents() }
         }
-        .onChange(of: discoverFilters.searchLocation) { _, _ in
+        .onChange(of: discoverFilters.searchLocation) { _, newLoc in
+            if let loc = newLoc {
+                viewModel.cameraPosition = .region(MKCoordinateRegion(
+                    center: loc,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                ))
+            }
             Task { await reloadEvents() }
             Task { await updateLocationLabel() }
         }

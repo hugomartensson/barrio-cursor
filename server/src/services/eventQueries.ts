@@ -35,9 +35,10 @@ export async function fetchNearbyEvents(
              e.user_id, u.name as user_name
       FROM events e
       JOIN users u ON e.user_id = u.id
-      JOIN follows f ON e.user_id = f.following_id AND f.follower_id = $3
+      LEFT JOIN follows f ON e.user_id = f.following_id AND f.follower_id = $3
       WHERE ST_DWithin(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $4)
         AND ((e.end_time IS NULL AND e.start_time > NOW()) OR (e.end_time IS NOT NULL AND e.end_time > NOW()))
+        AND (f.follower_id IS NOT NULL OR e.user_id = $3)
       ORDER BY e.created_at DESC LIMIT $5
     `,
       lat,
@@ -58,7 +59,7 @@ export async function fetchNearbyEvents(
       LEFT JOIN follows f ON e.user_id = f.following_id AND f.follower_id = $3
       WHERE ST_DWithin(${eventPointSql}, ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography, $4)
         AND ((e.end_time IS NULL AND e.start_time > NOW()) OR (e.end_time IS NOT NULL AND e.end_time > NOW()))
-        AND (u.is_private = false OR f.follower_id IS NOT NULL)
+        AND (u.is_private = false OR f.follower_id IS NOT NULL OR e.user_id = $3)
       ORDER BY e.created_at DESC LIMIT $5
     `,
       lat,

@@ -818,6 +818,10 @@ extension APIService {
         return try await get("/users/me/saved-spots", token: token)
     }
 
+    func getMySpots(token: String) async throws -> SavedSpotsListResponse {
+        return try await get("/users/me/spots", token: token)
+    }
+
     func getSavedEvents(token: String) async throws -> SavedEventsListResponse {
         return try await get("/users/me/saved-events", token: token)
     }

@@ -138,9 +138,6 @@ struct ProfileView: View {
             .task {
                 await profileVM.loadAll(token: authManager.token)
             }
-            .refreshable {
-                await profileVM.loadAll(token: authManager.token)
-            }
         }
     }
 
@@ -476,8 +473,8 @@ struct ProfileView: View {
             if profileVM.spotItems.isEmpty {
                 ProfileEmptyStateView(
                     icon: "mappin.circle",
-                    title: "No saved spots yet",
-                    subtitle: "Save spots from Discover to see them here."
+                    title: "No spots yet",
+                    subtitle: "Create or save spots to see them here."
                 )
             } else {
                 ScrollView {
@@ -515,6 +512,9 @@ struct ProfileView: View {
                     }
                     .padding(.portalPagePadding)
                     .padding(.bottom, 120)
+                }
+                .refreshable {
+                    await profileVM.loadAll(token: authManager.token)
                 }
             }
         }
@@ -556,6 +556,9 @@ struct ProfileView: View {
                     }
                     .padding(.portalPagePadding)
                     .padding(.bottom, 120)
+                }
+                .refreshable {
+                    await profileVM.loadAll(token: authManager.token)
                 }
             }
         }
@@ -898,6 +901,7 @@ class ProfileViewModel: ObservableObject {
     @Published var followingCount: Int = 0
     @Published var collections: [CollectionData] = []
     @Published var savedSpots: [SavedSpotEntry] = []
+    @Published var ownedSpots: [SavedSpotEntry] = []
     @Published var savedEvents: [SavedEventEntry] = []
     @Published var ownedEvents: [Event] = []
     @Published var savedCollectionIds: Set<String> = []
@@ -912,8 +916,12 @@ class ProfileViewModel: ObservableObject {
         collections.map { PortalCollectionItem(from: $0) }
     }
 
+    /// Merged saved + owned spots, deduplicated by id
     var spotItems: [PortalSpotItem] {
-        savedSpots.map { PortalSpotItem(from: $0) }
+        var byId: [String: SavedSpotEntry] = [:]
+        for spot in savedSpots { byId[spot.id] = spot }
+        for spot in ownedSpots { byId[spot.id] = spot }
+        return byId.values.sorted { ($0.savedAt ?? "") > ($1.savedAt ?? "") }.map { PortalSpotItem(from: $0) }
     }
 
     /// Merged saved + owned events, deduplicated by id, most recent first
@@ -929,7 +937,7 @@ class ProfileViewModel: ObservableObject {
     }
 
     var isEmpty: Bool {
-        collections.isEmpty && savedSpots.isEmpty && savedEvents.isEmpty && ownedEvents.isEmpty
+        collections.isEmpty && savedSpots.isEmpty && ownedSpots.isEmpty && savedEvents.isEmpty && ownedEvents.isEmpty
     }
 
     func isCollectionOwned(_ collectionId: String) -> Bool {
@@ -946,11 +954,12 @@ class ProfileViewModel: ObservableObject {
             async let profileTask = api.getProfile(token: token)
             async let collectionsTask = api.getCollections(token: token)
             async let savedSpotsTask = api.getSavedSpots(token: token)
+            async let ownedSpotsTask = api.getMySpots(token: token)
             async let savedEventsTask = api.getSavedEvents(token: token)
             async let ownedEventsTask = api.getMyEvents(token: token)
 
-            let (profileRes, collectionsRes, spotsRes, eventsRes, myEventsRes) = try await (
-                profileTask, collectionsTask, savedSpotsTask, savedEventsTask, ownedEventsTask
+            let (profileRes, collectionsRes, spotsRes, mySpotsRes, eventsRes, myEventsRes) = try await (
+                profileTask, collectionsTask, savedSpotsTask, ownedSpotsTask, savedEventsTask, ownedEventsTask
             )
 
             userName = profileRes.data.name
@@ -966,6 +975,7 @@ class ProfileViewModel: ObservableObject {
             savedCollectionIds = Set(collectionsRes.data.filter { $0.owned == false }.map { $0.id })
             savedSpots = spotsRes.data
             savedSpotIds = Set(spotsRes.data.map { $0.id })
+            ownedSpots = mySpotsRes.data
             savedEvents = eventsRes.data
             savedEventIds = Set(eventsRes.data.map { $0.event.id })
             ownedEvents = myEventsRes.data
