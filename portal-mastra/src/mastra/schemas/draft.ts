@@ -18,6 +18,7 @@ export const draftSchema = z.object({
   neighborhood: z.string().nullable(),
   imageUrl: z.string().nullable(),
   imageUrls: z.array(z.string()),
+  imageSource: z.string().nullable().optional(),
   sourceUrl: z.string().nullable(),
   flaggedFields: z.array(z.string()),
   startTime: z.string().nullable(),

@@ -39,7 +39,16 @@ const extractStep = createStep({
       maxSteps: 28,
     });
 
-    return result.object;
+    const draft = result.object;
+    console.log('[ingest:extract] image decision', {
+      name: draft.name,
+      hasImage: Boolean(draft.imageUrl),
+      imageSource: draft.imageSource ?? 'not_set',
+      candidateCount: draft.imageUrls?.length ?? 0,
+      imageUrl: draft.imageUrl ?? null,
+    });
+
+    return draft;
   },
 });
 

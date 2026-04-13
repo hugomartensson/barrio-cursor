@@ -3,6 +3,7 @@ import { facebookEventFetcher } from '../tools/facebook-event-fetcher.js';
 import { googlePlacesFetcher } from '../tools/google-places-fetcher.js';
 import { imageValidator } from '../tools/image-validator.js';
 import { raEventFetcher } from '../tools/ra-event-fetcher.js';
+import { tavilyImageSearch } from '../tools/tavily-image-search.js';
 import { tavilySearchTool } from '../tools/tavily-search.js';
 import { websiteFetcher } from '../tools/website-fetcher.js';
 
@@ -31,18 +32,26 @@ WORKFLOW FOR A URL INPUT:
    QUALITY BAR (applies to both types):
    Imagine the photo on the cover of a city lifestyle magazine. It must be sharp, well-lit, and atmospheric. Reject anything blurry, poorly lit, pixelated, or purely functional (e.g. a plain product shot or a screenshot).
 
-   PRIORITY ORDER FOR IMAGE SOURCES:
-   1. Original URL (websiteFetcher og:image and JSON-LD images) — always try these first.
-   2. Press and blog pages — if step 1 fails, call tavily-web-search for "[venue/event name] [city] photos" (or "[name] event" for events), then call websiteFetcher on the top 2–3 result URLs and extract their og:image. Validate each with image-validator.
-   3. Google Places photos — only fall back here if steps 1–2 yield nothing that passes validation.
+   PRIORITY ORDER FOR IMAGE SOURCES — follow this order strictly, do not skip a step:
+   1. Original website (websiteFetcher og:image and JSON-LD images) — ALWAYS try these first. Validate the top 3–5 with image-validator.
+   2. Tavily image search — if step 1 yields no qualifying image, call tavily-image-search with "[venue/event name] [city]". This returns direct image URLs. Validate each with image-validator. This step is REQUIRED before touching Google Places.
+   2b. Press/blog pages — additionally call tavily-web-search for "[venue/event name] [city] photos", then call websiteFetcher on the top 2–3 result URLs and extract their og:image. Validate each with image-validator. This supplements step 2.
+   3. Google Places photos — ONLY fall back here if steps 1, 2, and 2b all yield nothing that passes validation.
 
    PROCESS:
    - Collect all image candidates from the original URL first.
    - Call image-validator on the top 3–5 distinct candidate URLs.
-   - If the original URL's best image passes validation (isPhoto = true for spots, qualityScore ≥ 7, and matches the type rules above), use it — do NOT replace it with a Google Places photo.
-   - If the original URL yields no qualifying image, you MUST search Tavily for press/blog pages and fetch their images before touching Google Places. Do not skip this step.
-   - Only fall back to Google Places photos if BOTH the original URL AND the Tavily press pages fail to produce a qualifying image.
+   - If the original URL's best image passes validation (isPhoto = true for spots, qualityScore ≥ 7, and matches the type rules above), use it — do NOT replace it with a Tavily or Google Places photo.
+   - If the original URL yields no qualifying image, you MUST call tavily-image-search before touching Google Places. Do not skip this step.
+   - Only fall back to Google Places photos if the original URL AND both Tavily steps fail to produce a qualifying image.
    - Only set imageUrl to null if you genuinely cannot find a qualifying image after exhausting all sources.
+
+   imageSource field — set this to indicate where the winning image came from:
+   - "website" — from the original URL (og:image, JSON-LD, or inline img)
+   - "tavily_image_search" — from the tavily-image-search tool
+   - "tavily_web_page" — from websiteFetcher called on a tavily-web-search result page
+   - "google_places" — from googlePlacesFetcher photoUrls
+   - Leave null if imageUrl is null (no qualifying image found).
 
 6. Produce one JSON object matching the required structured output schema (see tool/schema). No extra keys.
 
@@ -82,6 +91,7 @@ Always use tools instead of guessing addresses or names.`,
     facebookEventFetcher,
     raEventFetcher,
     tavilySearchTool,
+    tavilyImageSearch,
     imageValidator,
   },
 });

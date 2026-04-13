@@ -27,6 +27,8 @@
     button.primary:disabled { background: #1a1a1a; border-color: #444; color: #666; cursor: not-allowed; opacity: 0.5; }
     button.danger { background: #4a2a2a; border-color: #844; }
     #verifierNotes { background: #1a1a2a; padding: 0.75rem; border-radius: 6px; margin: 1rem 0; font-size: 0.9rem; }
+    #imageDebug { background: #111; border: 1px solid #333; border-radius: 6px; padding: 0.5rem 0.75rem; margin: 0.5rem 0; font-size: 0.8rem; color: #888; }
+    #imageDebug span { color: #ccc; }
     #login-section, #logged-in-section { margin-bottom: 1rem; }
     #status { margin: 0.5rem 0; padding: 0.5rem; border-radius: 6px; }
     #status.error { background: #3a1a1a; color: #f88; }
@@ -52,6 +54,7 @@
   <div id="form-wrap" hidden>
     <img id="hero" class="hero" alt="">
     <a id="heroLink" href="#" target="_blank" rel="noopener" hidden style="display:block;margin-top:0.25rem;font-size:0.75rem;color:#888;word-break:break-all;"></a>
+    <div id="imageDebug" hidden></div>
     <label>Alternate images</label>
     <div class="row" id="thumbs"></div>
     <label>Image URL (override)</label>

@@ -490,6 +490,15 @@
       } else {
         ev.style.display = 'none';
       }
+      const imageDebugEl = document.getElementById('imageDebug');
+      if (imageDebugEl) {
+        const src = draft.imageSource || 'unknown';
+        const candidateCount = (draft.imageUrls || []).length;
+        imageDebugEl.hidden = false;
+        imageDebugEl.innerHTML =
+          `Image source: <span>${src}</span> &nbsp;·&nbsp; Candidates: <span>${candidateCount}</span>`;
+      }
+
       const thumbs = document.getElementById('thumbs');
       thumbs.innerHTML = '';
       const urls = [draft.imageUrl, ...(draft.imageUrls || [])].filter(Boolean);
