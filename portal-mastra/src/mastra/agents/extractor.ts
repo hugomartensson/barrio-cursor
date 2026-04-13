@@ -16,7 +16,7 @@ WORKFLOW FOR A URL INPUT:
 1. Call the right fetcher first:
    - Google Maps / maps.app.goo.gl → googlePlacesFetcher (mapsUrl)
    - facebook.com/events → facebookEventFetcher
-   - ra.co/events/* → use raEventFetcher (direct GraphQL API, returns all structured data). Do NOT use websiteFetcher or tavilySearchTool for RA event URLs. After getting the result: if raEventFetcher returns venueName, call googlePlacesFetcher with "[venueName] [city]" to get photos. Use the latitude/longitude and address from raEventFetcher directly.
+   - ra.co/events/* → use raEventFetcher (direct GraphQL API, returns all structured data). Do NOT use websiteFetcher or tavilySearchTool for RA event URLs. After getting the result: if raEventFetcher returns venueName, call googlePlacesFetcher with "[venueName] [city]" for address/name cross-check only — do NOT use its photoUrls for the event imageUrl (see image rules below). Use the latitude/longitude and address from raEventFetcher directly.
    - Otherwise → websiteFetcher
 2. If googlePlacesFetcher returns a website URL, also call websiteFetcher on it.
 3. Cross-check: call googlePlacesFetcher with venueName + city to verify name and address. Prefer Google Places for name and full address when available.
@@ -32,19 +32,26 @@ WORKFLOW FOR A URL INPUT:
    QUALITY BAR (applies to both types):
    Imagine the photo on the cover of a city lifestyle magazine. It must be sharp, well-lit, and atmospheric. Reject anything blurry, poorly lit, pixelated, or purely functional (e.g. a plain product shot or a screenshot).
 
-   PRIORITY ORDER FOR IMAGE SOURCES — follow this order strictly, do not skip a step:
-   1. Original website (websiteFetcher og:image and JSON-LD images) — ALWAYS try these first. Validate the top 3–5 with image-validator.
-   2. Tavily image search — if step 1 yields no qualifying image, call tavily-image-search with "[venue/event name] [city]". This returns direct image URLs. Validate each with image-validator. This step is REQUIRED before touching Google Places.
-   2b. Press/blog pages — additionally call tavily-web-search for "[venue/event name] [city] photos", then call websiteFetcher on the top 2–3 result URLs and extract their og:image. Validate each with image-validator. This supplements step 2.
-   3. Google Places photos — ONLY fall back here if steps 1, 2, and 2b all yield nothing that passes validation.
+   IMAGE SOURCE PRIORITY — SPOTS (follow this order strictly):
+   1. Original website (websiteFetcher og:image and JSON-LD images) — ALWAYS try first. Validate top 3–5 with image-validator.
+   2. Tavily image search — call tavily-image-search with "[venue name] [city]". Validate each with image-validator.
+   2b. Press/blog pages — call tavily-web-search for "[venue name] [city] photos", then websiteFetcher on top 2–3 results. Validate og:images with image-validator.
+   3. Google Places photos — ONLY if steps 1, 2, and 2b all fail to produce a qualifying image.
 
-   PROCESS:
+   IMAGE SOURCE PRIORITY — EVENTS (follow this order strictly):
+   1. Original event page (websiteFetcher og:image and JSON-LD images) — ALWAYS try first. Validate top 3–5 with image-validator.
+   2. Tavily image search — call tavily-image-search with "[event name] [city]". Validate each with image-validator.
+   2b. Press/blog pages — call tavily-web-search for "[event name] [city] photos", then websiteFetcher on top 2–3 results. Validate og:images with image-validator.
+   ✗ Google Places photos — NEVER use for events. If steps 1, 2, and 2b all fail, set imageUrl to null.
+
+   PROCESS (applies to both types):
    - Collect all image candidates from the original URL first.
    - Call image-validator on the top 3–5 distinct candidate URLs.
    - If the original URL's best image passes validation (isPhoto = true for spots, qualityScore ≥ 7, and matches the type rules above), use it — do NOT replace it with a Tavily or Google Places photo.
-   - If the original URL yields no qualifying image, you MUST call tavily-image-search before touching Google Places. Do not skip this step.
-   - Only fall back to Google Places photos if the original URL AND both Tavily steps fail to produce a qualifying image.
-   - Only set imageUrl to null if you genuinely cannot find a qualifying image after exhausting all sources.
+   - If the original URL yields no qualifying image, you MUST call tavily-image-search next. Do not skip this step.
+   - For spots only: fall back to Google Places photos if website AND both Tavily steps fail.
+   - For events: never use Google Places photos regardless of what other sources yield.
+   - Only set imageUrl to null if you genuinely cannot find a qualifying image after exhausting all allowed sources.
 
    imageSource field — set this to indicate where the winning image came from:
    - "website" — from the original URL (og:image, JSON-LD, or inline img)
@@ -77,9 +84,9 @@ FIELD RULES:
 KULTURNATT STOCKHOLM: For URLs from kulturnattstockholm.se:
 - All events take place on April 18, 2026. The individual event page shows the time but may not show the date. Use 2026-04-18 as the date, combine with the time from the page for startTime/endTime.
 - Swedish time notation: "18-00" or "18.00" means 18:00 (6 PM), NOT a date range. Parse these as clock times in 24-hour format. Example: "18-00–20-00" → startTime 2026-04-18T18:00:00, endTime 2026-04-18T20:00:00.
-- The page lists a venue name (e.g. "Ungerska kulturhuset", "Spårvägsmuseet", etc.). Extract that name, then call googlePlacesFetcher with "[venue name] Stockholm" to get the address and photos.
+- The page lists a venue name (e.g. "Ungerska kulturhuset", "Spårvägsmuseet", etc.). Extract that name, then call googlePlacesFetcher with "[venue name] Stockholm" for the address only (do not use its photos — see image rules above).
 - If googlePlacesFetcher returns no results, use tavily-web-search for "[venue name] Stockholm adress" to find the street address.
-- Use the venue's Google Places photos as the image (real interior/exterior photos), not any event poster from the Kulturnatt page.
+- For the image: call tavily-image-search with "[venue name] Stockholm" to find a real venue photo. Validate results with image-validator. Do NOT use Google Places photos (these are events). Set imageUrl to null only if Tavily yields nothing qualifying.
 
 NEVER hallucinate. Every field you set must come directly from tool output — not from your training knowledge about a venue or URL. If raEventFetcher or websiteFetcher returns an error or empty content, do NOT invent data. Set name, description, address, startTime, endTime, imageUrl to null, add them all to flaggedFields, and return. It is far better to return an incomplete draft than a wrong one.
 
