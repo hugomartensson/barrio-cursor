@@ -8,6 +8,7 @@ import interactionsRouter from './interactions.js';
 import uploadRouter from './upload.js';
 import socialRouter from './social/index.js';
 import collectionsRouter from './collections.js';
+import plansRouter from './plans.js';
 import ingestRouter from './ingest.js';
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use('/spots', spotsRouter);
 router.use('/events', interactionsRouter);
 router.use('/', socialRouter);
 router.use('/collections', collectionsRouter);
+router.use('/plans', plansRouter);
 router.use('/upload', uploadRouter);
 router.use('/ingest', ingestRouter);
 export default router;

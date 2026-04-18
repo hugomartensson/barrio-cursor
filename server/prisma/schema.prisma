@@ -34,6 +34,7 @@ model User {
   saves            Save[]
   collections      Collection[]
   savedCollections SavedCollection[]
+  plans            Plan[]
   followers        Follow[]        @relation("following")
   following        Follow[]        @relation("follower")
   requestsSent     FollowRequest[] @relation("FollowRequestsSent")
@@ -183,6 +184,39 @@ model CollectionItem {
   @@index([collectionId])
   @@index([itemId])
   @@map("collection_items")
+}
+
+model Plan {
+  id            String     @id @default(uuid())
+  userId        String     @map("user_id")
+  name          String
+  startDate     DateTime   @map("start_date") @db.Date
+  endDate       DateTime   @map("end_date") @db.Date
+  coverImageUrl String?    @map("cover_image_url")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items PlanItem[]
+
+  @@index([userId])
+  @@map("plans")
+}
+
+model PlanItem {
+  id        String   @id @default(uuid())
+  planId    String   @map("plan_id")
+  itemType  ItemType @map("item_type")
+  itemId    String   @map("item_id")
+  dayOffset Int      @default(0) @map("day_offset")
+  order     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@index([itemId])
+  @@map("plan_items")
 }
 
 model Follow {
