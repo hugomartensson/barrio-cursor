@@ -50,6 +50,11 @@ export const planItemIdSchema = z.object({
   itemId: z.string().uuid(),
 });
 
+export const updatePlanItemSchema = z.object({
+  dayOffset: z.number().int().min(0),
+});
+
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 export type AddPlanItemsInput = z.infer<typeof addPlanItemsSchema>;
+export type UpdatePlanItemInput = z.infer<typeof updatePlanItemSchema>;

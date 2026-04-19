@@ -10,11 +10,13 @@ import {
   planIdSchema,
   addPlanItemsSchema,
   planItemIdSchema,
+  updatePlanItemSchema,
 } from '../schemas/plans.js';
 import type {
   CreatePlanInput,
   UpdatePlanInput,
   AddPlanItemsInput,
+  UpdatePlanItemInput,
 } from '../schemas/plans.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
 import { formatEvent } from '../utils/eventFormatters.js';
@@ -450,6 +452,48 @@ router.post(
 
       const hydratedItems = await hydrateItems(created);
       res.status(201).json({ data: hydratedItems });
+    }
+  )
+);
+
+/**
+ * PATCH /plans/:id/items/:itemId — move a plan item to a different day
+ */
+router.patch(
+  '/:id/items/:itemId',
+  requireAuth,
+  validateRequest({ params: planItemIdSchema, body: updatePlanItemSchema }),
+  asyncHandler(
+    async (
+      req: Request<{ id: string; itemId: string }, unknown, UpdatePlanItemInput>,
+      res: Response
+    ) => {
+      const userId = (req as unknown as AuthenticatedRequest).user.userId;
+      const plan = await prisma.plan.findUnique({ where: { id: req.params.id } });
+      if (!plan) {
+        throw ApiError.notFound('Plan');
+      }
+      if (plan.userId !== userId) {
+        throw ApiError.forbidden('You cannot edit this plan');
+      }
+
+      const item = await prisma.planItem.findUnique({ where: { id: req.params.itemId } });
+      if (!item || item.planId !== req.params.id) {
+        throw ApiError.notFound('Plan item');
+      }
+
+      // Clamp dayOffset to valid range for this plan
+      const start = new Date(plan.startDate);
+      const end = new Date(plan.endDate);
+      const maxDayOffset = Math.round((end.getTime() - start.getTime()) / 86400000);
+      const clampedOffset = Math.max(0, Math.min(req.body.dayOffset, maxDayOffset));
+
+      const updated = await prisma.planItem.update({
+        where: { id: req.params.itemId },
+        data: { dayOffset: clampedOffset },
+      });
+
+      res.json({ data: updated });
     }
   )
 );
