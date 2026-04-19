@@ -28,6 +28,8 @@ struct EventDetailView: View {
     @State private var showDeleteAlert = false
     @State private var showFullDescription = false
     @State private var showAddToCollection = false
+    @State private var showSaveToPlan = false
+    @State private var addedToCollectionName: String? = nil
     @State private var errorMessage: String? = nil
     @State private var cachedPlayers: [String: AVPlayer] = [:]
 
@@ -67,13 +69,38 @@ struct EventDetailView: View {
         .background(Color.portalBackground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PortalFloatingActionBar(
+                itemType: "event",
+                isSaved: isSaved,
+                saveCount: saveCount,
+                onSaveToggle: { Task { await toggleSave() } },
+                onAddToPlan: { showSaveToPlan = true },
+                onAddToCollection: {
+                    addedToCollectionName = nil
+                    showAddToCollection = true
+                }
+            )
+        }
+        .sheet(isPresented: $showSaveToPlan) {
+            SaveToPlanSheet(
+                itemType: "event",
+                itemId: event.id,
+                itemTitle: event.title,
+                itemCategory: event.category.displayName,
+                itemImageURL: event.media.first?.thumbnailUrl ?? event.media.first?.url
+            )
+            .environmentObject(authManager)
+        }
         .sheet(isPresented: $showEditEvent) {
             CreateEventView(eventToEdit: event)
         }
         .sheet(isPresented: $showAddToCollection) {
-            AddToCollectionSheet(itemType: "event", itemId: event.id) {
+            AddToCollectionSheet(itemType: "event", itemId: event.id, onAdded: { name in
+                addedToCollectionName = name
                 showAddToCollection = false
-            }
+            })
             .environmentObject(authManager)
         }
         .alert("Delete Event", isPresented: $showDeleteAlert) {
@@ -286,7 +313,6 @@ struct EventDetailView: View {
             eventCreatorRow
             Divider().background(Color.portalBorder)
             eventMutualsSavedRow
-            addToCollectionButton
         }
         .padding(.horizontal, .portalPagePadding)
         .padding(.top, 20)
@@ -296,13 +322,19 @@ struct EventDetailView: View {
 
     private var addToCollectionButton: some View {
         Button {
+            addedToCollectionName = nil
             showAddToCollection = true
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "folder.badge.plus")
+                Image(systemName: addedToCollectionName != nil ? "folder.badge.checkmark" : "folder.badge.plus")
                     .font(.system(size: 16))
-                Text("Add to collection")
-                    .font(.portalLabel)
+                if let name = addedToCollectionName {
+                    Text("Added to \(name)")
+                        .font(.portalLabel)
+                } else {
+                    Text("Add to collection")
+                        .font(.portalLabel)
+                }
             }
             .foregroundColor(.portalPrimary)
             .frame(maxWidth: .infinity)

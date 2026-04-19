@@ -26,8 +26,7 @@ export interface SpotData {
   latitude: number;
   longitude: number;
   neighborhood: string | null;
-  categoryTag: string | null;
-  tags: string[];
+  category: string;
   imageUrl: string | null;
   saveCount: number;
   distance: number;
@@ -49,13 +48,14 @@ router.get(
         lng: number;
         radius: number;
         limit: number;
-        categoryTag?: string;
+        category?: string;
       };
       const rows = await fetchNearbySpots(
         query.lat,
         query.lng,
         query.limit,
-        query.radius
+        query.radius,
+        query.category
       );
       const spotIds = rows.map((r) => r.id);
       if (spotIds.length === 0) {
@@ -76,9 +76,6 @@ router.get(
           if (!spot) {
             return null;
           }
-          if (query.categoryTag && spot.categoryTag !== query.categoryTag) {
-            return null;
-          }
           return {
             id: spot.id,
             name: spot.name,
@@ -87,8 +84,7 @@ router.get(
             latitude: spot.latitude,
             longitude: spot.longitude,
             neighborhood: spot.neighborhood,
-            categoryTag: spot.categoryTag,
-            tags: spot.tags,
+            category: String(spot.category),
             imageUrl: spot.media[0]?.url ?? null,
             saveCount: spot.saveCount,
             distance: r.distance ?? 0,
@@ -144,8 +140,7 @@ router.post(
           neighborhood: input.neighborhood ?? null,
           latitude: lat,
           longitude: lng,
-          categoryTag: input.category,
-          tags: input.tags ?? [],
+          category: input.category,
           media: {
             create: {
               url: input.image.url,
@@ -170,8 +165,7 @@ router.post(
           latitude: spot.latitude,
           longitude: spot.longitude,
           neighborhood: spot.neighborhood,
-          categoryTag: spot.categoryTag,
-          tags: spot.tags,
+          category: String(spot.category),
           imageUrl: spot.media[0]?.url ?? null,
           saveCount: spot.saveCount,
           distance: 0,
@@ -216,8 +210,7 @@ router.get(
           latitude: spot.latitude,
           longitude: spot.longitude,
           neighborhood: spot.neighborhood,
-          categoryTag: spot.categoryTag,
-          tags: spot.tags,
+          category: String(spot.category),
           imageUrl: spot.media[0]?.url ?? null,
           saveCount: spot.saveCount,
           distance: 0,
@@ -265,7 +258,7 @@ router.patch(
         updateData.description = input.description;
       }
       if (input.category !== undefined) {
-        updateData.categoryTag = input.category;
+        updateData.category = input.category;
       }
       if (input.address !== undefined) {
         updateData.address = input.address;
@@ -281,9 +274,6 @@ router.patch(
       }
       if (input.neighborhood !== undefined) {
         updateData.neighborhood = input.neighborhood;
-      }
-      if (input.tags !== undefined) {
-        updateData.tags = input.tags;
       }
 
       if (input.image) {
@@ -316,8 +306,7 @@ router.patch(
           latitude: spot.latitude,
           longitude: spot.longitude,
           neighborhood: spot.neighborhood,
-          categoryTag: spot.categoryTag,
-          tags: spot.tags,
+          category: String(spot.category),
           imageUrl: spot.media[0]?.url ?? null,
           saveCount: spot.saveCount,
           distance: 0,

@@ -11,6 +11,8 @@ struct UserProfileView: View {
     @State private var profilePictureUrl: String? = nil
     @State private var followerCount: Int = 0
     @State private var followingCount: Int = 0
+    @State private var selectedCity: String? = nil
+    @State private var cities: [String] = []
     @State private var isFollowing: Bool = false
     @State private var isPrivate: Bool = false
     @State private var profileLocked: Bool = false
@@ -151,6 +153,21 @@ struct UserProfileView: View {
                             Text("@\(userHandle)")
                                 .font(.portalMetadata)
                                 .foregroundColor(.portalMutedForeground)
+                        }
+                        if let city = selectedCity, !city.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin")
+                                    .font(.system(size: 11))
+                                Text(city)
+                                    .font(.portalMetadata)
+                            }
+                            .foregroundColor(.portalMutedForeground)
+                        }
+                        let secondaryCities = cities.filter { $0 != selectedCity }
+                        if !secondaryCities.isEmpty {
+                            Text("Also in: \(secondaryCities.joined(separator: ", "))")
+                                .font(.portalMetadata)
+                                .foregroundColor(.portalMutedForeground.opacity(0.7))
                         }
                         HStack(spacing: 24) {
                             Button {
@@ -413,6 +430,8 @@ struct UserProfileView: View {
                 followerCount = data.followerCount ?? 0
                 followingCount = data.followingCount ?? 0
                 isPrivate = data.isPrivate ?? false
+                selectedCity = data.selectedCity
+                cities = data.cities ?? []
                 profileLocked = locked
                 followRequestStatus = pendingOutgoing ? "pending" : nil
             }

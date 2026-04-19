@@ -69,13 +69,7 @@ npm run check-deps
 npm run migrate
 ```
 
-### 6. (Optional) Seed the database
-
-```bash
-npm run seed
-```
-
-### 7. Start the development server
+### 6. Start the development server
 
 ```bash
 npm run dev
@@ -96,7 +90,6 @@ The API will be available at `http://localhost:5000`
 | `npm run test` | Run tests with coverage |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run migrate` | Run Prisma migrations |
-| `npm run seed` | Seed the database |
 | `npm run db:studio` | Open Prisma Studio |
 
 ## API Endpoints

@@ -15,25 +15,12 @@ struct PortalSaveButton: View {
     var diameter: CGFloat = 36
     let action: () -> Void
 
-    private var idleStroke: Color {
-        switch surface {
-        case .light: return .portalBorder
-        case .dark: return Color.portalCard.opacity(0.45)
-        }
-    }
-
     private var idleIconColor: Color {
-        switch surface {
-        case .light: return .portalMutedForeground
-        case .dark: return Color.portalCard.opacity(0.95)
-        }
+        Color.portalPrimary
     }
 
     private var countTextColor: Color {
-        switch surface {
-        case .light: return isSaved ? Color.portalPrimaryForeground : Color.portalMutedForeground
-        case .dark: return isSaved ? Color.portalPrimaryForeground : Color.portalCard.opacity(0.95)
-        }
+        isSaved ? Color.portalPrimaryForeground : Color.portalPrimary
     }
 
     private func formatCount(_ n: Int) -> String {
@@ -47,11 +34,7 @@ struct PortalSaveButton: View {
         Button(action: action) {
             ZStack {
                 Circle()
-                    .fill(isSaved ? Color.portalPrimary : Color.clear)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(isSaved ? Color.clear : idleStroke, lineWidth: 1.5)
-                    )
+                    .fill(isSaved ? Color.portalPrimary : Color.white)
                 VStack(spacing: 1) {
                     Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 12, weight: .semibold))

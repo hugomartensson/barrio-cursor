@@ -52,6 +52,7 @@ extension Color {
         switch category.lowercased() {
         case "food": return portalCategoryFood
         case "drinks": return Color(hue: 280/360, saturation: 0.55, brightness: 0.55)
+        case "cafe": return Color(hue: 28/360, saturation: 0.45, brightness: 0.40)
         case "music": return portalCategoryMusic
         case "art": return portalCategoryArt
         case "markets": return Color(hue: 145/360, saturation: 0.55, brightness: 0.45)

@@ -2,8 +2,6 @@ import Foundation
 import CoreLocation
 
 // MARK: - PRD-aligned Spot domain model
-// Thin wrapper over API SpotData so the rest of the app can speak
-// in PRD terms (Spot with owners/tags/saveCount) instead of backend DTOs.
 
 nonisolated struct SpotOwner: Codable, Hashable {
     let id: String
@@ -20,11 +18,11 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
     let description: String?
     let imageUrl: String?
     let location: CLLocationCoordinate2D
-    let tags: [String]
+    let category: EventCategory
     let owners: [SpotOwner]
     /// PRD: saveCount; updated when user toggles save.
     var saveCount: Int
-    
+
     init(
         id: String,
         name: String,
@@ -33,7 +31,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         description: String?,
         imageUrl: String?,
         location: CLLocationCoordinate2D,
-        tags: [String],
+        category: EventCategory,
         owners: [SpotOwner],
         saveCount: Int = 0
     ) {
@@ -44,11 +42,11 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         self.description = description
         self.imageUrl = imageUrl
         self.location = location
-        self.tags = tags
+        self.category = category
         self.owners = owners
         self.saveCount = saveCount
     }
-    
+
     // Custom Codable conformance to encode/decode CLLocationCoordinate2D
     private enum CodingKeys: String, CodingKey {
         case id
@@ -59,11 +57,11 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         case imageUrl
         case latitude
         case longitude
-        case tags
+        case category
         case owners
         case saveCount
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(String.self, forKey: .id)
@@ -75,11 +73,12 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         let latitude = try container.decode(Double.self, forKey: .latitude)
         let longitude = try container.decode(Double.self, forKey: .longitude)
         location = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
+        let categoryRaw = try container.decodeIfPresent(String.self, forKey: .category) ?? "community"
+        category = EventCategory(rawValue: categoryRaw) ?? .community
         owners = try container.decodeIfPresent([SpotOwner].self, forKey: .owners) ?? []
         saveCount = try container.decodeIfPresent(Int.self, forKey: .saveCount) ?? 0
     }
-    
+
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
@@ -90,11 +89,11 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         try container.encodeIfPresent(imageUrl, forKey: .imageUrl)
         try container.encode(location.latitude, forKey: .latitude)
         try container.encode(location.longitude, forKey: .longitude)
-        try container.encode(tags, forKey: .tags)
+        try container.encode(category.rawValue, forKey: .category)
         try container.encode(owners, forKey: .owners)
         try container.encode(saveCount, forKey: .saveCount)
     }
-    
+
     // Custom Hashable / Equatable to avoid needing CLLocationCoordinate2D Hashable
     static func == (lhs: Spot, rhs: Spot) -> Bool {
         return lhs.id == rhs.id &&
@@ -105,11 +104,11 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
             lhs.imageUrl == rhs.imageUrl &&
             lhs.location.latitude == rhs.location.latitude &&
             lhs.location.longitude == rhs.location.longitude &&
-            lhs.tags == rhs.tags &&
+            lhs.category == rhs.category &&
             lhs.owners == rhs.owners &&
             lhs.saveCount == rhs.saveCount
     }
-    
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(name)
@@ -119,7 +118,7 @@ nonisolated struct Spot: Identifiable, Codable, Hashable {
         hasher.combine(imageUrl)
         hasher.combine(location.latitude)
         hasher.combine(location.longitude)
-        hasher.combine(tags)
+        hasher.combine(category)
         hasher.combine(owners)
         hasher.combine(saveCount)
     }
@@ -135,7 +134,7 @@ extension Spot {
             handle: data.ownerHandle,
             initials: (data.ownerHandle?.prefix(1).uppercased()) ?? "?"
         )
-        
+
         self.init(
             id: data.id,
             name: data.name,
@@ -144,7 +143,7 @@ extension Spot {
             description: data.description,
             imageUrl: data.imageUrl,
             location: coord,
-            tags: data.categoryTag.map { [$0] } ?? [],
+            category: EventCategory(rawValue: data.category) ?? .community,
             owners: [owner],
             saveCount: data.saveCount ?? 0
         )

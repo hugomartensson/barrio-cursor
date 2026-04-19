@@ -68,10 +68,11 @@ enum MediaType: String, Codable {
     case photo
 }
 
-// PRD categories: Food, Drinks, Music, Art, Markets, Community
-enum EventCategory: String, Codable, CaseIterable {
+// PRD categories: Food, Drinks, Cafe, Music, Art, Markets, Community
+enum EventCategory: String, Codable, CaseIterable, Hashable {
     case food
     case drinks
+    case cafe
     case music
     case art
     case markets
@@ -81,6 +82,7 @@ enum EventCategory: String, Codable, CaseIterable {
         switch self {
         case .food: return "Food"
         case .drinks: return "Drinks"
+        case .cafe: return "Cafe"
         case .music: return "Music"
         case .art: return "Art"
         case .markets: return "Markets"
@@ -92,6 +94,7 @@ enum EventCategory: String, Codable, CaseIterable {
         switch self {
         case .food: return "fork.knife"
         case .drinks: return "wineglass"
+        case .cafe: return "cup.and.saucer"
         case .music: return "music.note"
         case .art: return "paintpalette"
         case .markets: return "bag"
@@ -103,12 +106,18 @@ enum EventCategory: String, Codable, CaseIterable {
         switch self {
         case .food: return "#FF6B6B"
         case .drinks: return "#9B59B6"
+        case .cafe: return "#7B4E2E"
         case .music: return "#3498DB"
         case .art: return "#E67E22"
         case .markets: return "#27AE60"
         case .community: return "#F39C12"
         }
     }
+
+    /// Alias for `displayName` — used by Discover/Map filter pills.
+    var label: String { displayName }
+    /// Alias for `color` — used by category pill color helpers.
+    var colorHex: String { color }
 }
 
 // API Response wrappers

@@ -9,7 +9,11 @@ export const updateUserSchema = z
     name: z.string().min(1, 'Name is required').max(100, 'Name too long').optional(),
     profilePictureUrl: z.string().url('Invalid URL').optional().nullable(),
     isPrivate: z.boolean().optional(),
-    selectedCity: z.string().max(100).optional().nullable(), // portal: Discover feed city
+    selectedCity: z.string().max(100).optional().nullable(),
+    cities: z
+      .array(z.string().trim().min(1).max(100))
+      .max(10, 'Maximum 10 cities allowed')
+      .optional(),
     bio: z.string().max(280, 'Bio too long').optional().nullable(),
   })
   .refine(
@@ -18,10 +22,11 @@ export const updateUserSchema = z
       data.profilePictureUrl !== undefined ||
       data.isPrivate !== undefined ||
       data.selectedCity !== undefined ||
+      data.cities !== undefined ||
       data.bio !== undefined,
     {
       message:
-        'At least one field (name, profilePictureUrl, isPrivate, selectedCity, or bio) must be provided',
+        'At least one field (name, profilePictureUrl, isPrivate, selectedCity, cities, or bio) must be provided',
     }
   );
 

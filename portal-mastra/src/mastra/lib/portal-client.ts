@@ -121,7 +121,6 @@ export class PortalClient {
         category: draft.category,
         address: draft.address,
         neighborhood: draft.neighborhood ?? undefined,
-        tags: [],
         image: { url: draft.imageUrl },
       };
       if (hasCoords) {

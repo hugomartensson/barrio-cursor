@@ -453,6 +453,8 @@ nonisolated struct UserProfile: Codable {
     let initials: String?
     /// Portal: current city for profile header (from GET /users/me)
     let selectedCity: String?
+    /// All cities the user is associated with
+    let cities: [String]?
 }
 
 // Portal: Saved spots (GET /users/me/saved-spots)
@@ -464,6 +466,7 @@ nonisolated struct SavedSpotEntry: Codable, Identifiable {
     let name: String
     let address: String?
     let neighborhood: String?
+    let category: String?
     let imageUrl: String?
     let saveCount: Int?
     let collectionId: String?
@@ -544,7 +547,7 @@ nonisolated struct SpotData: Codable, Identifiable {
     let latitude: Double
     let longitude: Double
     let neighborhood: String?
-    let categoryTag: String?
+    let category: String
     let imageUrl: String?
     let distance: Double
     let ownerId: String
@@ -609,8 +612,7 @@ nonisolated struct CollectionItemSpotPayload: Codable {
     let latitude: Double
     let longitude: Double
     let neighborhood: String?
-    let categoryTag: String?
-    let tags: [String]?
+    let category: String
     let imageUrl: String?
     let saveCount: Int
     let distance: Double
@@ -651,6 +653,8 @@ nonisolated struct UpdatedUser: Codable {
     let profilePictureUrl: String?
     let isPrivate: Bool?
     let bio: String?
+    let selectedCity: String?
+    let cities: [String]?
 }
 
 // MARK: - Events Endpoints
@@ -764,6 +768,8 @@ extension APIService {
         profilePictureUrl: String?,
         isPrivate: Bool?,
         bio: String?,
+        selectedCity: String?,
+        cities: [String]?,
         token: String
     ) async throws -> UpdateUserResponse {
         struct UpdateUserRequest: Encodable {
@@ -771,9 +777,11 @@ extension APIService {
             let profilePictureUrl: String?
             let isPrivate: Bool?
             let bio: String?
+            let selectedCity: String?
+            let cities: [String]?
         }
 
-        let body = UpdateUserRequest(name: name, profilePictureUrl: profilePictureUrl, isPrivate: isPrivate, bio: bio)
+        let body = UpdateUserRequest(name: name, profilePictureUrl: profilePictureUrl, isPrivate: isPrivate, bio: bio, selectedCity: selectedCity, cities: cities)
         return try await patch("/users/me", body: body, token: token)
     }
     
@@ -939,10 +947,10 @@ extension APIService {
     }
 
     // Portal: Spots (Discover + Map)
-    func getSpots(lat: Double, lng: Double, radius: Double = 5000, limit: Int = 20, categoryTag: String? = nil, token: String) async throws -> SpotsListResponse {
+    func getSpots(lat: Double, lng: Double, radius: Double = 5000, limit: Int = 20, category: String? = nil, token: String) async throws -> SpotsListResponse {
         var endpoint = "/spots?lat=\(lat)&lng=\(lng)&radius=\(radius)&limit=\(limit)"
-        if let tag = categoryTag, !tag.isEmpty {
-            endpoint += "&categoryTag=\(tag.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? tag)"
+        if let cat = category, !cat.isEmpty {
+            endpoint += "&category=\(cat.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? cat)"
         }
         return try await get(endpoint, token: token)
     }
@@ -955,7 +963,6 @@ extension APIService {
         let address: String
         let image: CreateSpotImageInput
         let neighborhood: String?
-        let tags: [String]?
     }
     nonisolated struct CreateSpotImageInput: Encodable {
         let url: String
@@ -980,8 +987,7 @@ extension APIService {
             category: category,
             address: address,
             image: CreateSpotImageInput(url: imageURL, thumbnailUrl: imageThumbnailURL),
-            neighborhood: neighborhood,
-            tags: nil
+            neighborhood: neighborhood
         )
         return try await post("/spots", body: body, token: token)
     }

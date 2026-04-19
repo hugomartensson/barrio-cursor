@@ -10,6 +10,9 @@ struct EditProfileView: View {
     @State private var name: String = ""
     @State private var bio: String = ""
     @State private var isPrivate: Bool = false
+    @State private var cities: [String] = []
+    @State private var selectedCity: String? = nil
+    @State private var newCityText: String = ""
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var profileImage: UIImage?
     @State private var isUploading = false
@@ -20,6 +23,7 @@ struct EditProfileView: View {
 
     @FocusState private var nameFocused: Bool
     @FocusState private var bioFocused: Bool
+    @FocusState private var cityFieldFocused: Bool
 
     private let maxBioLength = 280
 
@@ -165,6 +169,109 @@ struct EditProfileView: View {
         .padding(.vertical, 8)
     }
 
+    // MARK: - Cities section
+    private var citiesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("CITIES")
+                .font(.portalSectionLabel)
+                .tracking(1.2)
+                .foregroundColor(.portalMutedForeground)
+
+            if !cities.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(cities, id: \.self) { city in
+                            cityChip(city: city)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+
+            HStack(spacing: 8) {
+                TextField("Add a city", text: $newCityText)
+                    .font(.portalBody)
+                    .foregroundColor(.portalForeground)
+                    .focused($cityFieldFocused)
+                    .onSubmit { addCity() }
+                    .accessibilityIdentifier("city_input")
+
+                if !newCityText.trimmingCharacters(in: .whitespaces).isEmpty {
+                    Button(action: addCity) {
+                        Text("Add")
+                            .font(.portalLabel)
+                            .foregroundColor(.portalPrimaryForeground)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.portalPrimary)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(cityFieldFocused ? Color.portalPrimary : Color.portalBorder)
+
+            Text("Tap a city to set it as your primary city. Up to 5 cities.")
+                .font(.portalMetadata)
+                .foregroundColor(.portalMutedForeground)
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func cityChip(city: String) -> some View {
+        let isPrimary = city == selectedCity
+        return HStack(spacing: 4) {
+            if isPrimary {
+                Image(systemName: "mappin")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            Text(city)
+                .font(.portalBody)
+            Button {
+                removeCity(city)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(isPrimary ? Color.portalPrimary.opacity(0.15) : Color.portalMuted)
+        .foregroundColor(isPrimary ? Color.portalPrimary : Color.portalForeground)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(isPrimary ? Color.portalPrimary : Color.clear, lineWidth: 1)
+        )
+        .onTapGesture {
+            selectedCity = isPrimary ? nil : city
+        }
+    }
+
+    private func addCity() {
+        let trimmed = newCityText.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed.count <= 100, cities.count < 5, !cities.contains(trimmed) else {
+            newCityText = ""
+            return
+        }
+        cities.append(trimmed)
+        if selectedCity == nil {
+            selectedCity = trimmed
+        }
+        newCityText = ""
+    }
+
+    private func removeCity(_ city: String) {
+        cities.removeAll { $0 == city }
+        if selectedCity == city {
+            selectedCity = cities.first
+        }
+    }
+
     // MARK: - Privacy section (Portal section label + toggle + caption)
     private var privacySection: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -187,7 +294,8 @@ struct EditProfileView: View {
             profilePictureSection
             nameSection
             bioSection
-            Spacer().frame(height: 24) // extra breathing room between Bio and Privacy (P2)
+            citiesSection
+            Spacer().frame(height: 8)
             privacySection
             if let error = errorMessage {
                 Text(error)
@@ -253,6 +361,8 @@ struct EditProfileView: View {
                 name = authManager.currentUser?.name ?? ""
                 bio = authManager.currentUser?.bio ?? ""
                 isPrivate = authManager.currentUser?.isPrivate ?? false
+                cities = authManager.currentUser?.cities ?? []
+                selectedCity = authManager.currentUser?.selectedCity
                 hasLoadedInitialValues = true
             }
             if let token = authManager.token, !token.isEmpty,
@@ -261,6 +371,8 @@ struct EditProfileView: View {
                     name = profile.data.name
                     bio = profile.data.bio ?? ""
                     isPrivate = profile.data.isPrivate ?? false
+                    cities = profile.data.cities ?? []
+                    selectedCity = profile.data.selectedCity
                 }
             }
         }
@@ -348,6 +460,8 @@ struct EditProfileView: View {
                 profilePictureUrl: profilePictureUrl,
                 isPrivate: isPrivate,
                 bio: trimmedBio.isEmpty ? "" : trimmedBio,
+                selectedCity: selectedCity,
+                cities: cities,
                 token: authManager.token ?? ""
             )
 
@@ -357,6 +471,8 @@ struct EditProfileView: View {
                     u.profilePictureUrl = response.data.profilePictureUrl
                     u.isPrivate = response.data.isPrivate ?? false
                     u.bio = response.data.bio
+                    u.selectedCity = response.data.selectedCity
+                    u.cities = response.data.cities ?? []
                     authManager.currentUser = u
                     authManager.persistUserToKeychain(u)
                 }

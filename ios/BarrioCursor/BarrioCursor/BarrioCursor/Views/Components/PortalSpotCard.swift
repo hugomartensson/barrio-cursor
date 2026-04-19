@@ -31,7 +31,6 @@ struct PortalSpotItem: Identifiable, Hashable {
     let ownerInitial: String
     var saveCount: Int
     let description: String?
-    let tags: [String]
     let distanceText: String?
     let friendsWhoSaved: [SpotFriendSaved]
 
@@ -46,7 +45,6 @@ struct PortalSpotItem: Identifiable, Hashable {
         ownerInitial: String,
         saveCount: Int,
         description: String? = nil,
-        tags: [String] = [],
         distanceText: String? = nil,
         friendsWhoSaved: [SpotFriendSaved] = []
     ) {
@@ -60,7 +58,6 @@ struct PortalSpotItem: Identifiable, Hashable {
         self.ownerInitial = ownerInitial
         self.saveCount = saveCount
         self.description = description
-        self.tags = tags
         self.distanceText = distanceText
         self.friendsWhoSaved = friendsWhoSaved
     }
@@ -85,12 +82,11 @@ extension PortalSpotItem {
             neighborhood: spot.neighborhood,
             addressLine: spot.address,
             imageURL: spot.imageUrl,
-            categoryLabel: spot.tags.first,
+            categoryLabel: spot.category.displayName,
             ownerHandle: primaryOwner?.handle ?? "?",
             ownerInitial: primaryOwner?.initials ?? "?",
             saveCount: spot.saveCount,
-            description: spot.description,
-            tags: spot.tags
+            description: spot.description
         )
     }
 }
@@ -219,6 +215,8 @@ struct SpotDetailView: View {
     @EnvironmentObject var authManager: AuthManager
 
     @State private var showAddToCollection = false
+    @State private var showSaveToPlan = false
+    @State private var addedToCollectionName: String? = nil
     /// Optimistic UI after toggle when using built-in API save
     @State private var resolvedSaved: Bool?
     @State private var resolvedSaveCount: Int?
@@ -238,6 +236,30 @@ struct SpotDetailView: View {
         .background(Color.portalBackground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PortalFloatingActionBar(
+                itemType: "spot",
+                isSaved: displaySaved,
+                saveCount: displaySaveCount,
+                onSaveToggle: performSaveTap,
+                onAddToPlan: { showSaveToPlan = true },
+                onAddToCollection: {
+                    addedToCollectionName = nil
+                    showAddToCollection = true
+                }
+            )
+        }
+        .sheet(isPresented: $showSaveToPlan) {
+            SaveToPlanSheet(
+                itemType: "spot",
+                itemId: spot.id,
+                itemTitle: spot.name,
+                itemCategory: spot.categoryLabel ?? "",
+                itemImageURL: spot.imageURL
+            )
+            .environmentObject(authManager)
+        }
     }
 
     // MARK: - Hero (4/3 image to top edge, gradient, nav buttons, category + title)
@@ -367,7 +389,7 @@ struct SpotDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Body (location, description, tags, curator, friends, CTA)
+    // MARK: - Body (location, description, curator, friends, CTA)
     private var bodySection: some View {
         VStack(alignment: .leading, spacing: bodyVerticalSpacing) {
             locationPriceRow
@@ -377,38 +399,41 @@ struct SpotDetailView: View {
                     .foregroundColor(.portalForeground.opacity(0.85))
                     .lineSpacing(4)
             }
-            if !spot.tags.isEmpty {
-                tagPills
-            }
             Divider().background(Color.portalBorder)
             curatorRow
             Divider().background(Color.portalBorder)
             if !spot.friendsWhoSaved.isEmpty {
                 friendsWhoSavedSection
             }
-            addToCollectionButton
         }
         .padding(.horizontal, .portalPagePadding)
         .padding(.top, 20)
         .padding(.bottom, 32)
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(isPresented: $showAddToCollection) {
-            AddToCollectionSheet(itemType: "spot", itemId: spot.id) {
+            AddToCollectionSheet(itemType: "spot", itemId: spot.id, onAdded: { name in
+                addedToCollectionName = name
                 showAddToCollection = false
-            }
+            })
             .environmentObject(authManager)
         }
     }
 
     private var addToCollectionButton: some View {
         Button {
+            addedToCollectionName = nil
             showAddToCollection = true
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "folder.badge.plus")
+                Image(systemName: addedToCollectionName != nil ? "folder.badge.checkmark" : "folder.badge.plus")
                     .font(.system(size: 16))
-                Text("Add to collection")
-                    .font(.portalLabel)
+                if let name = addedToCollectionName {
+                    Text("Added to \(name)")
+                        .font(.portalLabel)
+                } else {
+                    Text("Add to collection")
+                        .font(.portalLabel)
+                }
             }
             .foregroundColor(.portalPrimary)
             .frame(maxWidth: .infinity)
@@ -428,21 +453,6 @@ struct SpotDetailView: View {
             Text(spot.displayCity)
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
-        }
-    }
-
-    private var tagPills: some View {
-        FlowLayout(spacing: 6) {
-            ForEach(spot.tags, id: \.self) { tag in
-                Text(spotCategoryDisplayLabel(tag))
-                    .font(.portalSectionLabel)
-                    .tracking(0.5)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.categoryPillColor(for: tag).opacity(0.2))
-                    .foregroundColor(.portalForeground)
-                    .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-            }
         }
     }
 
@@ -567,12 +577,11 @@ extension PortalSpotItem {
             name: "Lilia",
             neighborhood: "Williamsburg",
             imageURL: nil,
-            categoryLabel: "Italian",
+            categoryLabel: "Food",
             ownerHandle: "mia_eats",
             ownerInitial: "M",
             saveCount: 1200,
             description: "Hand-rolled pasta and wood-fired everything. The whipped ricotta alone is worth the trip.",
-            tags: ["PASTA", "WINE", "ROMANTIC", "DATE"],
             distanceText: "1.2 mi",
             friendsWhoSaved: [
                 SpotFriendSaved(name: "Jess", initials: "J"),

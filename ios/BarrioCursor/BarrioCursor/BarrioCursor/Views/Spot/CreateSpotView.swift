@@ -179,8 +179,8 @@ struct CreateSpotView: View {
                 .tracking(0.5)
                 .foregroundColor(.portalMutedForeground)
             let categories = Array(EventCategory.allCases)
-            let row1 = Array(categories.prefix(3))
-            let row2 = Array(categories.dropFirst(3))
+            let row1 = Array(categories.prefix(4))
+            let row2 = Array(categories.dropFirst(4))
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     ForEach(row1, id: \.self) { category in

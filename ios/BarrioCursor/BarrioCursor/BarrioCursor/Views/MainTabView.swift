@@ -1,71 +1,78 @@
 import SwiftUI
 
-// MARK: - portal· Main container
-// Discover is the main view. No tab bar. Profile = top-right icon. Map = floating pill.
+enum AppTab: String, CaseIterable {
+    case discover
+    case plans
+    case map
+    case profile
+}
 
+// MARK: - portal· Main tab container
 struct MainTabView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var locationManager: LocationManager
     @StateObject private var discoverFilters = DiscoverFilters()
-    @State private var showMap = false
+    @State private var selectedTab: AppTab = .discover
 
     var body: some View {
-        ZStack {
-            Color.portalBackground
-                .ignoresSafeArea()
-
-            DiscoverView()
-                .clipped()
-                .environmentObject(locationManager)
-                .environmentObject(discoverFilters)
-                .accessibilityIdentifier("Discover")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .ignoresSafeArea(edges: .bottom)
-        .accessibilityIdentifier("main_tab_view")
-        .overlay(alignment: .bottomTrailing) {
-            if !discoverFilters.isDetailPresented {
-                portalMapPill
-                    .padding(.trailing, CGFloat.portalPagePadding)
-                    .padding(.bottom, 24)
+        TabView(selection: $selectedTab) {
+            Tab("Discover", systemImage: "magnifyingglass", value: AppTab.discover) {
+                discoverTab
+            }
+            Tab("Plans", systemImage: "calendar", value: AppTab.plans) {
+                plansTab
+            }
+            Tab("Map", systemImage: "map", value: AppTab.map) {
+                mapTab
+            }
+            Tab("Profile", systemImage: "person.crop.circle", value: AppTab.profile) {
+                profileTab
             }
         }
+        .tint(Color.portalPrimary)
+        .accessibilityIdentifier("main_tab_view")
         .onAppear {
             if !ProcessInfo.processInfo.arguments.contains("--uitesting") {
                 locationManager.requestPermission()
             }
         }
-        .fullScreenCover(isPresented: $showMap) {
-            MapView()
-                .environmentObject(authManager)
-                .environmentObject(locationManager)
-                .environmentObject(discoverFilters)
-                .accessibilityIdentifier("Map")
-        }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SwitchToMapTab"))) { _ in
-            showMap = true
+            selectedTab = .map
         }
     }
 
-    private var portalMapPill: some View {
-        Button {
-            showMap = true
-        } label: {
-            Image(systemName: "map")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(.portalPrimaryForeground)
-                .frame(width: 44, height: 44)
-                .background(Color.portalPrimary)
-                .clipShape(Capsule())
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 2)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Map")
-        .accessibilityIdentifier("map_pill")
+    // MARK: - Tab content
+
+    private var discoverTab: some View {
+        DiscoverView()
+            .environmentObject(locationManager)
+            .environmentObject(discoverFilters)
+            .accessibilityIdentifier("Discover")
+    }
+
+    private var plansTab: some View {
+        PlansTabView()
+            .environmentObject(authManager)
+            .accessibilityIdentifier("Plans")
+    }
+
+    private var mapTab: some View {
+        MapView()
+            .environmentObject(authManager)
+            .environmentObject(locationManager)
+            .environmentObject(discoverFilters)
+            .accessibilityIdentifier("Map")
+    }
+
+    private var profileTab: some View {
+        ProfileView(isTab: true)
+            .environmentObject(authManager)
+            .accessibilityIdentifier("Profile")
     }
 }
 
 #Preview {
     MainTabView()
         .environmentObject(AuthManager())
+        .environmentObject(LocationManager())
 }

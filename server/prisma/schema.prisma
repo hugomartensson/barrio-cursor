@@ -52,9 +52,8 @@ model Spot {
   address      String
   latitude     Float
   longitude    Float
-  categoryTag  String?     @map("category_tag")
+  category     Category
   neighborhood String?
-  tags         String[]
   saveCount    Int         @default(0) @map("save_count")
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
@@ -63,7 +62,7 @@ model Spot {
   media MediaItem[]
 
   @@index([ownerId])
-  @@index([categoryTag])
+  @@index([category])
   // location geometry column with GIST index managed via migration
   @@map("spots")
 }
@@ -75,14 +74,12 @@ model Event {
   title        String
   description  String
   category     Category
-  categoryTag  String?     @map("category_tag")
   address      String
   neighborhood String?
   latitude     Float
   longitude    Float
   startTime    DateTime    @map("start_time")
   endTime      DateTime?   @map("end_time")
-  tags         String[]
   saveCount    Int         @default(0) @map("save_count")
   ticketUrl    String?     @map("ticket_url")
   createdAt    DateTime    @default(now()) @map("created_at")
@@ -95,7 +92,6 @@ model Event {
   @@index([userId])
   @@index([hostId])
   @@index([category])
-  @@index([categoryTag])
   @@index([startTime])
   // location geometry column with GIST index managed via migration
   @@map("events")
@@ -246,10 +242,11 @@ model FollowRequest {
   @@map("follow_requests")
 }
 
-// PRD categories: Food, Drinks, Music, Art, Markets, Community
+// PRD categories: Food, Drinks, Cafe, Music, Art, Markets, Community
 enum Category {
   food
   drinks
+  cafe
   music
   art
   markets

@@ -89,6 +89,7 @@ interface UserProfileResponse {
     collectionsCount?: number;
     followedCount?: number;
     selectedCity?: string | null;
+    cities?: string[];
     /** True when viewer is not allowed to see full profile details yet (private account, not following). */
     profileLocked?: boolean;
     followRequestPending?: boolean;
@@ -103,6 +104,7 @@ interface UpdateUserResponse {
     profilePictureUrl?: string | null;
     isPrivate?: boolean;
     selectedCity?: string | null;
+    cities?: string[];
     bio?: string | null;
   };
 }
@@ -137,6 +139,7 @@ router.get(
           followerCount: true,
           followingCount: true,
           selectedCity: true,
+          cities: true,
           bio: true,
         },
       });
@@ -165,6 +168,7 @@ router.get(
           collectionsCount,
           followedCount: user.followingCount,
           selectedCity: user.selectedCity ?? undefined,
+          cities: user.cities,
           bio: user.bio ?? undefined,
         },
       });
@@ -180,7 +184,7 @@ interface SavedSpotItem {
   neighborhood: string | null;
   latitude: number;
   longitude: number;
-  categoryTag: string | null;
+  category: string;
   imageUrl: string | null;
   saveCount: number;
   savedAt: string;
@@ -245,7 +249,7 @@ router.get(
             neighborhood: spot.neighborhood,
             latitude: spot.latitude,
             longitude: spot.longitude,
-            categoryTag: spot.categoryTag,
+            category: String(spot.category),
             imageUrl: spot.media[0]?.url ?? null,
             saveCount: spot.saveCount,
             savedAt: s.createdAt.toISOString(),
@@ -345,6 +349,8 @@ router.get(
           isPrivate: true,
           followerCount: true,
           followingCount: true,
+          selectedCity: true,
+          cities: true,
           bio: true,
         },
       });
@@ -384,6 +390,8 @@ router.get(
               followerCount: user.followerCount,
               followingCount: user.followingCount,
               bio: undefined,
+              selectedCity: undefined,
+              cities: undefined,
               profileLocked: true,
               followRequestPending: Boolean(outgoingPending),
             },
@@ -402,6 +410,8 @@ router.get(
           isPrivate: user.isPrivate,
           followerCount: user.followerCount,
           followingCount: user.followingCount,
+          selectedCity: user.selectedCity ?? undefined,
+          cities: user.cities,
           bio: user.bio ?? undefined,
           profileLocked: false,
           followRequestPending: false,
@@ -421,13 +431,14 @@ router.patch(
   asyncHandler(
     async (req: PatchRequest, res: Response<UpdateUserResponse | ApiErrorResponse>) => {
       const authReq = req as AuthenticatedRequest;
-      const { name, profilePictureUrl, isPrivate, selectedCity, bio } = req.body;
+      const { name, profilePictureUrl, isPrivate, selectedCity, cities, bio } = req.body;
 
       const updateData: {
         name?: string;
         profilePictureUrl?: string | null;
         isPrivate?: boolean;
         selectedCity?: string | null;
+        cities?: string[];
         bio?: string | null;
       } = {};
 
@@ -440,8 +451,15 @@ router.patch(
       if (isPrivate !== undefined) {
         updateData.isPrivate = isPrivate;
       }
+      if (cities !== undefined) {
+        updateData.cities = cities;
+      }
       if (selectedCity !== undefined) {
         updateData.selectedCity = selectedCity;
+        // Ensure selectedCity is always present in cities[]
+        if (selectedCity && cities !== undefined && !cities.includes(selectedCity)) {
+          updateData.cities = [...(updateData.cities ?? cities ?? []), selectedCity];
+        }
       }
       if (bio !== undefined) {
         const trimmed = typeof bio === 'string' ? bio.trim() : '';
@@ -458,6 +476,7 @@ router.patch(
           profilePictureUrl: true,
           isPrivate: true,
           selectedCity: true,
+          cities: true,
           bio: true,
         },
       });
@@ -470,6 +489,7 @@ router.patch(
           profilePictureUrl: updatedUser.profilePictureUrl,
           isPrivate: updatedUser.isPrivate ?? false,
           selectedCity: updatedUser.selectedCity ?? undefined,
+          cities: updatedUser.cities,
           bio: updatedUser.bio ?? undefined,
         },
       });
@@ -525,7 +545,7 @@ router.get(
         neighborhood: spot.neighborhood,
         latitude: spot.latitude,
         longitude: spot.longitude,
-        categoryTag: spot.categoryTag,
+        category: String(spot.category),
         imageUrl: spot.media[0]?.url ?? null,
         saveCount: spot.saveCount,
         savedAt: spot.createdAt.toISOString(),

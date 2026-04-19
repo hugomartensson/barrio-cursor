@@ -3,7 +3,6 @@ import MapKit
 import Combine
 
 struct MapView: View {
-    @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var locationManager: LocationManager
     @EnvironmentObject var discoverFilters: DiscoverFilters
@@ -46,28 +45,6 @@ struct MapView: View {
             errorOverlay
         }
         .ignoresSafeArea(edges: .bottom)
-        .overlay(alignment: .bottomTrailing) {
-            Button {
-                dismiss()
-            } label: {
-                ZStack {
-                    Color.portalPrimary
-                    Image(systemName: "list.bullet")
-                        .font(.system(size: 20, weight: .medium))
-                        .symbolRenderingMode(.monochrome)
-                        .foregroundStyle(Color.portalPrimaryForeground)
-                }
-                .frame(width: 48, height: 48)
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 2)
-            }
-            .buttonStyle(.plain)
-            .tint(.portalPrimaryForeground)
-            .accessibilityLabel("Back to Discover")
-            .accessibilityIdentifier("Discover")
-            .padding(.trailing, CGFloat.portalPagePadding)
-            .padding(.bottom, 24)
-        }
         .sheet(item: $detailEvent) { event in
             EventDetailView(event: event, isSaved: savedEventIds.contains(event.id))
                 .environmentObject(authManager)
@@ -88,7 +65,7 @@ struct MapView: View {
                                 if let idx = viewModel.spots.firstIndex(where: { $0.id == spot.id }) {
                                     let old = viewModel.spots[idx]
                                     var newSpots = viewModel.spots
-                                    newSpots[idx] = Spot(id: old.id, name: old.name, address: old.address, neighborhood: old.neighborhood, description: old.description, imageUrl: old.imageUrl, location: old.location, tags: old.tags, owners: old.owners, saveCount: response.saveCount)
+                                    newSpots[idx] = Spot(id: old.id, name: old.name, address: old.address, neighborhood: old.neighborhood, description: old.description, imageUrl: old.imageUrl, location: old.location, category: old.category, owners: old.owners, saveCount: response.saveCount)
                                     viewModel.spots = newSpots
                                 }
                             }
@@ -627,50 +604,53 @@ struct MapView: View {
             }
 
             if !locationSearchResults.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(locationSearchResults.enumerated()), id: \.offset) { _, item in
-                        Button {
-                            if let coord = item.placemark.location?.coordinate {
-                                discoverFilters.searchLocation = coord
-                                viewModel.cameraPosition = .region(MKCoordinateRegion(
-                                    center: coord,
-                                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                                ))
-                                showLocationDropdown = false
-                                locationSearchText = ""
-                                locationSearchResults = []
-                                Task {
-                                    await reloadEvents()
-                                    await updateLocationLabel()
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "mappin.circle")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.portalMutedForeground)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.name ?? "Unknown")
-                                        .font(.portalLabelSemibold)
-                                        .foregroundColor(.portalForeground)
-                                        .lineLimit(1)
-                                    if let locality = item.placemark.locality {
-                                        Text(locality)
-                                            .font(.portalMetadata)
-                                            .foregroundColor(.portalMutedForeground)
-                                            .lineLimit(1)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(locationSearchResults.enumerated()), id: \.offset) { _, item in
+                            Button {
+                                if let coord = item.placemark.location?.coordinate {
+                                    discoverFilters.searchLocation = coord
+                                    viewModel.cameraPosition = .region(MKCoordinateRegion(
+                                        center: coord,
+                                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                                    ))
+                                    showLocationDropdown = false
+                                    locationSearchText = ""
+                                    locationSearchResults = []
+                                    Task {
+                                        await reloadEvents()
+                                        await updateLocationLabel()
                                     }
                                 }
-                                Spacer()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "mappin.circle")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.portalMutedForeground)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.name ?? "Unknown")
+                                            .font(.portalLabelSemibold)
+                                            .foregroundColor(.portalForeground)
+                                            .lineLimit(1)
+                                        if let locality = item.placemark.locality {
+                                            Text(locality)
+                                                .font(.portalMetadata)
+                                                .foregroundColor(.portalMutedForeground)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(Color.portalBackground.opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.portalBackground.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
+                .frame(maxHeight: 220)
             }
         }
         .padding(12)
@@ -742,11 +722,7 @@ struct MapView: View {
         if mapContentFilter == .events { return [] }
         var result = viewModel.spots
         if !discoverFilters.categories.isEmpty {
-            result = result.filter { spot in
-                spot.tags.contains(where: { tag in
-                    discoverFilters.categories.contains(where: { $0.rawValue == tag.lowercased() })
-                })
-            }
+            result = result.filter { discoverFilters.categories.contains($0.category) }
         }
         return result
     }
@@ -837,8 +813,9 @@ struct MapView: View {
             bottomPreviewCard(
                 thumbnailURL: event.media.first?.thumbnailUrl ?? event.media.first?.url,
                 title: event.title,
-                subtitle: eventStartTimeOnly(event),
+                subtitle: eventPreviewSubtitle(event),
                 description: truncateDescription(event.description, maxLength: 80),
+                headerContent: { eventPreviewHeader(event: event) },
                 trailingContent: { eventPreviewTrailing(event: event) },
                 onClose: { previewEvent = nil; previewEventSaveCount = nil },
                 onTap: { detailEvent = event }
@@ -850,6 +827,7 @@ struct MapView: View {
                 title: spot.name,
                 subtitle: spot.neighborhood,
                 description: spot.description.flatMap { truncateDescription($0, maxLength: 80) },
+                headerContent: { EmptyView() },
                 trailingContent: { spotPreviewTrailing(spot: spot) },
                 onClose: { previewSpot = nil; previewSpotSaveCount = nil },
                 onTap: { detailSpot = spot }
@@ -860,6 +838,24 @@ struct MapView: View {
 
     private func eventStartTimeOnly(_ event: Event) -> String {
         event.startTime.formatted(date: .omitted, time: .shortened)
+    }
+
+    private func eventPreviewSubtitle(_ event: Event) -> String {
+        let datePart = event.startTime.formatted(.dateTime.month(.abbreviated).day())
+        let timePart = event.startTime.formatted(date: .omitted, time: .shortened)
+        return "\(datePart) · \(timePart)"
+    }
+
+    @ViewBuilder
+    private func eventPreviewHeader(event: Event) -> some View {
+        Text(event.category.displayName)
+            .font(.system(size: 11, weight: .semibold))
+            .tracking(0.12)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(Color(hex: event.category.color).opacity(0.15))
+            .foregroundColor(Color(hex: event.category.color))
+            .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
     }
 
     private func truncateDescription(_ text: String, maxLength: Int) -> String {
@@ -914,11 +910,12 @@ struct MapView: View {
         }
     }
 
-    private func bottomPreviewCard<Trailing: View>(
+    private func bottomPreviewCard<Trailing: View, Header: View>(
         thumbnailURL: String?,
         title: String,
         subtitle: String,
         description: String? = nil,
+        @ViewBuilder headerContent: () -> Header,
         @ViewBuilder trailingContent: () -> Trailing,
         onClose: @escaping () -> Void,
         onTap: @escaping () -> Void
@@ -952,6 +949,7 @@ struct MapView: View {
                     .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
 
                     VStack(alignment: .leading, spacing: 4) {
+                        headerContent()
                         Text(title)
                             .font(.portalLabelSemibold)
                             .foregroundColor(.portalForeground)

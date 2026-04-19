@@ -53,16 +53,9 @@ Use `server/.env.example` as a checklist. Do not commit `.env`; set everything i
   - in `ios/BarrioCursor/BarrioCursor/BarrioCursor/Config/AppConfig.swift` (or via xcconfig).
 - Build the app in **Release** (or archive for TestFlight); the app will use this URL when not in Debug.
 
-## 6. Seed the database (optional)
+## 6. Verify the deploy
 
-After the first deploy you can seed data:
-
-- **Option A (Railway CLI):**  
-  `railway run npm run seed` (or `railway run npm run seed:fake`) from the repo root with the `server` directory as context, or from `server/` with Railway linked to the project.
-- **Option B:** From your machine with a DB URL:  
-  `DATABASE_URL="postgresql://..." npm run seed` (run from `server/`).
-
-Then verify with `GET https://your-app-name.up.railway.app/api/health` and a quick test from the iOS app.
+Verify with `GET https://your-app-name.up.railway.app/api/health` and a quick test from the iOS app.
 
 ## 7. Portal team user (Supabase + API login)
 

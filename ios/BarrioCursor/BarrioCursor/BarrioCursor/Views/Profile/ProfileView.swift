@@ -22,6 +22,8 @@ private struct ProfileSpotIdWrapper: Identifiable, Hashable {
 struct ProfileView: View {
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
+    /// Pass true when embedded as a tab so the close (X) button is hidden.
+    var isTab: Bool = false
     @StateObject private var profileVM = ProfileViewModel()
     @State private var selectedTab: ProfileTab = .collections
     @State private var showLogoutAlert = false
@@ -35,22 +37,18 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
-                VStack(spacing: 0) {
-                    Color.clear.frame(height: 100)
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 0) {
                     profileHero
                     createActionsSection
                     tabBar
                     tabContent
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.portalBackground)
-                .ignoresSafeArea(edges: .top)
-
-                floatingHeader
             }
+            .safeAreaInset(edge: .top, spacing: 0) { floatingHeader }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.portalBackground)
+            .refreshable { await profileVM.loadAll(token: authManager.token) }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Event.self) { event in
                 EventDetailView(event: event, isSaved: profileVM.savedEventIds.contains(event.id))
@@ -144,17 +142,21 @@ struct ProfileView: View {
     // MARK: - Floating header (X flush top-left, name center, gear flush top-right) — no dead gray bar
     private var floatingHeader: some View {
         HStack(alignment: .center, spacing: 8) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.portalForeground)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            if isTab {
+                Color.clear.frame(width: 44, height: 44)
+            } else {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.portalForeground)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close")
             Text(profileVM.userName.isEmpty ? "Profile" : profileVM.userName)
                 .font(.portalDisplay22)
                 .foregroundColor(.portalForeground)
@@ -187,7 +189,7 @@ struct ProfileView: View {
         }
         .padding(.leading, 8)
         .padding(.trailing, 8)
-        .padding(.top, 44)
+        .padding(.top, 8)
         .padding(.bottom, 4)
         .frame(maxWidth: .infinity)
         .background(Color.portalBackground)
@@ -269,6 +271,12 @@ struct ProfileView: View {
                             .font(.portalMetadata)
                     }
                     .foregroundColor(.portalMutedForeground)
+                }
+                let secondaryCities = profileVM.cities.filter { $0 != profileVM.currentCity }
+                if !secondaryCities.isEmpty {
+                    Text("Also in: \(secondaryCities.joined(separator: ", "))")
+                        .font(.portalMetadata)
+                        .foregroundColor(.portalMutedForeground.opacity(0.7))
                 }
                 if let bio = profileVM.bio, !bio.isEmpty {
                     Text(bio)
@@ -386,25 +394,23 @@ struct ProfileView: View {
     // MARK: - Tab content
     @ViewBuilder
     private var tabContent: some View {
-        Group {
-            if profileVM.isLoading && profileVM.isEmpty {
-                LoadingView(message: "Loading...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                switch selectedTab {
-                case .collections:
-                    collectionsTabContent
-                        .frame(maxWidth: .infinity)
-                case .spots:
-                    spotsTabContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case .events:
-                    eventsTabContent
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+        if profileVM.isLoading && profileVM.isEmpty {
+            LoadingView(message: "Loading...")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 60)
+        } else {
+            switch selectedTab {
+            case .collections:
+                collectionsTabContent
+                    .frame(maxWidth: .infinity)
+            case .spots:
+                spotsTabContent
+                    .frame(maxWidth: .infinity)
+            case .events:
+                eventsTabContent
+                    .frame(maxWidth: .infinity)
             }
         }
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -476,49 +482,45 @@ struct ProfileView: View {
                     title: "No spots yet",
                     subtitle: "Create or save spots to see them here."
                 )
+                .padding(.vertical, 40)
             } else {
-                ScrollView {
-                    LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: .portalCardGap),
-                        GridItem(.flexible(), spacing: .portalCardGap)
-                    ], spacing: .portalCardGap) {
-                        ForEach(profileVM.spotItems) { spot in
-                            ZStack(alignment: .topTrailing) {
-                                Button {
-                                    selectedSpotIdWrapper = ProfileSpotIdWrapper(id: spot.id)
-                                } label: {
-                                    PortalSpotCard(
-                                        spot: spot,
-                                        cardWidth: profileGridCardWidth,
-                                        isSaved: profileVM.savedSpotIds.contains(spot.id),
-                                        onSaveToggle: nil
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                                .zIndex(0)
-                                let gridSpotSaved = profileVM.savedSpotIds.contains(spot.id)
-                                PortalSaveButton(
-                                    isSaved: gridSpotSaved,
-                                    count: max(spot.saveCount, gridSpotSaved ? 1 : 0),
-                                    surface: .light
-                                ) {
-                                    guard let token = authManager.token else { return }
-                                    Task { await profileVM.toggleSaveSpot(spotId: spot.id, token: token) }
-                                }
-                                .padding(10)
-                                .zIndex(1)
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: .portalCardGap),
+                    GridItem(.flexible(), spacing: .portalCardGap)
+                ], spacing: .portalCardGap) {
+                    ForEach(profileVM.spotItems) { spot in
+                        ZStack(alignment: .topTrailing) {
+                            Button {
+                                selectedSpotIdWrapper = ProfileSpotIdWrapper(id: spot.id)
+                            } label: {
+                                PortalSpotCard(
+                                    spot: spot,
+                                    cardWidth: profileGridCardWidth,
+                                    isSaved: profileVM.savedSpotIds.contains(spot.id),
+                                    onSaveToggle: nil
+                                )
                             }
+                            .buttonStyle(.plain)
+                            .zIndex(0)
+                            let gridSpotSaved = profileVM.savedSpotIds.contains(spot.id)
+                            PortalSaveButton(
+                                isSaved: gridSpotSaved,
+                                count: max(spot.saveCount, gridSpotSaved ? 1 : 0),
+                                surface: .light
+                            ) {
+                                guard let token = authManager.token else { return }
+                                Task { await profileVM.toggleSaveSpot(spotId: spot.id, token: token) }
+                            }
+                            .padding(10)
+                            .zIndex(1)
                         }
                     }
-                    .padding(.portalPagePadding)
-                    .padding(.bottom, 120)
                 }
-                .refreshable {
-                    await profileVM.loadAll(token: authManager.token)
-                }
+                .padding(.portalPagePadding)
+                .padding(.bottom, 120)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     private var eventsTabContent: some View {
@@ -529,40 +531,36 @@ struct ProfileView: View {
                     title: "No events yet",
                     subtitle: "Save or create events to see them here."
                 )
+                .padding(.vertical, 40)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: .portalCardGap) {
-                        ForEach(profileVM.mergedEvents) { event in
-                            ZStack(alignment: .topTrailing) {
-                                NavigationLink(value: event) {
-                                    PortalEventCard(
-                                        event: event,
-                                        isSaved: profileVM.savedEventIds.contains(event.id),
-                                        onSaveToggle: nil,
-                                        reserveTrailingForExternalSave: 52
-                                    )
-                                    .environmentObject(authManager)
-                                }
-                                .buttonStyle(.plain)
-                                let gridEventSaved = profileVM.savedEventIds.contains(event.id)
-                                PortalSaveButton(isSaved: gridEventSaved, count: event.saveCount, surface: .light) {
-                                    guard let token = authManager.token else { return }
-                                    Task { await profileVM.toggleSaveEvent(eventId: event.id, token: token) }
-                                }
-                                .padding(10)
+                LazyVStack(spacing: .portalCardGap) {
+                    ForEach(profileVM.mergedEvents) { event in
+                        ZStack(alignment: .topTrailing) {
+                            NavigationLink(value: event) {
+                                PortalEventCard(
+                                    event: event,
+                                    isSaved: profileVM.savedEventIds.contains(event.id),
+                                    onSaveToggle: nil,
+                                    reserveTrailingForExternalSave: 52
+                                )
+                                .environmentObject(authManager)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .buttonStyle(.plain)
+                            let gridEventSaved = profileVM.savedEventIds.contains(event.id)
+                            PortalSaveButton(isSaved: gridEventSaved, count: event.saveCount, surface: .light) {
+                                guard let token = authManager.token else { return }
+                                Task { await profileVM.toggleSaveEvent(eventId: event.id, token: token) }
+                            }
+                            .padding(10)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .padding(.portalPagePadding)
-                    .padding(.bottom, 120)
                 }
-                .refreshable {
-                    await profileVM.loadAll(token: authManager.token)
-                }
+                .padding(.portalPagePadding)
+                .padding(.bottom, 120)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     private var profileGridCardWidth: CGFloat {
@@ -600,15 +598,16 @@ private struct ProfileEmptyStateView: View {
 // MARK: - PortalSpotItem from SavedSpotEntry (profile spots tab)
 extension PortalSpotItem {
     init(from saved: SavedSpotEntry) {
+        let catLabel = saved.category.flatMap { EventCategory(rawValue: $0)?.displayName } ?? saved.category?.capitalized
         self.init(
             id: saved.id,
             name: saved.name,
             neighborhood: saved.neighborhood ?? "",
             addressLine: saved.address ?? "",
             imageURL: saved.imageUrl,
-            categoryLabel: nil,
-            ownerHandle: "?",
-            ownerInitial: "?",
+            categoryLabel: catLabel,
+            ownerHandle: saved.neighborhood ?? saved.address ?? "",
+            ownerInitial: "",
             saveCount: saved.saveCount ?? 0
         )
     }
@@ -896,6 +895,7 @@ class ProfileViewModel: ObservableObject {
     @Published var profilePictureUrl: String?
     @Published var handle: String?
     @Published var currentCity: String?
+    @Published var cities: [String] = []
     @Published var bio: String?
     @Published var followerCount: Int = 0
     @Published var followingCount: Int = 0
@@ -967,6 +967,7 @@ class ProfileViewModel: ObservableObject {
             profilePictureUrl = profileRes.data.profilePictureUrl
             handle = profileRes.data.handle
             currentCity = profileRes.data.selectedCity
+            cities = profileRes.data.cities ?? []
             bio = profileRes.data.bio
             followerCount = profileRes.data.followerCount ?? 0
             followingCount = profileRes.data.followingCount ?? 0
@@ -1847,11 +1848,6 @@ private struct CollectionSpotRowCard: View {
     private let thumbAspect: CGFloat = 3/4
     private let thumbHeight: CGFloat = 88
 
-    /// Tags that match discover filter categories only
-    private var discoverTags: [String] {
-        spot.tags.filter { DiscoverCategory(rawValue: $0.lowercased()) != nil }
-    }
-
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             thumbnail
@@ -1870,8 +1866,8 @@ private struct CollectionSpotRowCard: View {
                         .font(.system(size: 11))
                 }
                 .foregroundColor(.portalMutedForeground)
-                if !discoverTags.isEmpty {
-                    discoverTagPills
+                if let cat = spot.categoryLabel {
+                    categoryPill(cat)
                 }
                 HStack(spacing: 6) {
                     mutualsAvatarStack
@@ -1888,18 +1884,14 @@ private struct CollectionSpotRowCard: View {
         .overlay(RoundedRectangle(cornerRadius: .portalRadius).stroke(Color.portalBorder, lineWidth: 1))
     }
 
-    private var discoverTagPills: some View {
-        HStack(spacing: 4) {
-            ForEach(discoverTags, id: \.self) { tag in
-                Text(DiscoverCategory(rawValue: tag.lowercased())?.label ?? tag.capitalized)
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.categoryPillColor(for: tag).opacity(0.2))
-                    .foregroundColor(.portalForeground)
-                    .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-            }
-        }
+    private func categoryPill(_ label: String) -> some View {
+        Text(label)
+            .font(.system(size: 10, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.categoryPillColor(for: label).opacity(0.2))
+            .foregroundColor(.portalForeground)
+            .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
     }
 
     private var thumbnail: some View {
@@ -2080,7 +2072,7 @@ final class CollectionDetailViewModel: ObservableObject {
                         description: payload.description,
                         imageUrl: payload.imageUrl,
                         location: CLLocationCoordinate2D(latitude: payload.latitude, longitude: payload.longitude),
-                        tags: payload.tags ?? [],
+                        category: EventCategory(rawValue: payload.category) ?? .community,
                         owners: [SpotOwner(id: payload.ownerId, handle: payload.ownerHandle, initials: payload.ownerHandle.map { String($0.prefix(1)).uppercased() } ?? "?")],
                         saveCount: payload.saveCount
                     )

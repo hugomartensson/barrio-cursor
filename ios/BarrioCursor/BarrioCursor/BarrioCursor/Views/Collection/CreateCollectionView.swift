@@ -237,8 +237,8 @@ struct CreateCollectionView: View {
                 .tracking(0.5)
                 .foregroundColor(.portalMutedForeground)
             let categories = Array(EventCategory.allCases)
-            let row1 = Array(categories.prefix(3))
-            let row2 = Array(categories.dropFirst(3))
+            let row1 = Array(categories.prefix(4))
+            let row2 = Array(categories.dropFirst(4))
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
                     ForEach(row1, id: \.self) { category in
@@ -523,7 +523,8 @@ struct AddToCollectionSheet: View {
 
     let itemType: String
     let itemId: String
-    var onDismiss: (() -> Void)?
+    /// Called with the collection name when the item is successfully added.
+    var onAdded: ((_ collectionName: String) -> Void)?
 
     @State private var collections: [CollectionData] = []
     @State private var isLoading = true
@@ -593,7 +594,6 @@ struct AddToCollectionSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        onDismiss?()
                         dismiss()
                     }
                 }
@@ -604,10 +604,6 @@ struct AddToCollectionSheet: View {
                     showCreateCollection = false
                     Task {
                         await addItem(to: newId)
-                        await MainActor.run {
-                            onDismiss?()
-                            dismiss()
-                        }
                     }
                 })
                 .environmentObject(authManager)
@@ -642,10 +638,11 @@ struct AddToCollectionSheet: View {
         guard let token = authManager.token else { return }
         addingToId = collectionId
         errorMessage = nil
+        let collectionName = collections.first(where: { $0.id == collectionId })?.name ?? "collection"
         do {
             _ = try await APIService.shared.addItemToCollection(collectionId: collectionId, itemType: itemType, itemId: itemId, token: token)
             await MainActor.run {
-                onDismiss?()
+                onAdded?(collectionName)
                 dismiss()
             }
         } catch {

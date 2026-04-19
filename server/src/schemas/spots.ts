@@ -6,7 +6,7 @@ export const listSpotsQuerySchema = z.object({
   lng: z.coerce.number().min(-180).max(180),
   radius: z.coerce.number().min(100).max(100_000).optional().default(5000),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
-  categoryTag: z.string().max(50).optional(),
+  category: categoryEnum.optional(),
 });
 
 export const createSpotSchema = z
@@ -19,7 +19,6 @@ export const createSpotSchema = z
     category: categoryEnum,
     address: z.string().min(1, 'Address is required'),
     neighborhood: z.string().max(100).optional(),
-    tags: z.array(z.string().max(50)).max(10).optional().default([]),
     image: z.object({
       url: z.string().url('Invalid image URL'),
       thumbnailUrl: z.string().url('Invalid thumbnail URL').optional(),
@@ -44,7 +43,6 @@ export const updateSpotSchema = z.object({
   category: categoryEnum.optional(),
   address: z.string().min(1).optional(),
   neighborhood: z.string().max(100).optional(),
-  tags: z.array(z.string().max(50)).max(10).optional(),
   image: z
     .object({
       url: z.string().url('Invalid image URL'),

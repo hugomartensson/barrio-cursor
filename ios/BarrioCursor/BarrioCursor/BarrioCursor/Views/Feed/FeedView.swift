@@ -28,7 +28,6 @@ struct DiscoverView: View {
     @State private var collectionsExpanded = false
     @State private var discoverNavPath = NavigationPath()
     @State private var selectedSpotIdWrapper: SpotIdWrapper?
-    @State private var showProfileSheet = false
     @State private var showDateRangePicker = false
 
     /// Extracted to avoid "compiler is unable to type-check this expression in reasonable time".
@@ -40,23 +39,11 @@ struct DiscoverView: View {
                     .clipped()
                     .contentShape(Rectangle())
                     .onTapGesture { isSearchFocused = false }
-                Button {
-                    showProfileSheet = true
-                } label: {
-                    Image(systemName: "person.crop.circle")
-                        .font(.system(size: 28, weight: .regular))
-                        .foregroundColor(.portalForeground)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Profile")
-                .accessibilityIdentifier("Profile")
             }
             .padding(.horizontal, .portalPagePadding)
             .padding(.top, 6)
             .padding(.bottom, 4)
-            .background(.ultraThinMaterial)
+            .background(Color.portalBackground)
             .frame(maxWidth: .infinity)
             .clipped()
 
@@ -75,11 +62,11 @@ struct DiscoverView: View {
                 }
             }
         }
-        .background(Color.portalBackground.ignoresSafeArea(edges: .bottom))
+        .background(Color.portalBackground.ignoresSafeArea())
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
-        .ignoresSafeArea(edges: .bottom)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
     }
 
     /// NavigationStack + destinations + sheets (no AnyView — keeps `navigationDestination` reliable).
@@ -114,12 +101,6 @@ struct DiscoverView: View {
                     UserProfileView(userId: userId)
                         .environmentObject(authManager)
                 }
-            }
-        }
-        .sheet(isPresented: $showProfileSheet) {
-            NavigationStack {
-                ProfileView()
-                    .environmentObject(authManager)
             }
         }
         .sheet(isPresented: $showDateRangePicker) {
@@ -479,8 +460,7 @@ struct DiscoverView: View {
     }
 
     private var locationDropdownContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             // Use Current Location
             Button {
                 discoverFilters.searchLocation = nil
@@ -550,47 +530,49 @@ struct DiscoverView: View {
             }
 
             if !locationSearchResults.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(locationSearchResults.enumerated()), id: \.offset) { _, item in
-                        Button {
-                            if let coord = item.placemark.location?.coordinate {
-                                discoverFilters.searchLocation = coord
-                                showLocationDropdown = false
-                                locationSearchText = ""
-                                locationSearchResults = []
-                                Task { await updateLocationLabel() }
-                            }
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "mappin.circle")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.portalMutedForeground)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.name ?? "Unknown")
-                                        .font(.portalLabelSemibold)
-                                        .foregroundColor(.portalForeground)
-                                        .lineLimit(1)
-                                    if let locality = item.placemark.locality {
-                                        Text(locality)
-                                            .font(.portalMetadata)
-                                            .foregroundColor(.portalMutedForeground)
-                                            .lineLimit(1)
-                                    }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(locationSearchResults.enumerated()), id: \.offset) { _, item in
+                            Button {
+                                if let coord = item.placemark.location?.coordinate {
+                                    discoverFilters.searchLocation = coord
+                                    showLocationDropdown = false
+                                    locationSearchText = ""
+                                    locationSearchResults = []
+                                    Task { await updateLocationLabel() }
                                 }
-                                Spacer()
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "mappin.circle")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.portalMutedForeground)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.name ?? "Unknown")
+                                            .font(.portalLabelSemibold)
+                                            .foregroundColor(.portalForeground)
+                                            .lineLimit(1)
+                                        if let locality = item.placemark.locality {
+                                            Text(locality)
+                                                .font(.portalMetadata)
+                                                .foregroundColor(.portalMutedForeground)
+                                                .lineLimit(1)
+                                        }
+                                    }
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 10)
+                                .background(Color.portalBackground.opacity(0.5))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.portalBackground.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-            }
+                .scrollDismissesKeyboard(.interactively)
+                .frame(maxHeight: 220)
             }
         }
-        .scrollDismissesKeyboard(.interactively)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.portalCard)
@@ -1074,18 +1056,11 @@ struct DiscoverView: View {
         return false
     }
 
-    /// Spots filtered by selected categories (tags match DiscoverCategory rawValue). Empty categories = all spots.
+    /// Spots filtered by selected categories. Empty categories = all spots.
     private var filteredSpots: [Spot] {
         var result = viewModel.spots
         if !discoverFilters.categories.isEmpty {
-            result = result.filter { spot in
-                for dc in discoverFilters.categories {
-                    if spot.tags.contains(where: { $0.lowercased() == dc.rawValue }) {
-                        return true
-                    }
-                }
-                return false
-            }
+            result = result.filter { discoverFilters.categories.contains($0.category) }
         }
         return result
     }
@@ -1326,71 +1301,47 @@ struct DateRangePickerSheet: View {
     @ObservedObject var discoverFilters: DiscoverFilters
     var onDismiss: () -> Void
 
-    private static var defaultStart: Date { Date() }
+    private static var defaultStart: Date { Calendar.current.startOfDay(for: Date()) }
     private static var defaultEnd: Date {
-        Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+        Calendar.current.date(byAdding: .day, value: 7, to: DateRangePickerSheet.defaultStart) ?? Date()
     }
 
     @State private var startDate: Date = DateRangePickerSheet.defaultStart
     @State private var endDate: Date = DateRangePickerSheet.defaultEnd
 
+    private var rangeLabel: String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "MMM d"
+        return "\(fmt.string(from: startDate)) – \(fmt.string(from: endDate))"
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: .portalSectionSpacing) {
-                    Text("Choose the start and end of your range. Events on those days are included.")
-                        .font(.portalBody)
-                        .foregroundColor(.portalMutedForeground)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 0) {
+                // Selected range label
+                Text(rangeLabel)
+                    .font(.portalLabelSemibold)
+                    .foregroundColor(.portalPrimary)
+                    .padding(.vertical, 12)
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("FROM")
-                            .font(.portalSectionTitle)
-                            .tracking(1.0)
-                            .foregroundColor(.portalMutedForeground)
-                        DatePicker("", selection: $startDate, displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .labelsHidden()
-                            .tint(Color.portalPrimary)
-                            .padding(12)
-                            .background(Color.portalCard)
-                            .clipShape(RoundedRectangle(cornerRadius: CGFloat.portalRadius))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: CGFloat.portalRadius)
-                                    .stroke(Color.portalBorder, lineWidth: 1)
-                            )
-                    }
+                Divider()
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("TO")
-                            .font(.portalSectionTitle)
-                            .tracking(1.0)
-                            .foregroundColor(.portalMutedForeground)
-                        DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
-                            .datePickerStyle(.graphical)
-                            .labelsHidden()
-                            .tint(Color.portalPrimary)
-                            .padding(12)
-                            .background(Color.portalCard)
-                            .clipShape(RoundedRectangle(cornerRadius: CGFloat.portalRadius))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: CGFloat.portalRadius)
-                                    .stroke(Color.portalBorder, lineWidth: 1)
-                            )
-                    }
-                }
-                .padding(.horizontal, .portalPagePadding)
-                .padding(.vertical, 16)
+                RangeCalendarView(startDate: $startDate, endDate: $endDate)
+                    .padding(.horizontal, .portalPagePadding)
+                    .padding(.top, 8)
+
+                Spacer(minLength: 0)
             }
             .background(Color.portalBackground)
-            .navigationTitle("Custom range")
+            .navigationTitle("Select dates")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color.portalBackground, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
-                        let start = Calendar.current.startOfDay(for: startDate)
-                        let end = Calendar.current.startOfDay(for: endDate)
+                        let cal = Calendar.current
+                        let start = cal.startOfDay(for: startDate)
+                        let end = cal.startOfDay(for: endDate)
                         discoverFilters.customDateRange = (start, end)
                         onDismiss()
                     }
@@ -1416,6 +1367,8 @@ struct DateRangePickerSheet: View {
         }
     }
 }
+
+// RangeCalendarView and RangeCalendarDayCell live in Views/Components/RangeCalendarView.swift
 
 // MARK: - Empty State (Discover feed — simple, on-design)
 
@@ -1778,7 +1731,7 @@ struct LocationFilterSheetView: View {
 // FeedOverviewView and OverviewEventCard removed per PRD (no overview grid or story-like browsing)
 
 /// Wrapper so we can use spot id as sheet item (avoids wrong-spot opening).
-private struct SpotIdWrapper: Identifiable, Equatable, Hashable {
+struct SpotIdWrapper: Identifiable, Equatable, Hashable {
     let id: String
 }
 

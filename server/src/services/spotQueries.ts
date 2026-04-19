@@ -15,7 +15,7 @@ export interface NearbySpotRow {
   address: string;
   latitude: number;
   longitude: number;
-  category_tag: string | null;
+  category: string;
   neighborhood: string | null;
   distance: number;
 }
@@ -27,17 +27,22 @@ export async function fetchNearbySpots(
   lat: number,
   lng: number,
   limit: number = DEFAULT_LIMIT,
-  radiusMeters: number = DEFAULT_RADIUS_METERS
+  radiusMeters: number = DEFAULT_RADIUS_METERS,
+  category?: string
 ): Promise<NearbySpotRow[]> {
   const spotPointSql = `ST_SetSRID(ST_MakePoint(s.longitude, s.latitude), 4326)::geography`;
   const originSql = `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography`;
+
+  const categoryClause = category ? `AND s.category = '${category}'::"Category"` : '';
+
   const rows = await prisma.$queryRawUnsafe<NearbySpotRow[]>(
     `
     SELECT s.id, s.owner_id, s.name, s.description, s.address, s.latitude, s.longitude,
-           s.category_tag, s.neighborhood,
+           s.category::text as category, s.neighborhood,
            ST_Distance(${spotPointSql}, ${originSql})::integer as distance
     FROM spots s
     WHERE ST_DWithin(${spotPointSql}, ${originSql}, $1)
+    ${categoryClause}
     ORDER BY distance ASC
     LIMIT $2
   `,

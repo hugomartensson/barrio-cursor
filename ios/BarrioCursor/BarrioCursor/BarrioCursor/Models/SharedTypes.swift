@@ -34,38 +34,8 @@ enum DiscoverTimeIntent: CaseIterable {
     }
 }
 
-// PRD Section 5.2: Discover categories (Food, Drinks, Music, Art, Markets, Community)
-enum DiscoverCategory: String, CaseIterable, Hashable {
-    case food
-    case drinks
-    case music
-    case art
-    case markets
-    case community
-    
-    var label: String {
-        switch self {
-        case .food: return "Food"
-        case .drinks: return "Drinks"
-        case .music: return "Music"
-        case .art: return "Art"
-        case .markets: return "Markets"
-        case .community: return "Community"
-        }
-    }
-
-    /// Per-category color for filter pills (matches EventCategory)
-    var colorHex: String {
-        switch self {
-        case .food: return "#FF6B6B"
-        case .drinks: return "#9B59B6"
-        case .music: return "#3498DB"
-        case .art: return "#E67E22"
-        case .markets: return "#27AE60"
-        case .community: return "#F39C12"
-        }
-    }
-}
+// PRD Section 5.2: Discover categories — unified with EventCategory (food, drinks, music, art, markets, community)
+typealias DiscoverCategory = EventCategory
 
 @MainActor
 final class DiscoverFilters: ObservableObject {
