@@ -23,7 +23,7 @@ Items to iron out before or alongside the first TestFlight build.
 | #   | Item                          | Notes                                                                                                                                                                                                                             |
 | --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 3   | **Deploy backend to Railway** | Follow `**server/DEPLOY-RAILWAY.md`**. Use `server/.env.example` as a variable checklist. Root directory = `server`. After deploy, set iOS `AppConfig.productionAPIBaseURL` to `https://<your-railway-domain>/api`.               |
-| 8   | **Seed realistic data**       | After first deploy: from `server/` run `railway run npm run seed` (or `npm run seed:fake`) or set `DATABASE_URL` to production and run `npm run seed`. Adjust cities/images in `prisma/seed.ts` or `seed-fake-data.ts` if needed. |
+| 8   | **Add test users and data**   | Create test users via Supabase Auth and populate mock content manually or via a dedicated seed script (TBD). |
 
 
 ---
@@ -54,7 +54,7 @@ Items to iron out before or alongside the first TestFlight build.
 
 1. **Deploy API to Railway** — Follow `server/DEPLOY-RAILWAY.md`. Add Postgres, set variables from `server/.env.example`, deploy. Generate a public domain and note the URL.
 2. **Wire iOS to production** — In `AppConfig.swift` set `productionAPIBaseURL = "https://<your-railway-domain>/api"` (no trailing slash). Archive in Release to verify the app hits the live API.
-3. **Seed production DB** — Run seed (or seed:fake) against the Railway Postgres (see DEPLOY-RAILWAY.md step 6).
+3. **Add test users and data** — Create test users via Supabase Auth and populate mock content (TBD).
 4. **When Apple approves** — Create the app in App Store Connect (bundle ID `com.hugo.BarrioCursor`), then Archive → Distribute App → TestFlight. Add internal/external testers.
 
 ---

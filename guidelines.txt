@@ -742,7 +742,6 @@ Commands
 - npm run lint | npm run lint:fix
 - npm run test
 - npm run migrate (run migrations)
-- npm run seed (seed test data)
 - Backend API default: http://localhost:5000 (frontend runs in Xcode).
 
 Endpoints Reference (PRD-TestFlight.md Section 7)
