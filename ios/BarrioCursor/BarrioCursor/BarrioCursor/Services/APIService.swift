@@ -593,6 +593,20 @@ nonisolated struct CollectionsListResponse: Codable {
     let data: [CollectionData]
 }
 
+nonisolated struct SaverItem: Codable, Identifiable {
+    let id: String
+    let name: String
+    let handle: String?
+    let initials: String?
+    let profilePictureUrl: String?
+    let isFollowing: Bool
+}
+
+nonisolated struct SaversListResponse: Codable {
+    let data: [SaverItem]
+    let total: Int
+}
+
 /// Response of GET /collections/:id/items (spots and events in collection order).
 nonisolated struct CollectionItemsResponse: Codable {
     let data: [CollectionItemEntry]
@@ -817,7 +831,23 @@ extension APIService {
     func getUserCollections(userId: String, token: String) async throws -> CollectionsListResponse {
         return try await get("/users/\(userId)/collections", token: token)
     }
-    
+
+    func getSpotCollections(spotId: String, token: String) async throws -> CollectionsListResponse {
+        return try await get("/spots/\(spotId)/collections", token: token)
+    }
+
+    func getEventCollections(eventId: String, token: String) async throws -> CollectionsListResponse {
+        return try await get("/events/\(eventId)/collections", token: token)
+    }
+
+    func getSpotSavers(spotId: String, token: String) async throws -> SaversListResponse {
+        return try await get("/spots/\(spotId)/savers", token: token)
+    }
+
+    func getEventSavers(eventId: String, token: String) async throws -> SaversListResponse {
+        return try await get("/events/\(eventId)/savers", token: token)
+    }
+
     // MARK: - Social Endpoints (Following)
     
     // PRD Section 6.1: Following System

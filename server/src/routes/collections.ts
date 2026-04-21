@@ -581,14 +581,10 @@ router.get(
           createdAt: collection.createdAt.toISOString(),
           updatedAt: collection.updatedAt.toISOString(),
           owned,
+          ownerHandle: collection.user.handle,
+          ownerInitials: collection.user.initials,
           coverImageURL: merged.coverImageURL,
           previewSpotImageURLs: merged.previewSpotImageURLs,
-          ...(owned
-            ? {}
-            : {
-                ownerHandle: collection.user.handle,
-                ownerInitials: collection.user.initials,
-              }),
         },
       });
     }

@@ -21,8 +21,11 @@ struct UserProfileView: View {
     @State private var interestedEvents: [Event] = []
     @State private var organizingEvents: [Event] = []
     @State private var organizedEvents: [Event] = []
+    @State private var otherUserSpotItems: [PortalSpotItem] = []
+    @State private var otherUserCollectionItems: [PortalCollectionItem] = []
+    @State private var selectedOtherSpotId: String? = nil
     @State private var isLoading = true
-    @State private var error: Error? = nil // PRD Section 9.1: Store Error instead of String
+    @State private var error: Error? = nil
     @State private var showFollowers = false
     @State private var showFollowing = false
     @State private var selectedTab: ProfileTab = .collections
@@ -69,10 +72,24 @@ struct UserProfileView: View {
             .task(id: userId) {
                 await loadProfile()
             }
-            .navigationDestination(for: Event.self) { event in
-                EventDetailView(event: event)
+        .navigationDestination(for: Event.self) { event in
+            EventDetailView(event: event)
+                .environmentObject(authManager)
+        }
+        .navigationDestination(for: ProfileCollectionRoute.self) { route in
+            CollectionDetailView(collectionId: route.id, name: route.name)
+                .environmentObject(authManager)
+        }
+        .sheet(item: Binding<SpotIdWrapper?>(
+            get: { selectedOtherSpotId.map { SpotIdWrapper(id: $0) } },
+            set: { selectedOtherSpotId = $0?.id }
+        )) { wrapper in
+            if let spot = otherUserSpotItems.first(where: { $0.id == wrapper.id }) {
+                SpotDetailView(spot: spot)
                     .environmentObject(authManager)
+                    .presentationDragIndicator(.visible)
             }
+        }
         }
         .id(userId)
     }
@@ -307,68 +324,108 @@ struct UserProfileView: View {
     }
 
     private var otherUserCollectionsTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("No public collections")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
+        Group {
+            if otherUserCollectionItems.isEmpty {
+                otherEmptyState(icon: "bookmark", message: "No public collections")
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: .portalCardGap) {
+                        ForEach(otherUserCollectionItems) { item in
+                            NavigationLink(value: ProfileCollectionRoute(id: item.id, name: item.title)) {
+                                PortalCollectionCard(
+                                    collection: item,
+                                    isSaved: false,
+                                    onSaveToggle: nil,
+                                    cardWidth: nil,
+                                    isExpanded: false
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, .portalPagePadding)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(height: 336, alignment: .top)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                .clipped()
+                .frame(maxWidth: .infinity, alignment: .top)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, .portalPagePadding)
     }
 
     private var otherUserSpotsTab: some View {
         Group {
-            if !isOwnProfile && !isFollowing && isPrivate {
-                LockedSavesView(userName: userName)
-                    .padding(.horizontal, .portalPagePadding)
+            if otherUserSpotItems.isEmpty {
+                otherEmptyState(icon: "mappin.circle", message: "No spots yet")
             } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "mappin.circle")
-                        .font(.system(size: 40, weight: .light))
-                        .foregroundColor(.portalMutedForeground)
-                    Text("No saved spots")
-                        .font(.headline)
-                    Text("Saved spots will appear here when available.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: .portalCardGap),
+                    GridItem(.flexible(), spacing: .portalCardGap)
+                ], spacing: .portalCardGap) {
+                    ForEach(otherUserSpotItems) { spot in
+                        Button { selectedOtherSpotId = spot.id } label: {
+                            PortalSpotCard(
+                                spot: spot,
+                                cardWidth: otherUserGridCardWidth,
+                                isSaved: false,
+                                onSaveToggle: nil
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 32)
+                .padding(.portalPagePadding)
+                .padding(.bottom, 80)
             }
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var otherUserEventsTab: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            if !interestedEvents.isEmpty {
-                ProfileCarouselSection(title: "Saved events", events: interestedEvents)
-            }
-            if !organizingEvents.isEmpty {
-                ProfileCarouselSection(title: "Events they're hosting", events: organizingEvents)
-            }
-            if !organizedEvents.isEmpty {
-                ProfileCarouselSection(title: "Past events", events: organizedEvents)
-            }
-            if interestedEvents.isEmpty && organizingEvents.isEmpty && organizedEvents.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 48, weight: .light))
-                        .foregroundColor(.portalMutedForeground)
-                    Text("No events yet")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    Text("This user hasn’t created or saved any events.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+        Group {
+            let allEvents = (organizingEvents + interestedEvents).uniqued(by: \.id)
+            if allEvents.isEmpty {
+                otherEmptyState(icon: "calendar.circle", message: "No events yet")
+            } else {
+                LazyVStack(spacing: .portalCardGap) {
+                    ForEach(allEvents) { event in
+                        NavigationLink(value: event) {
+                            PortalEventCard(
+                                event: event,
+                                isSaved: false,
+                                onSaveToggle: nil,
+                                reserveTrailingForExternalSave: 0
+                            )
+                            .environmentObject(authManager)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
+                .padding(.portalPagePadding)
+                .padding(.bottom, 80)
             }
         }
-        .padding(.horizontal)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func otherEmptyState(icon: String, message: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 40, weight: .light))
+                .foregroundColor(.portalMutedForeground)
+            Text(message)
+                .font(.headline)
+                .foregroundColor(.portalMutedForeground)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+
+    private var otherUserGridCardWidth: CGFloat {
+        let padding = CGFloat.portalPagePadding * 2
+        let gap = CGFloat.portalCardGap
+        return (PortalScreenBounds.width - padding - gap) / 2
     }
     
     private func loadProfile(skipLoadingUI: Bool = false) async {
@@ -473,7 +530,18 @@ struct UserProfileView: View {
                 let savedRes = try? await APIService.shared.getUserSavedEvents(userId: userId, token: token)
                 interested = savedRes?.data ?? []
             }
-            
+
+            // Load spots (owned + saved)
+            let ownedSpotsRes = try? await APIService.shared.getUserSpots(userId: userId, token: token)
+            let savedSpotsRes = try? await APIService.shared.getUserSavedSpots(userId: userId, token: token)
+            let ownedSpots = (ownedSpotsRes?.data ?? []).map { PortalSpotItem(from: $0) }
+            let savedSpots = (savedSpotsRes?.data ?? []).map { PortalSpotItem(from: $0) }
+            let allSpots = (ownedSpots + savedSpots).uniqued(by: \.id)
+
+            // Load collections
+            let collectionsRes = try? await APIService.shared.getUserCollections(userId: userId, token: token)
+            let collectionItems = (collectionsRes?.data ?? []).map { PortalCollectionItem(from: $0) }
+
             let followers = try await APIService.shared.getFollowers(userId: userId, token: token)
             let currentUserId = authManager.currentUser?.id
             let followingStatus = currentUserId != nil && followers.data.contains { $0.id == currentUserId }
@@ -483,6 +551,8 @@ struct UserProfileView: View {
                 organizingEvents = organizing
                 organizedEvents = organized
                 interestedEvents = interested
+                otherUserSpotItems = allSpots
+                otherUserCollectionItems = collectionItems
                 isFollowing = followingStatus
                 if followingStatus {
                     followRequestStatus = nil
@@ -787,6 +857,15 @@ private struct LockedSavesView: View {
             .background(Color(.systemGray6))
             .cornerRadius(12)
         }
+    }
+}
+
+// MARK: - Sequence uniqued helper
+
+private extension Sequence {
+    func uniqued<T: Hashable>(by keyPath: KeyPath<Element, T>) -> [Element] {
+        var seen = Set<T>()
+        return filter { seen.insert($0[keyPath: keyPath]).inserted }
     }
 }
 

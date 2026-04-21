@@ -85,6 +85,32 @@ enum AddressFormatting {
         return candidate
     }
 
+    // MARK: - Street address (detail views)
+
+    /// Returns the street portion of a full address, e.g. "Carrer de Marià Aguiló 37".
+    /// Strips trailing postal code segments, city, and country so only the street remains.
+    static func streetAddress(from address: String) -> String {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        let parts = trimmed.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard let first = parts.first else { return trimmed }
+        // The first segment is the street name + number; strip any leading/trailing postal digits
+        let stripped = first.replacingOccurrences(of: #"^\d{5}\s*"#, with: "", options: .regularExpression)
+        return stripped.isEmpty ? first : stripped
+    }
+
+    /// Formats the detail location line: "Street, Neighborhood" e.g. "Carrer de Marià Aguiló 37, Poblenou".
+    static func detailLocationLine(neighborhood: String?, address: String) -> String {
+        let street = streetAddress(from: address)
+        let nbhd = neighborhood?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if street.isEmpty && nbhd.isEmpty { return address }
+        if street.isEmpty { return nbhd }
+        if nbhd.isEmpty { return street }
+        return "\(street), \(nbhd)"
+    }
+
     /// Strips leading postal codes (ES `12345`, SE `123 45` / `12345`) from one address segment.
     private static func stripPostalPrefix(from segment: String) -> String? {
         let s = segment.trimmingCharacters(in: .whitespacesAndNewlines)

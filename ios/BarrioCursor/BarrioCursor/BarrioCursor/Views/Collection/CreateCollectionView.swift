@@ -523,8 +523,8 @@ struct AddToCollectionSheet: View {
 
     let itemType: String
     let itemId: String
-    /// Called with the collection name when the item is successfully added.
-    var onAdded: ((_ collectionName: String) -> Void)?
+    /// Called with the collection id and name when the item is successfully added.
+    var onAdded: ((_ collectionId: String, _ collectionName: String) -> Void)?
 
     @State private var collections: [CollectionData] = []
     @State private var isLoading = true
@@ -642,7 +642,7 @@ struct AddToCollectionSheet: View {
         do {
             _ = try await APIService.shared.addItemToCollection(collectionId: collectionId, itemType: itemType, itemId: itemId, token: token)
             await MainActor.run {
-                onAdded?(collectionName)
+                onAdded?(collectionId, collectionName)
                 dismiss()
             }
         } catch {

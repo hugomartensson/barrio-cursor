@@ -1,27 +1,11 @@
 import SwiftUI
 import AVKit
 
-/// One friend (person the current user follows) who saved the event — for mini-avatar display in "Friends who saved this".
-struct EventFriendSaved: Hashable {
-    let name: String
-    var initials: String {
-        let parts = name.split(separator: " ")
-        if parts.count >= 2, let f = parts.first?.prefix(1), let l = parts.last?.prefix(1) {
-            return "\(f)\(l)".uppercased()
-        }
-        return String(name.prefix(2)).uppercased()
-    }
-}
-
 struct EventDetailView: View {
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
     let event: Event
-    /// Friends who saved this event (people the user follows) — mini avatars. Populate from API when endpoint returns followers-who-saved.
-    let mutualsWhoSaved: [EventFriendSaved]
-    @State private var showUserProfile = false
-    @State private var userIdToShow: String? = nil
     @State private var isSaved = false
     @State private var saveCount: Int
     @State private var showEditEvent = false
@@ -29,7 +13,9 @@ struct EventDetailView: View {
     @State private var showFullDescription = false
     @State private var showAddToCollection = false
     @State private var showSaveToPlan = false
-    @State private var addedToCollectionName: String? = nil
+    @State private var addedInfo: AddedToCollectionInfo? = nil
+    @State private var collectionToShow: AddedToCollectionInfo? = nil
+    @State private var showEventMap = false
     @State private var errorMessage: String? = nil
     @State private var cachedPlayers: [String: AVPlayer] = [:]
 
@@ -52,9 +38,8 @@ struct EventDetailView: View {
         return f
     }()
 
-    init(event: Event, isSaved: Bool = false, mutualsWhoSaved: [EventFriendSaved] = []) {
+    init(event: Event, isSaved: Bool = false) {
         self.event = event
-        self.mutualsWhoSaved = mutualsWhoSaved
         _isSaved = State(initialValue: isSaved)
         _saveCount = State(initialValue: event.saveCount)
     }
@@ -69,19 +54,34 @@ struct EventDetailView: View {
         .background(Color.portalBackground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            PortalFloatingActionBar(
-                itemType: "event",
-                isSaved: isSaved,
-                saveCount: saveCount,
-                onSaveToggle: { Task { await toggleSave() } },
-                onAddToPlan: { showSaveToPlan = true },
-                onAddToCollection: {
-                    addedToCollectionName = nil
-                    showAddToCollection = true
-                }
-            )
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let info = addedInfo {
+                AddedToCollectionBanner(
+                    info: info,
+                    onDismiss: { addedInfo = nil },
+                    onGoToCollection: {
+                        collectionToShow = info
+                        addedInfo = nil
+                    }
+                )
+                .environmentObject(authManager)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: addedInfo)
+        .fullScreenCover(item: $collectionToShow) { info in
+            NavigationStack {
+                CollectionDetailView(collectionId: info.collectionId, name: info.collectionName)
+                    .environmentObject(authManager)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button { collectionToShow = nil } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                        }
+                    }
+            }
         }
         .sheet(isPresented: $showSaveToPlan) {
             SaveToPlanSheet(
@@ -97,8 +97,13 @@ struct EventDetailView: View {
             CreateEventView(eventToEdit: event)
         }
         .sheet(isPresented: $showAddToCollection) {
-            AddToCollectionSheet(itemType: "event", itemId: event.id, onAdded: { name in
-                addedToCollectionName = name
+            AddToCollectionSheet(itemType: "event", itemId: event.id, onAdded: { colId, colName in
+                addedInfo = AddedToCollectionInfo(
+                    collectionId: colId,
+                    collectionName: colName,
+                    itemId: event.id,
+                    itemType: "event"
+                )
                 showAddToCollection = false
             })
             .environmentObject(authManager)
@@ -110,35 +115,6 @@ struct EventDetailView: View {
             }
         } message: {
             Text("Are you sure you want to delete this event? This action cannot be undone.")
-        }
-        .sheet(isPresented: $showUserProfile) {
-            if let userId = userIdToShow {
-                NavigationStack {
-                    UserProfileView(userId: userId)
-                        .environmentObject(authManager)
-                }
-            } else {
-                NavigationStack {
-                    VStack(spacing: 20) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
-                        Text("User not found")
-                            .font(.headline)
-                        Text("Unable to load user profile")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .navigationTitle("Error")
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Done") {
-                                showUserProfile = false
-                            }
-                        }
-                    }
-                }
-            }
         }
         .sheet(isPresented: $showFullDescription) {
             NavigationStack {
@@ -208,15 +184,36 @@ struct EventDetailView: View {
                             .padding(.top, 8)
                     }
                     Spacer(minLength: 0)
-                    eventHeroBottomBlock
-                        .padding(.horizontal, .portalPagePadding)
-                        .padding(.bottom, 16)
+                    HStack(alignment: .bottom) {
+                        eventHeroBottomBlock
+                        Spacer(minLength: 8)
+                        Button { showEventMap = true } label: {
+                            Image(systemName: "map.fill")
+                                .font(.system(size: 15))
+                                .foregroundColor(.white)
+                                .frame(width: 38, height: 38)
+                                .background(.ultraThinMaterial, in: Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, .portalPagePadding)
+                    .padding(.bottom, 16)
                 }
                 .frame(width: w, height: h)
             }
         }
         .aspectRatio(heroAspectRatio, contentMode: .fit)
         .ignoresSafeArea(edges: .top)
+        .fullScreenCover(isPresented: $showEventMap) {
+            FocusedMapView(
+                title: event.title,
+                spots: [],
+                events: [event],
+                focusCoordinate: event.coordinate
+            )
+            .environmentObject(authManager)
+        }
     }
 
     private var eventHeroTopBar: some View {
@@ -309,41 +306,28 @@ struct EventDetailView: View {
                 .foregroundColor(.portalForeground.opacity(0.85))
                 .lineSpacing(4)
             eventCategoryTag
+            DetailActionBar(
+                itemType: "event",
+                isSaved: isSaved,
+                saveCount: saveCount,
+                onSave: { Task { await toggleSave() } },
+                onAddToPlan: { showSaveToPlan = true },
+                onAddToCollection: {
+                    addedInfo = nil
+                    showAddToCollection = true
+                }
+            )
             Divider().background(Color.portalBorder)
-            eventCreatorRow
+            CollectionsContainingSection(itemType: "event", itemId: event.id)
+                .environmentObject(authManager)
             Divider().background(Color.portalBorder)
-            eventMutualsSavedRow
+            SavedByRow(itemType: "event", itemId: event.id)
+                .environmentObject(authManager)
         }
         .padding(.horizontal, .portalPagePadding)
         .padding(.top, 20)
         .padding(.bottom, 32)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var addToCollectionButton: some View {
-        Button {
-            addedToCollectionName = nil
-            showAddToCollection = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: addedToCollectionName != nil ? "folder.badge.checkmark" : "folder.badge.plus")
-                    .font(.system(size: 16))
-                if let name = addedToCollectionName {
-                    Text("Added to \(name)")
-                        .font(.portalLabel)
-                } else {
-                    Text("Add to collection")
-                        .font(.portalLabel)
-                }
-            }
-            .foregroundColor(.portalPrimary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Color.portalPrimary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 8)
     }
 
     private var eventDateRow: some View {
@@ -378,13 +362,18 @@ struct EventDetailView: View {
     }
 
     private var eventLocationRow: some View {
-        HStack(spacing: 12) {
+        let locationLine = AddressFormatting.detailLocationLine(
+            neighborhood: event.neighborhood,
+            address: event.address
+        )
+        return HStack(spacing: 8) {
             Image(systemName: "mappin")
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
-            Text(event.displayCity)
+            Text(locationLine.isEmpty ? event.displayCity : locationLine)
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
+                .lineLimit(2)
         }
     }
 
@@ -397,45 +386,6 @@ struct EventDetailView: View {
             .background(Color(hex: event.category.color).opacity(0.2))
             .foregroundColor(.portalForeground)
             .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-    }
-
-    private var eventCreatorRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("CREATED BY")
-                .font(.portalSectionLabel)
-                .tracking(2)
-                .foregroundColor(.portalMutedForeground)
-            Button {
-                userIdToShow = event.user.id
-                showUserProfile = true
-            } label: {
-                HStack(spacing: 10) {
-                    Circle()
-                        .fill(Color.portalPrimary)
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Text(event.user.name.prefix(1).uppercased())
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.portalPrimaryForeground)
-                        )
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(event.user.name)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.portalForeground)
-                        Text("@\(event.user.name.replacingOccurrences(of: " ", with: "").lowercased())")
-                            .font(.system(size: 10))
-                            .foregroundColor(.portalMutedForeground)
-                    }
-                    Spacer(minLength: 0)
-                }
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    /// Mutuals who saved this event — mini avatars + count.
-    private var eventMutualsSavedRow: some View {
-        EventMutualsSavedRow(mutualsWhoSaved: mutualsWhoSaved, totalSaveCount: saveCount)
     }
 
     // MARK: - Hero Image
@@ -535,64 +485,6 @@ struct EventDetailView: View {
     }
 }
 
-// MARK: - Mutuals who saved (mini avatars + count)
-private struct EventMutualsSavedRow: View {
-    let mutualsWhoSaved: [EventFriendSaved]
-    let totalSaveCount: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("FRIENDS WHO SAVED THIS")
-                .font(.portalSectionLabel)
-                .tracking(2)
-                .foregroundColor(.portalMutedForeground)
-            HStack(spacing: 12) {
-                mutualsAvatarStack
-                mutualsCountText
-            }
-        }
-    }
-
-    private var mutualsAvatarStack: some View {
-        let friends = Array(mutualsWhoSaved.prefix(3))
-        return HStack(spacing: -8) {
-            ForEach(Array(friends.enumerated()), id: \.offset) { _, friend in
-                Circle()
-                    .fill(Color.portalSecondary)
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        Text(friend.initials)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.portalForeground)
-                    )
-                    .overlay(Circle().stroke(Color.portalBackground, lineWidth: 2))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var mutualsCountText: some View {
-        if !mutualsWhoSaved.isEmpty {
-            let names = mutualsWhoSaved.prefix(2).map(\.name).joined(separator: ", ")
-            let moreCount = mutualsWhoSaved.count > 2 ? mutualsWhoSaved.count - 2 : 0
-            let more = moreCount > 0 ? " + \(moreCount) more" : ""
-            HStack(spacing: 0) {
-                Text(names)
-                    .font(.system(size: 12))
-                    .fontWeight(.medium)
-                    .foregroundColor(.portalForeground)
-                Text(more)
-                    .font(.system(size: 12))
-                    .foregroundColor(.portalMutedForeground)
-            }
-        } else {
-            Text("\(totalSaveCount) saved")
-                .font(.system(size: 12))
-                .foregroundColor(.portalMutedForeground)
-        }
-    }
-}
-
 #Preview {
     NavigationStack {
         EventDetailView(
@@ -612,12 +504,7 @@ private struct EventMutualsSavedRow: View {
                 distance: 2500,
                 media: [MediaItem(id: "1", url: "https://picsum.photos/800/600", type: .photo, order: 0, thumbnailUrl: nil)],
                 user: EventUser(id: "1", name: "John Doe")
-            ),
-            mutualsWhoSaved: [
-                EventFriendSaved(name: "Jess"),
-                EventFriendSaved(name: "Marcus"),
-                EventFriendSaved(name: "Alex Rivera")
-            ]
+            )
         )
         .environmentObject(AuthManager())
     }

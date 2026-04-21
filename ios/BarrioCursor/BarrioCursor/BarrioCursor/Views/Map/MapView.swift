@@ -10,7 +10,7 @@ struct MapView: View {
     @State private var previewEvent: Event?
     @State private var previewSpot: Spot?
     @State private var detailEvent: Event?
-    @State private var detailSpot: Spot?
+    @State private var mapNavPath = NavigationPath()
     @State private var initialMapCenter: CLLocationCoordinate2D? // Store initial map center for recenter button
     @State private var mapContentFilter: MapContentFilter = .all // portal· All / Spots / Events
     @State private var savedEventIds: Set<String> = []
@@ -42,51 +42,46 @@ struct MapView: View {
     }
 
     var body: some View {
-        ZStack {
-            mapView
-            filterControlsOverlay
-            eventPreviewOverlay
-            loadingOverlay
-            errorOverlay
+        NavigationStack(path: $mapNavPath) {
+            ZStack {
+                mapView
+                filterControlsOverlay
+                eventPreviewOverlay
+                loadingOverlay
+                errorOverlay
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: PortalSpotItem.self) { spot in
+                let rawSpot = viewModel.spots.first(where: { $0.id == spot.id })
+                SpotDetailView(
+                    spot: spot,
+                    isSaved: savedSpotIds.contains(spot.id),
+                    saveCount: detailSpotSaveCount ?? spot.saveCount,
+                    onSaveToggle: {
+                        guard let token = authManager.token, let s = rawSpot else { return }
+                        Task {
+                            do {
+                                let response = try await APIService.shared.toggleSaveSpot(spotId: s.id, token: token)
+                                await MainActor.run {
+                                    if response.saved { savedSpotIds.insert(s.id) } else { savedSpotIds.remove(s.id) }
+                                    detailSpotSaveCount = response.saveCount
+                                }
+                            } catch {}
+                        }
+                    }
+                )
+                .environmentObject(authManager)
+            }
+            .navigationDestination(for: Event.self) { event in
+                EventDetailView(event: event, isSaved: savedEventIds.contains(event.id))
+                    .environmentObject(authManager)
+            }
         }
-        .ignoresSafeArea(edges: .bottom)
         .sheet(item: $detailEvent) { event in
             EventDetailView(event: event, isSaved: savedEventIds.contains(event.id))
                 .environmentObject(authManager)
-        }
-        .sheet(item: $detailSpot) { spot in
-            SpotDetailView(
-                spot: PortalSpotItem(from: spot),
-                isSaved: savedSpotIds.contains(spot.id),
-                saveCount: detailSpotSaveCount ?? spot.saveCount,
-                onSaveToggle: {
-                    guard let token = authManager.token else { return }
-                    Task {
-                        do {
-                            let response = try await APIService.shared.toggleSaveSpot(spotId: spot.id, token: token)
-                            await MainActor.run {
-                                if response.saved { savedSpotIds.insert(spot.id) } else { savedSpotIds.remove(spot.id) }
-                                detailSpotSaveCount = response.saveCount
-                                if let idx = viewModel.spots.firstIndex(where: { $0.id == spot.id }) {
-                                    let old = viewModel.spots[idx]
-                                    var newSpots = viewModel.spots
-                                    newSpots[idx] = Spot(id: old.id, name: old.name, address: old.address, neighborhood: old.neighborhood, description: old.description, imageUrl: old.imageUrl, location: old.location, category: old.category, owners: old.owners, saveCount: response.saveCount)
-                                    viewModel.spots = newSpots
-                                }
-                            }
-                        } catch { }
-                    }
-                },
-                onDismiss: { detailSpot = nil; detailSpotSaveCount = nil }
-            )
-            .environmentObject(authManager)
-        }
-        .onChange(of: detailSpot) { _, newSpot in
-            if let s = newSpot {
-                detailSpotSaveCount = previewSpotSaveCount ?? s.saveCount
-            } else {
-                detailSpotSaveCount = nil
-            }
         }
         .sheet(isPresented: $showDateRangePicker) {
             DateRangePickerSheet(
@@ -752,7 +747,7 @@ struct MapView: View {
                 headerContent: { EmptyView() },
                 trailingContent: { spotPreviewTrailing(spot: spot) },
                 onClose: { previewSpot = nil; previewSpotSaveCount = nil },
-                onTap: { detailSpot = spot }
+                onTap: { mapNavPath.append(PortalSpotItem(from: spot)) }
             )
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }

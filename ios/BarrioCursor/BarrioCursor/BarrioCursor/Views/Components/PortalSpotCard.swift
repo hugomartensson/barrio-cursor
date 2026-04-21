@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 private func spotCardMediaURL(_ string: String?) -> URL? {
     guard let raw = string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
@@ -33,6 +34,8 @@ struct PortalSpotItem: Identifiable, Hashable {
     let description: String?
     let distanceText: String?
     let friendsWhoSaved: [SpotFriendSaved]
+    /// Geographic coordinate — available when constructed from a `Spot` with location data.
+    let coordinate: CLLocationCoordinate2D?
 
     init(
         id: String,
@@ -46,7 +49,8 @@ struct PortalSpotItem: Identifiable, Hashable {
         saveCount: Int,
         description: String? = nil,
         distanceText: String? = nil,
-        friendsWhoSaved: [SpotFriendSaved] = []
+        friendsWhoSaved: [SpotFriendSaved] = [],
+        coordinate: CLLocationCoordinate2D? = nil
     ) {
         self.id = id
         self.name = name
@@ -60,6 +64,15 @@ struct PortalSpotItem: Identifiable, Hashable {
         self.description = description
         self.distanceText = distanceText
         self.friendsWhoSaved = friendsWhoSaved
+        self.coordinate = coordinate
+    }
+
+    static func == (lhs: PortalSpotItem, rhs: PortalSpotItem) -> Bool {
+        lhs.id == rhs.id && lhs.saveCount == rhs.saveCount
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 
     /// City-only label for cards (matches event `displayCity`).
@@ -73,7 +86,7 @@ struct PortalSpotItem: Identifiable, Hashable {
 }
 
 extension PortalSpotItem {
-    /// Build from domain Spot (PRD-aligned model)
+    /// Build from domain Spot (PRD-aligned model) — preserves coordinate for map use.
     init(from spot: Spot) {
         let primaryOwner = spot.owners.first
         self.init(
@@ -86,7 +99,8 @@ extension PortalSpotItem {
             ownerHandle: primaryOwner?.handle ?? "?",
             ownerInitial: primaryOwner?.initials ?? "?",
             saveCount: spot.saveCount,
-            description: spot.description
+            description: spot.description,
+            coordinate: spot.location
         )
     }
 }
@@ -165,7 +179,7 @@ struct PortalSpotCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: "mappin")
                                 .font(.system(size: neighborhoodFontSize))
-                            Text(spot.displayCity)
+                            Text(spot.neighborhood.isEmpty ? spot.displayCity : spot.neighborhood)
                                 .font(.portalItalic(size: neighborhoodFontSize))
                         }
                         .foregroundColor(Color.portalCard.opacity(0.7))
@@ -216,7 +230,9 @@ struct SpotDetailView: View {
 
     @State private var showAddToCollection = false
     @State private var showSaveToPlan = false
-    @State private var addedToCollectionName: String? = nil
+    @State private var addedInfo: AddedToCollectionInfo? = nil
+    @State private var collectionToShow: AddedToCollectionInfo? = nil
+    @State private var showSpotMap = false
     /// Optimistic UI after toggle when using built-in API save
     @State private var resolvedSaved: Bool?
     @State private var resolvedSaveCount: Int?
@@ -236,19 +252,43 @@ struct SpotDetailView: View {
         .background(Color.portalBackground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            PortalFloatingActionBar(
-                itemType: "spot",
-                isSaved: displaySaved,
-                saveCount: displaySaveCount,
-                onSaveToggle: performSaveTap,
-                onAddToPlan: { showSaveToPlan = true },
-                onAddToCollection: {
-                    addedToCollectionName = nil
-                    showAddToCollection = true
-                }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let info = addedInfo {
+                AddedToCollectionBanner(
+                    info: info,
+                    onDismiss: { addedInfo = nil },
+                    onGoToCollection: {
+                        collectionToShow = info
+                        addedInfo = nil
+                    }
+                )
+                .environmentObject(authManager)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: addedInfo)
+        .fullScreenCover(item: $collectionToShow) { info in
+            NavigationStack {
+                CollectionDetailView(collectionId: info.collectionId, name: info.collectionName)
+                    .environmentObject(authManager)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button { collectionToShow = nil } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 16, weight: .medium))
+                            }
+                        }
+                    }
+            }
+        }
+        .fullScreenCover(isPresented: $showSpotMap) {
+            FocusedMapView(
+                title: spot.name,
+                spots: [spot],
+                events: [],
+                focusCoordinate: spot.coordinate
             )
+            .environmentObject(authManager)
         }
         .sheet(isPresented: $showSaveToPlan) {
             SaveToPlanSheet(
@@ -281,9 +321,23 @@ struct SpotDetailView: View {
                         .padding(.horizontal, .portalPagePadding)
                         .padding(.top, 16 + geo.safeAreaInsets.top)
                     Spacer(minLength: 0)
-                    spotHeroTitleBlock
-                        .padding(.horizontal, .portalPagePadding)
-                        .padding(.bottom, 16)
+                    HStack(alignment: .bottom) {
+                        spotHeroTitleBlock
+                        Spacer(minLength: 8)
+                        if spot.coordinate != nil {
+                            Button { showSpotMap = true } label: {
+                                Image(systemName: "map.fill")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.white)
+                                    .frame(width: 38, height: 38)
+                                    .background(.ultraThinMaterial, in: Circle())
+                                    .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, .portalPagePadding)
+                    .padding(.bottom, 16)
                 }
                 .frame(width: w, height: h)
             }
@@ -389,7 +443,7 @@ struct SpotDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Body (location, description, curator, friends, CTA)
+    // MARK: - Body (location, description, action bar, collections, saved by)
     private var bodySection: some View {
         VStack(alignment: .leading, spacing: bodyVerticalSpacing) {
             locationPriceRow
@@ -399,139 +453,58 @@ struct SpotDetailView: View {
                     .foregroundColor(.portalForeground.opacity(0.85))
                     .lineSpacing(4)
             }
+            DetailActionBar(
+                itemType: "spot",
+                isSaved: displaySaved,
+                saveCount: displaySaveCount,
+                onSave: performSaveTap,
+                onAddToPlan: { showSaveToPlan = true },
+                onAddToCollection: {
+                    addedInfo = nil
+                    showAddToCollection = true
+                }
+            )
             Divider().background(Color.portalBorder)
-            curatorRow
+            CollectionsContainingSection(itemType: "spot", itemId: spot.id)
+                .environmentObject(authManager)
             Divider().background(Color.portalBorder)
-            if !spot.friendsWhoSaved.isEmpty {
-                friendsWhoSavedSection
-            }
+            SavedByRow(itemType: "spot", itemId: spot.id)
+                .environmentObject(authManager)
         }
         .padding(.horizontal, .portalPagePadding)
         .padding(.top, 20)
         .padding(.bottom, 32)
         .frame(maxWidth: .infinity, alignment: .leading)
         .sheet(isPresented: $showAddToCollection) {
-            AddToCollectionSheet(itemType: "spot", itemId: spot.id, onAdded: { name in
-                addedToCollectionName = name
+            AddToCollectionSheet(itemType: "spot", itemId: spot.id, onAdded: { colId, colName in
+                addedInfo = AddedToCollectionInfo(
+                    collectionId: colId,
+                    collectionName: colName,
+                    itemId: spot.id,
+                    itemType: "spot"
+                )
                 showAddToCollection = false
             })
             .environmentObject(authManager)
         }
     }
 
-    private var addToCollectionButton: some View {
-        Button {
-            addedToCollectionName = nil
-            showAddToCollection = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: addedToCollectionName != nil ? "folder.badge.checkmark" : "folder.badge.plus")
-                    .font(.system(size: 16))
-                if let name = addedToCollectionName {
-                    Text("Added to \(name)")
-                        .font(.portalLabel)
-                } else {
-                    Text("Add to collection")
-                        .font(.portalLabel)
-                }
-            }
-            .foregroundColor(.portalPrimary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(Color.portalPrimary.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 8)
-    }
-
     private var locationPriceRow: some View {
-        HStack(spacing: 12) {
+        let locationLine = AddressFormatting.detailLocationLine(
+            neighborhood: spot.neighborhood.isEmpty ? nil : spot.neighborhood,
+            address: spot.addressLine
+        )
+        return HStack(spacing: 8) {
             Image(systemName: "mappin")
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
-            Text(spot.displayCity)
+            Text(locationLine.isEmpty ? spot.displayCity : locationLine)
                 .font(.system(size: 12))
                 .foregroundColor(.portalMutedForeground)
+                .lineLimit(2)
         }
     }
 
-    private var curatorRow: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("OWNER")
-                .font(.portalSectionLabel)
-                .tracking(2)
-                .foregroundColor(.portalMutedForeground)
-            HStack(spacing: 10) {
-                Circle()
-                    .fill(Color.portalPrimary)
-                    .frame(width: 32, height: 32)
-                    .overlay(
-                        Text(spot.ownerInitial)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.portalPrimaryForeground)
-                    )
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(spot.ownerHandle)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.portalForeground)
-                    Text("@\(spot.ownerHandle)")
-                        .font(.system(size: 10))
-                        .foregroundColor(.portalMutedForeground)
-                }
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    private var friendsWhoSavedSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("FRIENDS WHO SAVED THIS")
-                .font(.portalSectionLabel)
-                .tracking(2)
-                .foregroundColor(.portalMutedForeground)
-            HStack(spacing: 12) {
-                avatarStack
-                friendsNamesText
-            }
-        }
-    }
-
-    private var avatarStack: some View {
-        let friends = Array(spot.friendsWhoSaved.prefix(3))
-        return HStack(spacing: -8) {
-            ForEach(Array(friends.enumerated()), id: \.offset) { _, friend in
-                Circle()
-                    .fill(Color.portalSecondary)
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        Text(friend.initials)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.portalForeground)
-                    )
-                    .overlay(Circle().stroke(Color.portalBackground, lineWidth: 2))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var friendsNamesText: some View {
-        let friends = spot.friendsWhoSaved
-        if !friends.isEmpty {
-            let names = friends.prefix(2).map(\.name).joined(separator: ", ")
-            let moreCount = friends.count > 2 ? friends.count - 2 : 0
-            let more = moreCount > 0 ? " + \(moreCount) more" : ""
-            HStack(spacing: 0) {
-                Text(names)
-                    .font(.system(size: 12))
-                    .fontWeight(.medium)
-                    .foregroundColor(.portalForeground)
-                Text(more)
-                    .font(.system(size: 12))
-                    .foregroundColor(.portalMutedForeground)
-            }
-        }
-    }
 
 }
 

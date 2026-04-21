@@ -130,7 +130,7 @@ struct PortalEventCard: View {
                         HStack(spacing: 4) {
                             Image(systemName: "mappin")
                                 .font(.portalMinText)
-                            Text(event.displayCity)
+                            Text(event.displayNeighborhood.isEmpty ? event.displayCity : event.displayNeighborhood)
                                 .font(.portalMetadata)
                                 .lineLimit(1)
                         }

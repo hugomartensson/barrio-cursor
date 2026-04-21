@@ -1,4 +1,5 @@
 import SwiftUI
+import MapKit
 import UniformTypeIdentifiers
 
 // MARK: - PortalSpotItem from PlanItemSpot
@@ -15,7 +16,8 @@ extension PortalSpotItem {
             ownerHandle: planSpot.ownerHandle ?? "",
             ownerInitial: String(planSpot.ownerHandle?.prefix(1) ?? "?").uppercased(),
             saveCount: planSpot.saveCount,
-            description: planSpot.description
+            description: planSpot.description,
+            coordinate: CLLocationCoordinate2D(latitude: planSpot.latitude, longitude: planSpot.longitude)
         )
     }
 }
@@ -45,6 +47,21 @@ struct PlanDetailView: View {
     @State private var addFromSavesWrapper: DayOffsetWrapper?
     @State private var selectedSpotId: String?
     @State private var dropTargetDay: Int? = nil
+    @State private var showPlanMap = false
+
+    private var planSpots: [PortalSpotItem] {
+        localItems.compactMap { item -> PortalSpotItem? in
+            guard item.itemType == "spot", let s = item.spot else { return nil }
+            return PortalSpotItem(from: s)
+        }
+    }
+
+    private var planEvents: [Event] {
+        localItems.compactMap { item -> Event? in
+            guard item.itemType == "event", let e = item.event else { return nil }
+            return e
+        }
+    }
 
     private static let dayHeaderFmt: DateFormatter = {
         let f = DateFormatter()
@@ -98,6 +115,14 @@ struct PlanDetailView: View {
             EventDetailView(event: event)
                 .environmentObject(authManager)
         }
+        .fullScreenCover(isPresented: $showPlanMap) {
+            FocusedMapView(
+                title: plan.name,
+                spots: planSpots,
+                events: planEvents
+            )
+            .environmentObject(authManager)
+        }
     }
 
     // MARK: - Content
@@ -115,7 +140,15 @@ struct PlanDetailView: View {
             }
             .padding(.horizontal, .portalPagePadding)
             .padding(.top, 8)
-            .padding(.bottom, 20)
+            .padding(.bottom, 16)
+
+            // Mini map — tappable, expands to full FocusedMapView
+            if !planSpots.isEmpty || !planEvents.isEmpty {
+                PlanMiniMap(spots: planSpots, events: planEvents)
+                    .padding(.horizontal, .portalPagePadding)
+                    .padding(.bottom, 20)
+                    .onTapGesture { showPlanMap = true }
+            }
 
             ForEach(0..<det.numberOfDays, id: \.self) { offset in
                 daySectionView(det: det, dayOffset: offset)
@@ -291,6 +324,78 @@ struct PlanDetailView: View {
         } catch {
             await loadDetail()
         }
+    }
+}
+
+// MARK: - Mini Map
+
+private struct PlanMiniMap: View {
+    let spots: [PortalSpotItem]
+    let events: [Event]
+
+    @State private var cameraPosition: MapCameraPosition = .automatic
+
+    var body: some View {
+        Map(position: $cameraPosition, interactionModes: []) {
+            ForEach(spots) { spot in
+                if let coord = spot.coordinate {
+                    Annotation("", coordinate: coord) {
+                        Circle()
+                            .fill(Color.portalPrimary)
+                            .frame(width: 10, height: 10)
+                            .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                            .shadow(radius: 2)
+                    }
+                }
+            }
+            ForEach(events) { event in
+                Annotation("", coordinate: event.coordinate) {
+                    Circle()
+                        .fill(Color.teal)
+                        .frame(width: 10, height: 10)
+                        .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                        .shadow(radius: 2)
+                }
+            }
+        }
+        .frame(height: 140)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.portalBorder, lineWidth: 1)
+        )
+        .overlay(alignment: .bottomTrailing) {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(8)
+                .background(.ultraThinMaterial, in: Circle())
+                .padding(10)
+        }
+        .onAppear { fitCamera() }
+    }
+
+    private func fitCamera() {
+        let coords: [CLLocationCoordinate2D] = spots.compactMap(\.coordinate) + events.map(\.coordinate)
+        guard !coords.isEmpty else { return }
+        if coords.count == 1 {
+            cameraPosition = .region(MKCoordinateRegion(
+                center: coords[0],
+                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+            ))
+            return
+        }
+        let lats = coords.map(\.latitude)
+        let lngs = coords.map(\.longitude)
+        let center = CLLocationCoordinate2D(
+            latitude: ((lats.min()! + lats.max()!) / 2),
+            longitude: ((lngs.min()! + lngs.max()!) / 2)
+        )
+        let span = MKCoordinateSpan(
+            latitudeDelta: max((lats.max()! - lats.min()!) * 1.5, 0.01),
+            longitudeDelta: max((lngs.max()! - lngs.min()!) * 1.5, 0.01)
+        )
+        cameraPosition = .region(MKCoordinateRegion(center: center, span: span))
     }
 }
 

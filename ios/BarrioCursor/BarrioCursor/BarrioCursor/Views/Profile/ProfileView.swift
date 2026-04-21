@@ -1527,6 +1527,7 @@ struct CollectionDetailView: View {
     @StateObject private var viewModel: CollectionDetailViewModel
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
+    @State private var showFocusedMap = false
 
     init(collectionId: String, name: String) {
         self.collectionId = collectionId
@@ -1630,15 +1631,46 @@ struct CollectionDetailView: View {
                         .padding(.horizontal, .portalPagePadding)
                         .padding(.top, 16 + geo.safeAreaInsets.top)
                     Spacer(minLength: 0)
-                    collectionHeroBottomBlock(title: titleText)
-                        .padding(.horizontal, .portalPagePadding)
-                        .padding(.bottom, 16)
+                    HStack(alignment: .bottom) {
+                        collectionHeroBottomBlock(title: titleText)
+                        Spacer(minLength: 8)
+                        // Map button — bottom right of hero
+                        if !viewModel.collectionItems.isEmpty {
+                            Button { showFocusedMap = true } label: {
+                                Image(systemName: "map.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .frame(width: 42, height: 42)
+                                    .background(.ultraThinMaterial, in: Circle())
+                                    .overlay(Circle().stroke(Color.white.opacity(0.25), lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, .portalPagePadding)
+                    .padding(.bottom, 16)
                 }
                 .frame(width: w, height: h)
             }
         }
         .aspectRatio(heroAspectRatio, contentMode: .fit)
         .ignoresSafeArea(edges: .top)
+        .fullScreenCover(isPresented: $showFocusedMap) {
+            let spots = viewModel.collectionItems.compactMap { item -> PortalSpotItem? in
+                if case .spot(let s) = item { return s }
+                return nil
+            }
+            let events = viewModel.collectionItems.compactMap { item -> Event? in
+                if case .event(let e) = item { return e }
+                return nil
+            }
+            FocusedMapView(
+                title: viewModel.collection?.name ?? name,
+                spots: spots,
+                events: events
+            )
+            .environmentObject(authManager)
+        }
     }
 
     private var collectionHeroImage: some View {
@@ -1751,16 +1783,17 @@ struct CollectionDetailView: View {
 
     private var curatorRow: some View {
         let c = viewModel.collection
-        let ownerHandle = c?.ownerHandle ?? "?"
-        let ownerInitial = c?.ownerInitials.flatMap { $0.prefix(1).uppercased() } ?? String(ownerHandle.prefix(1)).uppercased()
-        let saveCount = viewModel.collection?.saveCount ?? 0
+        // When owned the server now always returns ownerHandle; fallback to currentUser name for safety
+        let ownerHandle = c?.ownerHandle ?? authManager.currentUser?.name ?? "?"
+        let ownerInitialChar = c?.ownerInitials.flatMap { $0.prefix(1).uppercased() }
+            ?? String(ownerHandle.prefix(1)).uppercased()
         let itemCount = viewModel.collectionItems.count
         return HStack(spacing: 12) {
             Circle()
                 .fill(Color.portalPrimary)
                 .frame(width: 40, height: 40)
                 .overlay(
-                    Text(ownerInitial)
+                    Text(ownerInitialChar)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.portalPrimaryForeground)
                 )
@@ -1773,22 +1806,13 @@ struct CollectionDetailView: View {
                     .foregroundColor(.portalMutedForeground)
             }
             Spacer(minLength: 0)
-            HStack(spacing: 16) {
-                HStack(spacing: 4) {
-                    Image(systemName: "bookmark")
-                        .font(.system(size: 12))
-                    Text("\(saveCount)")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(.portalMutedForeground)
-                HStack(spacing: 4) {
-                    Image(systemName: "mappin")
-                        .font(.system(size: 12))
-                    Text("\(itemCount) items")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(.portalMutedForeground)
+            HStack(spacing: 4) {
+                Image(systemName: "mappin")
+                    .font(.system(size: 12))
+                Text("\(itemCount) items")
+                    .font(.system(size: 12, weight: .medium))
             }
+            .foregroundColor(.portalMutedForeground)
         }
     }
 
