@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../services/prisma.js';
+import type { CollectionVisibility } from '@prisma/client';
 import { requireAuth } from '../middleware/auth.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -722,6 +723,241 @@ router.get(
       res.json({
         data: activeEvents.map((event) => formatEvent(event)),
       });
+    }
+  )
+);
+
+/**
+ * GET /users/:id/spots — publicly-owned spots for another user (respects privacy).
+ */
+router.get(
+  '/:id/spots',
+  requireAuth,
+  validateRequest({ params: z.object({ id: z.string().uuid('Invalid user ID') }) }),
+  asyncHandler(
+    async (req: Request, res: Response<{ data: SavedSpotItem[] } | ApiErrorResponse>) => {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const userId = req.params['id'] as string;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isPrivate: true },
+      });
+      if (!user) {
+        throw ApiError.notFound('User');
+      }
+
+      if (user.isPrivate && userId !== authReq.user.userId) {
+        const isFollowing = await prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: authReq.user.userId,
+              followingId: userId,
+            },
+          },
+        });
+        if (!isFollowing) {
+          throw ApiError.forbidden(
+            'Spots are only visible to followers of private accounts'
+          );
+        }
+      }
+
+      const spots = await prisma.spot.findMany({
+        where: { ownerId: userId },
+        include: { media: { orderBy: { order: 'asc' }, take: 1 } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const data: SavedSpotItem[] = spots.map((spot) => ({
+        id: spot.id,
+        name: spot.name,
+        description: spot.description,
+        address: spot.address,
+        neighborhood: spot.neighborhood,
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        category: String(spot.category),
+        imageUrl: spot.media[0]?.url ?? null,
+        saveCount: spot.saveCount,
+        savedAt: spot.createdAt.toISOString(),
+      }));
+
+      res.json({ data });
+    }
+  )
+);
+
+/**
+ * GET /users/:id/saved-spots — saved spots for another user (respects privacy).
+ */
+router.get(
+  '/:id/saved-spots',
+  requireAuth,
+  validateRequest({ params: z.object({ id: z.string().uuid('Invalid user ID') }) }),
+  asyncHandler(
+    async (req: Request, res: Response<{ data: SavedSpotItem[] } | ApiErrorResponse>) => {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const userId = req.params['id'] as string;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isPrivate: true },
+      });
+      if (!user) {
+        throw ApiError.notFound('User');
+      }
+
+      if (user.isPrivate && userId !== authReq.user.userId) {
+        const isFollowing = await prisma.follow.findUnique({
+          where: {
+            followerId_followingId: {
+              followerId: authReq.user.userId,
+              followingId: userId,
+            },
+          },
+        });
+        if (!isFollowing) {
+          throw ApiError.forbidden(
+            'Saved spots are only visible to followers of private accounts'
+          );
+        }
+      }
+
+      const saves = await prisma.save.findMany({
+        where: { userId, itemType: 'spot' },
+        orderBy: { createdAt: 'desc' },
+      });
+      const spotIds = saves.map((s) => s.itemId);
+      if (spotIds.length === 0) {
+        res.json({ data: [] });
+        return;
+      }
+      const spots = await prisma.spot.findMany({
+        where: { id: { in: spotIds } },
+        include: { media: { orderBy: { order: 'asc' }, take: 1 } },
+      });
+      const spotMap = new Map(spots.map((s) => [s.id, s]));
+
+      const data: SavedSpotItem[] = saves
+        .map((s) => {
+          const spot = spotMap.get(s.itemId);
+          if (!spot) {
+            return null;
+          }
+          return {
+            id: spot.id,
+            name: spot.name,
+            description: spot.description,
+            address: spot.address,
+            neighborhood: spot.neighborhood,
+            latitude: spot.latitude,
+            longitude: spot.longitude,
+            category: String(spot.category),
+            imageUrl: spot.media[0]?.url ?? null,
+            saveCount: spot.saveCount,
+            savedAt: s.createdAt.toISOString(),
+          };
+        })
+        .filter((x): x is SavedSpotItem => x !== null);
+
+      res.json({ data });
+    }
+  )
+);
+
+interface UserCollectionItem {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  visibility: string;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+  owned: boolean;
+  ownerHandle: string | null;
+  ownerInitials: string | null;
+  coverImageURL: null;
+  previewSpotImageURLs: null;
+}
+
+/**
+ * GET /users/:id/collections — public collections for another user (respects privacy & visibility).
+ */
+router.get(
+  '/:id/collections',
+  requireAuth,
+  validateRequest({ params: z.object({ id: z.string().uuid('Invalid user ID') }) }),
+  asyncHandler(
+    async (
+      req: Request,
+      res: Response<{ data: UserCollectionItem[] } | ApiErrorResponse>
+    ) => {
+      const authReq = req as unknown as AuthenticatedRequest;
+      const viewerId = authReq.user.userId;
+      const userId = req.params['id'] as string;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isPrivate: true, handle: true, initials: true },
+      });
+      if (!user) {
+        throw ApiError.notFound('User');
+      }
+
+      let isFollowing = false;
+      if (user.isPrivate && userId !== viewerId) {
+        const follow = await prisma.follow.findUnique({
+          where: {
+            followerId_followingId: { followerId: viewerId, followingId: userId },
+          },
+        });
+        if (!follow) {
+          throw ApiError.forbidden(
+            'Collections are only visible to followers of private accounts'
+          );
+        }
+        isFollowing = true;
+      }
+
+      // Visibility: owner sees all; followers see public + followers; others see public only
+      const canSeeAll = userId === viewerId || isFollowing;
+      const visibilityWhere = canSeeAll
+        ? { in: ['public', 'followers'] as CollectionVisibility[] }
+        : { equals: 'public' as CollectionVisibility };
+
+      const collections = await prisma.collection.findMany({
+        where: {
+          userId,
+          visibility: visibilityWhere,
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      const counts = await Promise.all(
+        collections.map((c) =>
+          prisma.collectionItem.count({ where: { collectionId: c.id } })
+        )
+      );
+
+      const data: UserCollectionItem[] = collections.map((c, i) => ({
+        id: c.id,
+        userId: c.userId,
+        name: c.name,
+        description: c.description,
+        visibility: c.visibility,
+        itemCount: counts[i] ?? 0,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        owned: false,
+        ownerHandle: user.handle,
+        ownerInitials: user.initials,
+        coverImageURL: null,
+        previewSpotImageURLs: null,
+      }));
+
+      res.json({ data });
     }
   )
 );

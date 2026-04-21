@@ -67,9 +67,24 @@ router.post(
         '📝 Creating new event'
       );
 
+      // Resolve location: spotId > explicit lat/lng > geocode.
       let lat: number;
       let lng: number;
-      if (input.latitude !== undefined && input.longitude !== undefined) {
+      let resolvedAddress = input.address;
+      let resolvedNeighborhood = input.neighborhood ?? null;
+      let resolvedSpotId: string | null = null;
+
+      if (input.spotId) {
+        const spot = await prisma.spot.findUnique({ where: { id: input.spotId } });
+        if (!spot) {
+          throw ApiError.badRequest('Spot not found');
+        }
+        lat = spot.latitude;
+        lng = spot.longitude;
+        resolvedAddress = spot.address;
+        resolvedNeighborhood = spot.neighborhood ?? null;
+        resolvedSpotId = spot.id;
+      } else if (input.latitude !== undefined && input.longitude !== undefined) {
         lat = input.latitude;
         lng = input.longitude;
       } else {
@@ -84,28 +99,32 @@ router.post(
         }
       }
 
-      const event = await prisma.event.create({
-        data: {
-          userId: authReq.user.userId,
-          title: input.title,
-          description: input.description,
-          category: input.category,
-          address: input.address,
-          neighborhood: input.neighborhood ?? null,
-          latitude: lat,
-          longitude: lng,
-          startTime: new Date(input.startTime),
-          endTime: input.endTime ? new Date(input.endTime) : null,
-          ticketUrl: input.ticketUrl,
-          media: {
-            create: input.media.map((m, i) => ({
-              url: m.url,
-              type: m.type,
-              order: i,
-              thumbnailUrl: m.thumbnailUrl ?? null,
-            })),
-          },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const eventData: any = {
+        userId: authReq.user.userId,
+        title: input.title,
+        description: input.description,
+        category: input.category,
+        address: resolvedAddress,
+        neighborhood: resolvedNeighborhood,
+        latitude: lat,
+        longitude: lng,
+        spotId: resolvedSpotId,
+        startTime: new Date(input.startTime),
+        endTime: input.endTime ? new Date(input.endTime) : null,
+        ticketUrl: input.ticketUrl,
+        media: {
+          create: input.media.map((m, i) => ({
+            url: m.url,
+            type: m.type,
+            order: i,
+            thumbnailUrl: m.thumbnailUrl ?? null,
+          })),
         },
+      };
+
+      const event = await prisma.event.create({
+        data: eventData,
         include: {
           media: { orderBy: { order: 'asc' } },
           user: { select: { id: true, name: true } },

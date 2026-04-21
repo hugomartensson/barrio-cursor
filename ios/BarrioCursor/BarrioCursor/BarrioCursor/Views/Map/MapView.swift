@@ -27,13 +27,18 @@ struct MapView: View {
     @State private var showTimeFilterDropdown = false
     @State private var showCategoryFilterDropdown = false
     @State private var showLocationDropdown = false
-    @State private var locationSearchText = ""
-    @State private var locationSearchResults: [MKMapItem] = []
-    @State private var isLocationSearching = false
     @State private var showDateRangePicker = false
 
     enum MapContentFilter: String, CaseIterable {
         case all, spots, events
+
+        var displayName: String {
+            switch self {
+            case .all: return "All"
+            case .spots: return "Spots"
+            case .events: return "Events"
+            }
+        }
     }
 
     var body: some View {
@@ -184,27 +189,6 @@ struct MapView: View {
         let coordinate = discoverFilters.searchLocation ?? locationManager.coordinate
         let label = await locationManager.reverseGeocodeDisplayName(coordinate)
         locationLabel = label
-    }
-
-    private func performLocationSearch() {
-        let query = locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
-        isLocationSearching = true
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
-        let search = MKLocalSearch(request: request)
-        search.start { response, error in
-            Task { @MainActor in
-                isLocationSearching = false
-                if let err = error {
-                    #if DEBUG
-                    print("❌ MapView location search error: \(err.localizedDescription)")
-                    #endif
-                    return
-                }
-                locationSearchResults = response?.mapItems ?? []
-            }
-        }
     }
 
     @ViewBuilder
@@ -509,26 +493,55 @@ struct MapView: View {
     }
 
     private var mapCategoryFilterDropdownContent: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: .portalCardGap) {
-                ForEach(DiscoverCategory.allCases, id: \.self) { category in
-                    PortalFilterPill(
-                        title: category.label,
-                        isActive: discoverFilters.categories.contains(category),
-                        categoryColor: Color.categoryPillColor(for: category.label)
-                    ) {
-                        if discoverFilters.categories.contains(category) {
-                            discoverFilters.categories.remove(category)
-                        } else {
-                            discoverFilters.categories.insert(category)
+        VStack(alignment: .leading, spacing: 10) {
+            // Content type toggle: All / Spots / Events
+            HStack(spacing: 6) {
+                ForEach(MapContentFilter.allCases, id: \.self) { filter in
+                    let isActive = mapContentFilter == filter
+                    Button {
+                        mapContentFilter = filter
+                    } label: {
+                        Text(filter.displayName)
+                            .font(.system(size: 13, weight: isActive ? .semibold : .regular))
+                            .foregroundColor(isActive ? .portalPrimaryForeground : .portalForeground)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(isActive ? Color.portalPrimary : Color.portalBackground)
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(isActive ? Color.clear : Color.portalBorder, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.easeInOut(duration: 0.15), value: mapContentFilter)
+                }
+            }
+
+            Divider()
+
+            // Category pills
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: .portalCardGap) {
+                    ForEach(DiscoverCategory.allCases, id: \.self) { category in
+                        PortalFilterPill(
+                            title: category.label,
+                            isActive: discoverFilters.categories.contains(category),
+                            categoryColor: Color.categoryPillColor(for: category.label)
+                        ) {
+                            if discoverFilters.categories.contains(category) {
+                                discoverFilters.categories.remove(category)
+                            } else {
+                                discoverFilters.categories.insert(category)
+                            }
                         }
                     }
                 }
+                .padding(.horizontal, 4)
             }
-            .padding(.horizontal, 4)
+            .frame(height: 44)
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .frame(height: 44)
-        .scrollBounceBehavior(.basedOnSize)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.portalCard)
@@ -542,117 +555,26 @@ struct MapView: View {
     }
 
     private var mapLocationDropdownContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button {
+        LocationSearchField(
+            biasCenter: locationManager.coordinate,
+            onUseCurrentLocation: {
                 discoverFilters.searchLocation = nil
                 showLocationDropdown = false
                 Task { await updateLocationLabel() }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.portalPrimary)
-                    Text("Use Current Location")
-                        .font(.portalLabelSemibold)
-                        .foregroundColor(.portalForeground)
+            },
+            onSelect: { resolved in
+                discoverFilters.searchLocation = resolved.coordinate
+                viewModel.cameraPosition = .region(MKCoordinateRegion(
+                    center: resolved.coordinate,
+                    span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+                ))
+                showLocationDropdown = false
+                Task {
+                    await reloadEvents()
+                    await updateLocationLabel()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color.portalBackground.opacity(0.6))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
-            .buttonStyle(.plain)
-
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14))
-                    .foregroundColor(.portalMutedForeground)
-                TextField("Search location...", text: $locationSearchText)
-                    .font(.portalMetadata)
-                    .submitLabel(.search)
-                    .onSubmit { performLocationSearch() }
-                if !locationSearchText.isEmpty {
-                    Button {
-                        locationSearchText = ""
-                        locationSearchResults = []
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.portalMutedForeground)
-                    }
-                }
-                Button("Search") { performLocationSearch() }
-                    .font(.portalLabelSemibold)
-                    .foregroundColor(.portalPrimary)
-                    .disabled(locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.portalBackground.opacity(0.6))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            if isLocationSearching {
-                HStack(spacing: 8) {
-                    ProgressView().scaleEffect(0.8)
-                    Text("Searching...")
-                        .font(.portalMetadata)
-                        .foregroundColor(.portalMutedForeground)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 8)
-            }
-
-            if !locationSearchResults.isEmpty {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(locationSearchResults.enumerated()), id: \.offset) { _, item in
-                            Button {
-                                if let coord = item.placemark.location?.coordinate {
-                                    discoverFilters.searchLocation = coord
-                                    viewModel.cameraPosition = .region(MKCoordinateRegion(
-                                        center: coord,
-                                        span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
-                                    ))
-                                    showLocationDropdown = false
-                                    locationSearchText = ""
-                                    locationSearchResults = []
-                                    Task {
-                                        await reloadEvents()
-                                        await updateLocationLabel()
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "mappin.circle")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.portalMutedForeground)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.name ?? "Unknown")
-                                            .font(.portalLabelSemibold)
-                                            .foregroundColor(.portalForeground)
-                                            .lineLimit(1)
-                                        if let locality = item.placemark.locality {
-                                            Text(locality)
-                                                .font(.portalMetadata)
-                                                .foregroundColor(.portalMutedForeground)
-                                                .lineLimit(1)
-                                        }
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .background(Color.portalBackground.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .frame(maxHeight: 220)
-            }
-        }
+        )
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.portalCard)

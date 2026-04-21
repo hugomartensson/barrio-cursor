@@ -10,6 +10,8 @@ import socialRouter from './social/index.js';
 import collectionsRouter from './collections.js';
 import plansRouter from './plans.js';
 import ingestRouter from './ingest.js';
+import searchRouter from './search.js';
+
 const router = Router();
 
 router.use('/health', healthRouter);
@@ -23,4 +25,6 @@ router.use('/collections', collectionsRouter);
 router.use('/plans', plansRouter);
 router.use('/upload', uploadRouter);
 router.use('/ingest', ingestRouter);
+router.use('/search', searchRouter);
+
 export default router;

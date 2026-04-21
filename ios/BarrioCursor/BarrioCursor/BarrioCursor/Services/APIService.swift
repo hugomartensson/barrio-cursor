@@ -717,6 +717,9 @@ extension APIService {
         let startTime: String
         let endTime: String?
         let media: [MediaInput]
+        let latitude: Double?
+        let longitude: Double?
+        let spotId: String?
     }
 
     struct MediaInput: Encodable {
@@ -731,6 +734,9 @@ extension APIService {
         category: EventCategory,
         address: String,
         neighborhood: String?,
+        latitude: Double?,
+        longitude: Double?,
+        spotId: String?,
         startTime: Date,
         endTime: Date?,
         mediaURLs: [(url: String, type: MediaType, thumbnailUrl: String?)],
@@ -745,7 +751,10 @@ extension APIService {
             neighborhood: neighborhood,
             startTime: formatter.string(from: startTime),
             endTime: endTime.map { formatter.string(from: $0) },
-            media: mediaURLs.map { MediaInput(url: $0.url, type: $0.type.rawValue, thumbnailUrl: $0.thumbnailUrl) }
+            media: mediaURLs.map { MediaInput(url: $0.url, type: $0.type.rawValue, thumbnailUrl: $0.thumbnailUrl) },
+            latitude: latitude,
+            longitude: longitude,
+            spotId: spotId
         )
         return try await post("/events", body: body, token: token)
     }
@@ -795,6 +804,18 @@ extension APIService {
     
     func getUserSavedEvents(userId: String, token: String) async throws -> EventsListResponse {
         return try await get("/users/\(userId)/saved", token: token)
+    }
+
+    func getUserSpots(userId: String, token: String) async throws -> SavedSpotsListResponse {
+        return try await get("/users/\(userId)/spots", token: token)
+    }
+
+    func getUserSavedSpots(userId: String, token: String) async throws -> SavedSpotsListResponse {
+        return try await get("/users/\(userId)/saved-spots", token: token)
+    }
+
+    func getUserCollections(userId: String, token: String) async throws -> CollectionsListResponse {
+        return try await get("/users/\(userId)/collections", token: token)
     }
     
     // MARK: - Social Endpoints (Following)
@@ -963,6 +984,8 @@ extension APIService {
         let address: String
         let image: CreateSpotImageInput
         let neighborhood: String?
+        let latitude: Double?
+        let longitude: Double?
     }
     nonisolated struct CreateSpotImageInput: Encodable {
         let url: String
@@ -979,6 +1002,8 @@ extension APIService {
         imageURL: String,
         imageThumbnailURL: String?,
         neighborhood: String?,
+        latitude: Double?,
+        longitude: Double?,
         token: String
     ) async throws -> SpotCreateResponse {
         let body = CreateSpotRequest(
@@ -987,7 +1012,9 @@ extension APIService {
             category: category,
             address: address,
             image: CreateSpotImageInput(url: imageURL, thumbnailUrl: imageThumbnailURL),
-            neighborhood: neighborhood
+            neighborhood: neighborhood,
+            latitude: latitude,
+            longitude: longitude
         )
         return try await post("/spots", body: body, token: token)
     }

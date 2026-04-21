@@ -15,19 +15,11 @@ struct DiscoverView: View {
     // Removed Phase 3.6 pinch-to-zoom overview per PRD simplification
     @State private var userIdForProfile: String? = nil // Organizer tap from EventCard → UserProfileView
     @State private var showUserProfileSheet = false
-    @FocusState private var isSearchFocused: Bool
     @State private var locationLabel: String = "Current location"
     @State private var showTimeFilterDropdown = false
     @State private var showCategoryFilterDropdown = false
     @State private var showLocationDropdown = false
-    @State private var locationSearchText = ""
-    @State private var locationSearchResults: [MKMapItem] = []
-    @State private var isLocationSearching = false
-    @State private var eventsExpanded = false
-    @State private var spotsExpanded = false
-    @State private var collectionsExpanded = false
     @State private var discoverNavPath = NavigationPath()
-    @State private var selectedSpotIdWrapper: SpotIdWrapper?
     @State private var showDateRangePicker = false
 
     /// Extracted to avoid "compiler is unable to type-check this expression in reasonable time".
@@ -38,7 +30,6 @@ struct DiscoverView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .clipped()
                     .contentShape(Rectangle())
-                    .onTapGesture { isSearchFocused = false }
             }
             .padding(.horizontal, .portalPagePadding)
             .padding(.top, 6)
@@ -78,14 +69,25 @@ struct DiscoverView: View {
                     EventDetailView(event: event, isSaved: viewModel.savedEventIds.contains(event.id))
                         .environmentObject(authManager)
                 }
+                .navigationDestination(for: PortalSpotItem.self) { spot in
+                    SpotDetailView(
+                        spot: spot,
+                        isSaved: viewModel.savedSpotIds.contains(spot.id),
+                        saveCount: max(spot.saveCount, viewModel.savedSpotIds.contains(spot.id) ? 1 : 0),
+                        onSaveToggle: {
+                            guard let token = authManager.token else { return }
+                            Task { await viewModel.toggleSaveSpot(spotId: spot.id, token: token) }
+                        }
+                    )
+                    .environmentObject(authManager)
+                }
                 .navigationDestination(for: CollectionRoute.self) { route in
                     CollectionDetailView(collectionId: route.id, name: route.name)
                         .environmentObject(authManager)
                 }
-        }
-        .sheet(item: $selectedSpotIdWrapper, onDismiss: { selectedSpotIdWrapper = nil }) { wrapper in
-            spotDetailCover(wrapper: wrapper)
-                .presentationDragIndicator(.visible)
+                .navigationDestination(for: DiscoverListRoute.self) { route in
+                    discoverListDestination(route)
+                }
         }
         .sheet(item: $eventToShare) { event in
             ShareSheet(
@@ -117,13 +119,12 @@ struct DiscoverView: View {
     }
 
     private func syncDetailPresented() {
-        discoverFilters.isDetailPresented = (discoverNavPath.count > 0 || selectedSpotIdWrapper != nil)
+        discoverFilters.isDetailPresented = discoverNavPath.count > 0
     }
 
     private var discoverWithDetailSync: some View {
         discoverWithSheets
             .onChange(of: discoverNavPath.count) { _, _ in syncDetailPresented() }
-            .onChange(of: selectedSpotIdWrapper) { _, _ in syncDetailPresented() }
     }
 
     private var discoverWithLifecycleA: some View {
@@ -174,37 +175,6 @@ struct DiscoverView: View {
         locationLabel = label
     }
 
-    @ViewBuilder
-    private func spotDetailCover(wrapper: SpotIdWrapper) -> some View {
-        if let spot = viewModel.spots.first(where: { $0.id == wrapper.id }).map({ PortalSpotItem(from: $0) }) {
-            SpotDetailView(
-                spot: spot,
-                isSaved: viewModel.savedSpotIds.contains(spot.id),
-                saveCount: max(spot.saveCount, viewModel.savedSpotIds.contains(spot.id) ? 1 : 0),
-                onSaveToggle: {
-                    guard let token = authManager.token else { return }
-                    Task { await viewModel.toggleSaveSpot(spotId: spot.id, token: token) }
-                },
-                onDismiss: { selectedSpotIdWrapper = nil }
-            )
-            .environmentObject(authManager)
-        } else {
-            VStack(spacing: 16) {
-                ProgressView()
-                Text("Loading spot…")
-                    .font(.portalMetadata)
-                    .foregroundColor(.portalMutedForeground)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.portalBackground)
-            .task {
-                if let token = authManager.token {
-                    let loc = discoverFilters.searchLocation ?? locationManager.coordinate
-                    await viewModel.loadSpots(location: loc, token: token)
-                }
-            }
-        }
-    }
 
     // portal· Discover header: wordmark, then filter row (Location, Time, Categories)
     private var portalDiscoverHeader: some View {
@@ -460,119 +430,19 @@ struct DiscoverView: View {
     }
 
     private var locationDropdownContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Use Current Location
-            Button {
+        LocationSearchField(
+            biasCenter: locationManager.coordinate,
+            onUseCurrentLocation: {
                 discoverFilters.searchLocation = nil
                 showLocationDropdown = false
                 Task { await updateLocationLabel() }
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "location.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.portalPrimary)
-                    Text("Use Current Location")
-                        .font(.portalLabelSemibold)
-                        .foregroundColor(.portalForeground)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color.portalBackground.opacity(0.6))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+            },
+            onSelect: { resolved in
+                discoverFilters.searchLocation = resolved.coordinate
+                showLocationDropdown = false
+                Task { await updateLocationLabel() }
             }
-            .buttonStyle(.plain)
-
-            // Search field
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14))
-                    .foregroundColor(.portalMutedForeground)
-                TextField("Search location...", text: $locationSearchText)
-                    .font(.portalMetadata)
-                    .focused($isSearchFocused)
-                    .submitLabel(.search)
-                    .onSubmit {
-                        performLocationSearch()
-                    }
-                if !locationSearchText.isEmpty {
-                    Button {
-                        locationSearchText = ""
-                        locationSearchResults = []
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.portalMutedForeground)
-                    }
-                }
-                Button("Search") {
-                    performLocationSearch()
-                }
-                .font(.portalLabelSemibold)
-                .foregroundColor(.portalPrimary)
-                .disabled(locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.portalBackground.opacity(0.6))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            if isLocationSearching {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Searching...")
-                        .font(.portalMetadata)
-                        .foregroundColor(.portalMutedForeground)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 8)
-            }
-
-            if !locationSearchResults.isEmpty {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(locationSearchResults.enumerated()), id: \.offset) { _, item in
-                            Button {
-                                if let coord = item.placemark.location?.coordinate {
-                                    discoverFilters.searchLocation = coord
-                                    showLocationDropdown = false
-                                    locationSearchText = ""
-                                    locationSearchResults = []
-                                    Task { await updateLocationLabel() }
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "mappin.circle")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.portalMutedForeground)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.name ?? "Unknown")
-                                            .font(.portalLabelSemibold)
-                                            .foregroundColor(.portalForeground)
-                                            .lineLimit(1)
-                                        if let locality = item.placemark.locality {
-                                            Text(locality)
-                                                .font(.portalMetadata)
-                                                .foregroundColor(.portalMutedForeground)
-                                                .lineLimit(1)
-                                        }
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .background(Color.portalBackground.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .frame(maxHeight: 220)
-            }
-        }
+        )
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.portalCard)
@@ -582,27 +452,6 @@ struct DiscoverView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .padding(.top, 2)
-    }
-
-    private func performLocationSearch() {
-        let query = locationSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return }
-        isLocationSearching = true
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
-        let search = MKLocalSearch(request: request)
-        search.start { response, error in
-            Task { @MainActor in
-                isLocationSearching = false
-                if let err = error {
-                    #if DEBUG
-                    print("❌ Location dropdown search error: \(err.localizedDescription)")
-                    #endif
-                    return
-                }
-                locationSearchResults = response?.mapItems ?? []
-            }
-        }
     }
 
     /// True when there are no events, spots, users, or collections to show (show empty state).
@@ -642,11 +491,10 @@ struct DiscoverView: View {
     @ViewBuilder
     private var eventsList: some View {
         List {
-            // EVENTS — expand in-place; hidden when filter yields no events
+            // EVENTS — top 3 cards; "See more" pushes AllEventsView
             if !filteredEvents.isEmpty {
-                Section(header: sectionHeader(title: "EVENTS", expanded: eventsExpanded, count: filteredEvents.count) { eventsExpanded.toggle() }) {
-                    let eventsToShow = eventsExpanded ? eventsSortedBySaves : topEvents
-                    ForEach(Array(eventsToShow.enumerated()), id: \.element.id) { index, event in
+                Section(header: sectionHeaderNav(title: "EVENTS", count: filteredEvents.count, route: .events)) {
+                    ForEach(topEvents, id: \.id) { event in
                         let eventSaved = viewModel.savedEventIds.contains(event.id)
                         ZStack(alignment: .topTrailing) {
                             Button {
@@ -679,105 +527,26 @@ struct DiscoverView: View {
                 .listSectionSeparator(.hidden)
             }
 
-            // SPOTS — expand in-place; collapsed = horizontal scroll row, expanded = vertical full-width cards (category-filtered)
+            // SPOTS — horizontal scroll; "See more" pushes AllSpotsView
             if !filteredSpots.isEmpty {
-                Section(header: sectionHeader(title: "SPOTS", expanded: spotsExpanded, count: filteredSpots.count) { spotsExpanded.toggle() }) {
-                    if spotsExpanded {
-                        ForEach(filteredSpots.map { PortalSpotItem(from: $0) }, id: \.id) { spot in
-                            let spotSaved = viewModel.savedSpotIds.contains(spot.id)
-                            ZStack(alignment: .topTrailing) {
-                                Button {
-                                    selectedSpotIdWrapper = SpotIdWrapper(id: spot.id)
-                                } label: {
-                                    HStack(spacing: 0) {
-                                        Spacer(minLength: 0)
-                                        PortalSpotCard(
-                                            spot: spot,
-                                            cardWidth: Self.expandedSpotCardWidth,
-                                            isSaved: spotSaved,
-                                            onSaveToggle: nil,
-                                            isExpanded: true
-                                        )
-                                        .frame(width: Self.expandedSpotCardWidth)
-                                        Spacer(minLength: 0)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .contentShape(Rectangle())
-                                .zIndex(0)
-                                PortalSaveButton(
-                                    isSaved: spotSaved,
-                                    count: max(spot.saveCount, spotSaved ? 1 : 0),
-                                    surface: .dark
-                                ) {
-                                    guard let token = authManager.token else { return }
-                                    Task { await viewModel.toggleSaveSpot(spotId: spot.id, token: token) }
-                                }
-                                .padding(10)
-                                .zIndex(1)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .listRowInsets(EdgeInsets(top: 6, leading: .portalPagePadding, bottom: 6, trailing: .portalPagePadding))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.portalBackground)
-                            .accessibilityIdentifier("spot_card_\(spot.id)")
-                        }
-                    } else {
-                        spotHorizontalRow
-                    }
+                Section(header: sectionHeaderNav(title: "SPOTS", count: filteredSpots.count, route: .spots)) {
+                    spotHorizontalRow
                 }
                 .listSectionSeparator(.hidden)
             }
 
-            // USERS — no expand; horizontal scroll only
+            // USERS — horizontal scroll; "See more" pushes AllUsersView
             if !viewModel.suggestedUsers.isEmpty {
-                Section(header: sectionHeaderTitleOnly("USERS", count: viewModel.suggestedUsers.count)) {
+                Section(header: sectionHeaderNav(title: "USERS", count: viewModel.suggestedUsers.count, route: .users)) {
                     usersHorizontalRow
                 }
                 .listSectionSeparator(.hidden)
             }
 
-            // COLLECTIONS — expand in-place; collapsed = horizontal scroll, expanded = vertical full-width cards
+            // COLLECTIONS — horizontal scroll; "See more" pushes AllCollectionsView
             if !viewModel.recommendedCollections.isEmpty {
-                Section(header: sectionHeader(title: "COLLECTIONS", expanded: collectionsExpanded, count: viewModel.recommendedCollections.count) { collectionsExpanded.toggle() }) {
-                    if collectionsExpanded {
-                        ForEach(viewModel.recommendedCollections.map { PortalCollectionItem(from: $0) }, id: \.id) { collection in
-                            let collSaved = viewModel.savedCollectionIds.contains(collection.id)
-                            ZStack(alignment: .topTrailing) {
-                                Button {
-                                    discoverNavPath.append(CollectionRoute(id: collection.id, name: collection.title))
-                                } label: {
-                                    HStack(spacing: 0) {
-                                        Spacer(minLength: 0)
-                                        PortalCollectionCard(
-                                            collection: collection,
-                                            isSaved: collSaved,
-                                            onSaveToggle: nil,
-                                            cardWidth: Self.expandedCollectionCardWidth,
-                                            isExpanded: true
-                                        )
-                                        .frame(width: Self.expandedCollectionCardWidth)
-                                        Spacer(minLength: 0)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .contentShape(Rectangle())
-                                .zIndex(0)
-                                PortalSaveButton(isSaved: collSaved, count: collection.saveCount ?? 0, surface: .dark) {
-                                    guard let token = authManager.token else { return }
-                                    Task { await viewModel.toggleSaveCollection(collectionId: collection.id, token: token) }
-                                }
-                                .padding(10)
-                                .zIndex(1)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .listRowInsets(EdgeInsets(top: 6, leading: .portalPagePadding, bottom: 6, trailing: .portalPagePadding))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.portalBackground)
-                        }
-                    } else {
-                        collectionsHorizontalRow
-                    }
+                Section(header: sectionHeaderNav(title: "COLLECTIONS", count: viewModel.recommendedCollections.count, route: .collections)) {
+                    collectionsHorizontalRow
                 }
                 .listSectionSeparator(.hidden)
             }
@@ -799,25 +568,24 @@ struct DiscoverView: View {
         .padding(.bottom, 12)
     }
 
-    /// Max width for centered Spot/Collection cards in "See more" (expanded) view.
-    private static let expandedSpotCardWidth: CGFloat = 320
-    private static let expandedCollectionCardWidth: CGFloat = 340
     /// Room for the top-trailing save control so the title wraps above the white card area, not under the button.
     private static let discoverEventSaveTrailingReserve: CGFloat = 52
 
-    /// Sticky section header: label + "See more (N)" or "See less" so user can collapse when scrolled.
-    private func sectionHeader(title: String, expanded: Bool, count: Int, onToggle: @escaping () -> Void) -> some View {
+    /// Sticky section header with a "See more (N)" button that pushes the list view.
+    private func sectionHeaderNav(title: String, count: Int, route: DiscoverListRoute) -> some View {
         HStack {
             Text(title)
                 .font(.portalSectionTitle)
                 .tracking(1.2)
                 .foregroundColor(.portalMutedForeground)
             Spacer(minLength: 0)
-            Button(action: onToggle) {
+            Button {
+                discoverNavPath.append(route)
+            } label: {
                 HStack(spacing: 4) {
-                    Text(expanded ? "See less" : "See more (\(count))")
+                    Text("See more (\(count))")
                         .font(.portalMetadata)
-                    Image(systemName: expanded ? "chevron.up" : "chevron.right")
+                    Image(systemName: "chevron.right")
                         .font(.portalMinText)
                 }
                 .foregroundColor(.portalMutedForeground)
@@ -831,22 +599,24 @@ struct DiscoverView: View {
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private func sectionHeaderTitleOnly(_ title: String, count: Int) -> some View {
-        HStack {
-            Text(title)
-                .font(.portalSectionTitle)
-                .tracking(1.2)
-                .foregroundColor(.portalMutedForeground)
-            Spacer(minLength: 0)
-            Text("See more (\(count))")
-                .font(.portalMetadata)
-                .foregroundColor(.portalMutedForeground)
+    @ViewBuilder
+    private func discoverListDestination(_ route: DiscoverListRoute) -> some View {
+        switch route.kind {
+        case .events:
+            AllEventsView(events: filteredEvents, savedIds: viewModel.savedEventIds)
+                .environmentObject(authManager)
+                .environmentObject(discoverFilters)
+        case .spots:
+            AllSpotsView(spots: filteredSpots, savedIds: viewModel.savedSpotIds)
+                .environmentObject(authManager)
+                .environmentObject(discoverFilters)
+        case .collections:
+            AllCollectionsView(collections: viewModel.recommendedCollections, savedIds: viewModel.savedCollectionIds)
+                .environmentObject(authManager)
+        case .users:
+            AllUsersView(users: viewModel.suggestedUsers.map { SuggestedUserItem(from: $0) })
+                .environmentObject(authManager)
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, .portalPagePadding)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.portalBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
     @ViewBuilder
@@ -857,7 +627,7 @@ struct DiscoverView: View {
                     let rowSpotSaved = viewModel.savedSpotIds.contains(spot.id)
                     ZStack(alignment: .topTrailing) {
                         Button {
-                            selectedSpotIdWrapper = SpotIdWrapper(id: spot.id)
+                            discoverNavPath.append(spot)
                         } label: {
                             PortalSpotCard(
                                 spot: spot,

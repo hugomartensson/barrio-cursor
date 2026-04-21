@@ -40,6 +40,8 @@ export const createEventSchema = z
     /** When both set, POST /events skips Geocoding API. */
     latitude: z.number().min(-90).max(90).optional(),
     longitude: z.number().min(-180).max(180).optional(),
+    /** When set, server sources address/lat/lng/neighborhood from the linked Spot. */
+    spotId: z.string().uuid('Invalid spot ID').optional(),
   })
   .refine(
     (d) =>
@@ -73,6 +75,7 @@ export const updateEventSchema = z.object({
     .max(1, 'Maximum 1 image allowed')
     .optional(),
   ticketUrl: z.string().url('Invalid ticket URL').optional(),
+  spotId: z.string().uuid('Invalid spot ID').nullable().optional(),
 });
 
 export const nearbyEventsSchema = z.object({

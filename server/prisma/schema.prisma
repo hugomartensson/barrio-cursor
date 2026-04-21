@@ -58,8 +58,9 @@ model Spot {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  owner User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  media MediaItem[]
+  owner  User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  media  MediaItem[]
+  events Event[]
 
   @@index([ownerId])
   @@index([category])
@@ -71,6 +72,8 @@ model Event {
   id           String      @id @default(uuid())
   userId       String      @map("user_id")
   hostId       String?     @map("host_id")
+  /// Optional link to a Barrio Spot. When set, address/lat/lng/neighborhood are sourced from the spot.
+  spotId       String?     @map("spot_id")
   title        String
   description  String
   category     Category
@@ -87,10 +90,12 @@ model Event {
 
   user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   host  User?       @relation("EventHost", fields: [hostId], references: [id], onDelete: SetNull)
+  spot  Spot?       @relation(fields: [spotId], references: [id], onDelete: SetNull)
   media MediaItem[]
 
   @@index([userId])
   @@index([hostId])
+  @@index([spotId])
   @@index([category])
   @@index([startTime])
   // location geometry column with GIST index managed via migration

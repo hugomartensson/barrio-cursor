@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import MapKit
+import CoreLocation
 import AVFoundation
 import UIKit
 
@@ -30,16 +31,14 @@ struct CreateEventView: View {
     @State private var showCameraSheet = false
     @State private var showCameraSettingsAlert = false
     @State private var showLocationPicker = false
+    @State private var showLocationSearch = false
     @State private var selectedLocation: CLLocationCoordinate2D?
     @State private var manualAddress = ""
     @State private var selectedNeighborhood: String?
+    @State private var selectedSpotId: String?
     @State private var isSubmitting = false
     @State private var submissionProgress: String?
     @State private var errorMessage: String?
-    @State private var addressSuggestions: [MKMapItem] = []
-    @State private var showAddressSuggestions = false
-    @State private var suppressAddressSearch = false
-    @State private var addressSearchTask: Task<Void, Never>?
 
     private var isEditMode: Bool { eventToEdit != nil }
 
@@ -47,7 +46,7 @@ struct CreateEventView: View {
     @State private var showStartTimePicker = false
     @State private var showEndTimePicker = false
     @FocusState private var focusedField: Field?
-    private enum Field { case title, description, address }
+    private enum Field { case title, description }
 
     private var isFormValid: Bool {
         !title.isEmpty &&
@@ -248,65 +247,44 @@ struct CreateEventView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Address (map pin + input)
+    // MARK: - Address (federated search via LocationSearchField)
     private var addressSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Image(systemName: "mappin")
-                    .font(.system(size: 16))
-                    .foregroundColor(.portalPrimary)
-                TextField("Address or venue name", text: $manualAddress)
-                    .font(.portalBody)
-                    .foregroundColor(.portalForeground)
-                    .textContentType(.none)
-                    .autocorrectionDisabled()
-                    .focused($focusedField, equals: .address)
-                    .onSubmit { Task { await geocodeAddress() } }
-                    .onChange(of: manualAddress) { _, newValue in
-                        addressSearchTask?.cancel()
-                        if suppressAddressSearch { suppressAddressSearch = false; return }
-                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard trimmed.count >= 2 else {
-                            addressSuggestions = []
-                            showAddressSuggestions = false
-                            return
-                        }
-                        addressSearchTask = Task {
-                            try? await Task.sleep(nanoseconds: 550_000_000)
-                            guard !Task.isCancelled else { return }
-                            await MainActor.run {
-                                let current = manualAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-                                guard current == trimmed else { return }
-                                searchAddresses()
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                showLocationSearch = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "mappin")
+                        .font(.system(size: 16))
+                        .foregroundColor(.portalPrimary)
+                    if manualAddress.isEmpty {
+                        Text("Search address or venue")
+                            .font(.portalBody)
+                            .foregroundColor(.portalMutedForeground)
+                    } else {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(manualAddress)
+                                .font(.portalBody)
+                                .foregroundColor(.portalForeground)
+                                .lineLimit(2)
+                            if let spotId = selectedSpotId, !spotId.isEmpty {
+                                Label("Barrio Spot", systemImage: "mappin.circle.fill")
+                                    .font(.portalMetadata)
+                                    .foregroundColor(.portalPrimary)
                             }
                         }
                     }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(.portalMutedForeground)
+                }
+                .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
+            .buttonStyle(.plain)
             Rectangle()
                 .frame(height: 1)
-                .foregroundColor(focusedField == .address ? Color.portalPrimary : Color.portalBorder)
-            if showAddressSuggestions && !addressSuggestions.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(addressSuggestions.prefix(5).enumerated()), id: \.offset) { index, item in
-                        Button {
-                            selectAddressSuggestion(item)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: "mappin")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.portalMutedForeground)
-                                Text(item.name ?? formatAddressForDisplay(from: item))
-                                    .font(.portalMetadata)
-                                    .foregroundColor(.portalForeground)
-                                    .lineLimit(1)
-                            }
-                            .padding(.vertical, 8)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
+                .foregroundColor(Color.portalBorder)
             if !locationManager.isLocationDenied {
                 Button {
                     showLocationPicker = true
@@ -473,6 +451,54 @@ struct CreateEventView: View {
                 .background(Color.portalBackground)
             }
         }
+        .sheet(isPresented: $showLocationSearch) {
+            NavigationStack {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("LOCATION")
+                        .font(.portalSectionLabel)
+                        .tracking(0.5)
+                        .foregroundColor(.portalMutedForeground)
+                        .padding(.horizontal, .portalPagePadding)
+                        .padding(.top, 16)
+                        .padding(.bottom, 8)
+                    LocationSearchField(
+                        biasCenter: locationManager.coordinate,
+                        placeholder: "Search address or venue",
+                        onUseCurrentLocation: {
+                            Task {
+                                if let coord = locationManager.location?.coordinate {
+                                    selectedLocation = coord
+                                    if let addr = try? await locationManager.reverseGeocode(coord) {
+                                        manualAddress = addr
+                                    }
+                                    selectedNeighborhood = nil
+                                    selectedSpotId = nil
+                                }
+                                showLocationSearch = false
+                            }
+                        },
+                        onSelect: { resolved in
+                            manualAddress = resolved.formattedAddress
+                            selectedLocation = resolved.coordinate
+                            selectedNeighborhood = resolved.neighborhood
+                            selectedSpotId = resolved.spotId
+                            showLocationSearch = false
+                        }
+                    )
+                    .padding(.horizontal, .portalPagePadding)
+                    Spacer()
+                }
+                .background(Color.portalBackground.ignoresSafeArea())
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { showLocationSearch = false }
+                    }
+                }
+            }
+            .environmentObject(authManager)
+            .environmentObject(locationManager)
+        }
         .sheet(isPresented: $showLocationPicker) {
             LocationPickerView(
                 initialLocation: selectedLocation ?? locationManager.coordinate,
@@ -481,8 +507,8 @@ struct CreateEventView: View {
                     Task {
                         do {
                             let address = try await locationManager.reverseGeocode(location)
-                            suppressAddressSearch = true
                             manualAddress = address
+                            selectedSpotId = nil
                         } catch {
                             #if DEBUG
                             print("⚠️ CreateEventView: Failed to reverse geocode: \(error)")
@@ -634,7 +660,6 @@ struct CreateEventView: View {
             startDate = event.startTime
             endDate = event.endTime ?? event.startTime.addingTimeInterval(3 * 60 * 60)
             selectedLocation = event.coordinate
-            suppressAddressSearch = true
             manualAddress = event.address
             if let firstMedia = event.media.first, let url = URL(string: firstMedia.url) {
                 Task {
@@ -706,6 +731,9 @@ struct CreateEventView: View {
                 category: selectedCategory ?? .community,
                 address: address,
                 neighborhood: selectedNeighborhood,
+                latitude: selectedLocation?.latitude,
+                longitude: selectedLocation?.longitude,
+                spotId: selectedSpotId,
                 startTime: startDate,
                 endTime: endDate,
                 mediaURLs: mediaURLs,
@@ -782,84 +810,6 @@ struct CreateEventView: View {
         }
     }
 
-    // MARK: - Address helpers
-
-    private func searchAddresses() {
-        guard !manualAddress.isEmpty else {
-            addressSuggestions = []
-            showAddressSuggestions = false
-            return
-        }
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = manualAddress
-        request.resultTypes = [.address, .pointOfInterest]
-        if let location = selectedLocation ?? locationManager.location?.coordinate {
-            request.region = MKCoordinateRegion(
-                center: location,
-                span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
-            )
-        }
-        let search = MKLocalSearch(request: request)
-        search.start { response, error in
-            Task { @MainActor in
-                if error != nil {
-                    addressSuggestions = []
-                    showAddressSuggestions = false
-                    return
-                }
-                if let response = response {
-                    addressSuggestions = response.mapItems
-                    showAddressSuggestions = !response.mapItems.isEmpty
-                } else {
-                    addressSuggestions = []
-                    showAddressSuggestions = false
-                }
-            }
-        }
-    }
-
-    private func selectAddressSuggestion(_ item: MKMapItem) {
-        selectedLocation = item.placemark.location?.coordinate ?? CLLocationCoordinate2D()
-        suppressAddressSearch = true
-        manualAddress = formatAddressForDisplay(from: item)
-        selectedNeighborhood = item.placemark.subLocality ?? item.placemark.locality
-        addressSuggestions = []
-        showAddressSuggestions = false
-    }
-
-    private func formatAddressForDisplay(from item: MKMapItem) -> String {
-        let placemark = item.placemark
-        let venueName = item.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        var streetParts: [String] = []
-        if let streetNumber = placemark.subThoroughfare, let streetName = placemark.thoroughfare {
-            streetParts.append("\(streetNumber) \(streetName)")
-        } else if let streetName = placemark.thoroughfare {
-            streetParts.append(streetName)
-        }
-        let city = placemark.locality?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-        // POI / venue: prefer name + city (Google Maps–style).
-        if !venueName.isEmpty, streetParts.isEmpty || venueName.lowercased() != streetParts.joined().lowercased() {
-            if !city.isEmpty { return "\(venueName), \(city)" }
-            if !streetParts.isEmpty { return "\(venueName), \(streetParts[0])" }
-            return venueName
-        }
-        var components = streetParts
-        if !city.isEmpty { components.append(city) }
-        return components.isEmpty ? venueName : components.joined(separator: ", ")
-    }
-
-    private func geocodeAddress() async {
-        guard !manualAddress.isEmpty else { return }
-        errorMessage = nil
-        do {
-            let coordinate = try await locationManager.geocodeAddress(manualAddress)
-            selectedLocation = coordinate
-            showAddressSuggestions = false
-        } catch {
-            errorMessage = "Could not find location for address. Please try a more specific address."
-        }
-    }
 }
 
 // MARK: - Default date

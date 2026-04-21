@@ -15,6 +15,7 @@ import {
 import type { CreateSpotInput, UpdateSpotInput } from '../schemas/spots.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
 import { geocodeAddress } from '../services/geocoding.js';
+import { doesUserFollow } from '../services/collectionService.js';
 
 const router = Router();
 
@@ -414,6 +415,115 @@ router.post(
       });
     }
   )
+);
+
+/**
+ * GET /spots/:id/collections — collections containing this spot that the viewer can see
+ * Visibility: public, friends (viewer follows owner), or viewer's own.
+ */
+router.get(
+  '/:id/collections',
+  requireAuth,
+  validateRequest({ params: spotIdSchema }),
+  asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+    const authReq = req as unknown as AuthenticatedRequest;
+    const viewerId = authReq.user.userId;
+    const spotId = req.params.id;
+
+    const items = await prisma.collectionItem.findMany({
+      where: { itemType: 'spot', itemId: spotId },
+      include: {
+        collection: {
+          include: {
+            user: { select: { handle: true, initials: true } },
+            items: { select: { id: true } },
+          },
+        },
+      },
+    });
+
+    const visible = await Promise.all(
+      items.map(async (item) => {
+        const col = item.collection;
+        if (col.userId === viewerId) {
+          return col;
+        }
+        if (col.visibility === 'public') {
+          return col;
+        }
+        if (col.visibility === 'friends') {
+          const follows = await doesUserFollow(viewerId, col.userId);
+          if (follows) {
+            return col;
+          }
+        }
+        return null;
+      })
+    );
+
+    const collections = visible.filter(Boolean).map((col) => ({
+      id: col!.id,
+      name: col!.name,
+      description: col!.description,
+      visibility: col!.visibility,
+      coverImageURL: col!.coverImageUrl ?? null,
+      itemCount: col!.items.length,
+      ownerHandle: col!.user.handle ?? null,
+      ownerInitials: col!.user.initials ?? null,
+      owned: col!.userId === viewerId,
+      saveCount: 0,
+      createdAt: col!.createdAt.toISOString(),
+      updatedAt: col!.updatedAt.toISOString(),
+    }));
+
+    res.json({ data: collections });
+  })
+);
+
+/**
+ * GET /spots/:id/savers — all users who have saved this spot
+ */
+router.get(
+  '/:id/savers',
+  requireAuth,
+  validateRequest({ params: spotIdSchema }),
+  asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+    const authReq = req as unknown as AuthenticatedRequest;
+    const viewerId = authReq.user.userId;
+    const spotId = req.params.id;
+
+    const saves = await prisma.save.findMany({
+      where: { itemType: 'spot', itemId: spotId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+            initials: true,
+            profilePictureUrl: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const savers = await Promise.all(
+      saves.map(async (save) => {
+        const isFollowing = await doesUserFollow(viewerId, save.user.id);
+        return {
+          id: save.user.id,
+          name: save.user.name ?? save.user.handle ?? 'User',
+          handle: save.user.handle ?? null,
+          initials: save.user.initials ?? null,
+          profilePictureUrl: save.user.profilePictureUrl ?? null,
+          isFollowing,
+        };
+      })
+    );
+
+    res.json({ data: savers, total: savers.length });
+  })
 );
 
 export default router;
