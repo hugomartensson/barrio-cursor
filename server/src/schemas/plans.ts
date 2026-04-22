@@ -11,7 +11,7 @@ export const createPlanSchema = z.object({
       z.object({
         itemType: itemTypeSchema,
         itemId: z.string().uuid(),
-        dayOffset: z.number().int().min(0).default(0),
+        dayOffset: z.number().int().min(-1).default(-1),
       })
     )
     .optional(),
@@ -39,7 +39,8 @@ export const addPlanItemsSchema = z.object({
       z.object({
         itemType: itemTypeSchema,
         itemId: z.string().uuid(),
-        dayOffset: z.number().int().min(0).default(0),
+        // -1 is sentinel for "To be scheduled"
+        dayOffset: z.number().int().min(-1).default(-1),
       })
     )
     .min(1),
@@ -51,10 +52,16 @@ export const planItemIdSchema = z.object({
 });
 
 export const updatePlanItemSchema = z.object({
-  dayOffset: z.number().int().min(0),
+  // -1 is sentinel for "To be scheduled"
+  dayOffset: z.number().int().min(-1),
+});
+
+export const inviteMembersSchema = z.object({
+  userIds: z.array(z.string()).min(1),
 });
 
 export type CreatePlanInput = z.infer<typeof createPlanSchema>;
 export type UpdatePlanInput = z.infer<typeof updatePlanSchema>;
 export type AddPlanItemsInput = z.infer<typeof addPlanItemsSchema>;
 export type UpdatePlanItemInput = z.infer<typeof updatePlanItemSchema>;
+export type InviteMembersInput = z.infer<typeof inviteMembersSchema>;

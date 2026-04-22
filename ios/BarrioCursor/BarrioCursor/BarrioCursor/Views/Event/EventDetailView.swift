@@ -15,6 +15,7 @@ struct EventDetailView: View {
     @State private var showSaveToPlan = false
     @State private var addedInfo: AddedToCollectionInfo? = nil
     @State private var collectionToShow: AddedToCollectionInfo? = nil
+    @State private var addedToPlanInfo: AddedToPlanInfo? = nil
     @State private var showEventMap = false
     @State private var errorMessage: String? = nil
     @State private var cachedPlayers: [String: AVPlayer] = [:]
@@ -55,20 +56,32 @@ struct EventDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let info = addedInfo {
-                AddedToCollectionBanner(
-                    info: info,
-                    onDismiss: { addedInfo = nil },
-                    onGoToCollection: {
-                        collectionToShow = info
-                        addedInfo = nil
-                    }
-                )
-                .environmentObject(authManager)
-                .transition(.move(edge: .top).combined(with: .opacity))
+            VStack(spacing: 0) {
+                if let info = addedInfo {
+                    AddedToCollectionBanner(
+                        info: info,
+                        onDismiss: { addedInfo = nil },
+                        onGoToCollection: {
+                            collectionToShow = info
+                            addedInfo = nil
+                        }
+                    )
+                    .environmentObject(authManager)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                if let planInfo = addedToPlanInfo {
+                    AddedToPlanBanner(
+                        info: planInfo,
+                        onDismiss: { addedToPlanInfo = nil },
+                        onViewPlan: { addedToPlanInfo = nil }
+                    )
+                    .environmentObject(authManager)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: addedInfo)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: addedToPlanInfo)
         .fullScreenCover(item: $collectionToShow) { info in
             NavigationStack {
                 CollectionDetailView(collectionId: info.collectionId, name: info.collectionName)
@@ -89,7 +102,12 @@ struct EventDetailView: View {
                 itemId: event.id,
                 itemTitle: event.title,
                 itemCategory: event.category.displayName,
-                itemImageURL: event.media.first?.thumbnailUrl ?? event.media.first?.url
+                itemImageURL: event.media.first?.thumbnailUrl ?? event.media.first?.url,
+                eventStartTime: event.startTime,
+                eventEndTime: event.endTime,
+                onSaved: { info in
+                    addedToPlanInfo = info
+                }
             )
             .environmentObject(authManager)
         }

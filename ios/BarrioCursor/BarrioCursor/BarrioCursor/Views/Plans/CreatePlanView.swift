@@ -194,7 +194,7 @@ struct CreatePlanView: View {
             } else {
                 LazyVStack(spacing: 8) {
                     ForEach(savedSpots, id: \.id) { entry in
-                        let body = PlanItemBody(itemType: "spot", itemId: entry.id, dayOffset: 0)
+                        let body = PlanItemBody(itemType: "spot", itemId: entry.id, dayOffset: -1)
                         let isSelected = selectedItemBodies.contains(where: { $0.itemId == entry.id })
                         PlanItemSmallRow(
                             imageURL: entry.imageUrl,
@@ -223,7 +223,7 @@ struct CreatePlanView: View {
             } else {
                 LazyVStack(spacing: 8) {
                     ForEach(savedEvents, id: \.event.id) { entry in
-                        let body = PlanItemBody(itemType: "event", itemId: entry.event.id, dayOffset: 0)
+                        let body = PlanItemBody(itemType: "event", itemId: entry.event.id, dayOffset: -1)
                         let isSelected = selectedItemBodies.contains(where: { $0.itemId == entry.event.id })
                         PlanItemSmallRow(
                             imageURL: entry.event.media.first?.thumbnailUrl ?? entry.event.media.first?.url,

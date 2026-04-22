@@ -2,6 +2,17 @@ import Foundation
 
 // MARK: - Plan domain models
 
+nonisolated struct PlanMember: Codable, Identifiable, Hashable {
+    let id: String
+    let userId: String
+    let name: String
+    let profilePictureUrl: String?
+    let status: String  // "invited" | "accepted" | "declined"
+
+    static func == (lhs: PlanMember, rhs: PlanMember) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
 nonisolated struct PlanData: Codable, Identifiable, Hashable {
     let id: String
     let userId: String
@@ -12,9 +23,16 @@ nonisolated struct PlanData: Codable, Identifiable, Hashable {
     let previewImageURLs: [String]
     let createdAt: String
     let updatedAt: String
+    let role: String?           // "owner" | "member"
+    let members: [PlanMember]?
+    let memberStatus: String?   // "invited" | "accepted" | "declined" (only when role == "member")
+    let itemIds: [String]?      // IDs of all items in the plan (for duplicate detection)
 
     static func == (lhs: PlanData, rhs: PlanData) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+
+    var isOwner: Bool { role == "owner" || role == nil }
+    var isPendingInvitation: Bool { memberStatus == "invited" }
 
     /// Number of days in the plan (inclusive)
     var numberOfDays: Int {
@@ -39,7 +57,29 @@ nonisolated struct PlanData: Codable, Identifiable, Hashable {
         return Calendar.current.date(byAdding: .day, value: dayOffset, to: s)
     }
 
-    private static let planDateFormatter: DateFormatter = {
+    /// Returns valid dayOffsets for an event given its start and optional end time.
+    func validDayOffsets(forEventStartTime startTime: Date, endTime: Date?) -> [Int] {
+        guard let planStart = Self.planDateFormatter.date(from: startDate),
+              let planEnd = Self.planDateFormatter.date(from: endDate) else { return [] }
+
+        var valid: [Int] = []
+        let cal = Calendar.current
+        let eventStartDay = cal.startOfDay(for: startTime)
+        let eventEndDay = cal.startOfDay(for: endTime ?? startTime)
+
+        for offset in 0..<numberOfDays {
+            guard let day = self.date(for: offset) else { continue }
+            let dayStart = cal.startOfDay(for: day)
+            // Day overlaps if eventStart <= dayStart <= eventEnd
+            if eventStartDay <= dayStart && dayStart <= eventEndDay {
+                valid.append(offset)
+            }
+        }
+        _ = planStart; _ = planEnd
+        return valid
+    }
+
+    static let planDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         f.timeZone = TimeZone(identifier: "UTC")
@@ -57,16 +97,33 @@ nonisolated struct PlanDetailData: Codable, Identifiable {
     let previewImageURLs: [String]
     let createdAt: String
     let updatedAt: String
+    let role: String?
+    let members: [PlanMember]?
+    let memberStatus: String?
+    let itemIds: [String]?
     let items: [PlanItemEntry]
+
+    var isOwner: Bool { role == "owner" || role == nil }
 
     var numberOfDays: Int {
         PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
-                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt, updatedAt: updatedAt).numberOfDays
+                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
+                 updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
+                 itemIds: itemIds).numberOfDays
     }
 
     func date(for dayOffset: Int) -> Date? {
         PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
-                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt, updatedAt: updatedAt).date(for: dayOffset)
+                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
+                 updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
+                 itemIds: itemIds).date(for: dayOffset)
+    }
+
+    func validDayOffsets(forEventStartTime startTime: Date, endTime: Date?) -> [Int] {
+        PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
+                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
+                 updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
+                 itemIds: itemIds).validDayOffsets(forEventStartTime: startTime, endTime: endTime)
     }
 
     func items(for dayOffset: Int) -> [PlanItemEntry] {
@@ -75,18 +132,24 @@ nonisolated struct PlanDetailData: Codable, Identifiable {
 
     var dateRangeLabel: String {
         PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
-                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt, updatedAt: updatedAt).dateRangeLabel
+                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
+                 updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
+                 itemIds: itemIds).dateRangeLabel
     }
 }
 
 nonisolated struct PlanItemEntry: Codable, Identifiable {
     let id: String
     let itemType: String   // "spot" | "event"
-    let dayOffset: Int
+    let dayOffset: Int     // -1 = "To be scheduled"
     let order: Int
     let addedAt: String
     let spot: PlanItemSpot?
     let event: Event?
+
+    var itemId: String {
+        spot?.id ?? event?.id ?? ""
+    }
 }
 
 nonisolated struct PlanItemSpot: Codable, Identifiable {
@@ -114,6 +177,12 @@ nonisolated struct CreatePlanBody: Encodable {
     let initialItems: [PlanItemBody]?
 }
 
+nonisolated struct UpdatePlanBody: Encodable {
+    let name: String?
+    let startDate: String?
+    let endDate: String?
+}
+
 nonisolated struct AddPlanItemsBody: Encodable {
     let items: [PlanItemBody]
 }
@@ -121,7 +190,11 @@ nonisolated struct AddPlanItemsBody: Encodable {
 nonisolated struct PlanItemBody: Encodable {
     let itemType: String
     let itemId: String
-    let dayOffset: Int
+    let dayOffset: Int  // -1 = "To be scheduled"
+}
+
+nonisolated struct InviteMembersBody: Encodable {
+    let userIds: [String]
 }
 
 // MARK: - Response wrappers
@@ -136,6 +209,18 @@ nonisolated struct PlanDetailResponse: Codable {
 
 nonisolated struct PlanItemsResponse: Codable {
     let data: [PlanItemEntry]
+}
+
+nonisolated struct PlanMembersResponse: Codable {
+    let data: [PlanMember]
+}
+
+nonisolated struct InvitationCountResponse: Codable {
+    let data: InvitationCount
+}
+
+nonisolated struct InvitationCount: Codable {
+    let count: Int
 }
 
 // MARK: - PlanService
@@ -158,6 +243,13 @@ actor PlanService {
         let body = CreatePlanBody(name: name, startDate: startDate, endDate: endDate,
                                   initialItems: initialItems)
         let response: PlanDetailResponse = try await APIService.shared.post("/plans", body: body, token: token)
+        return response.data
+    }
+
+    func updatePlan(id: String, name: String?, startDate: String?, endDate: String?, token: String) async throws -> PlanData {
+        let body = UpdatePlanBody(name: name, startDate: startDate, endDate: endDate)
+        struct Wrapper: Codable { let data: PlanData }
+        let response: Wrapper = try await APIService.shared.patch("/plans/\(id)", body: body, token: token)
         return response.data
     }
 
@@ -184,5 +276,50 @@ actor PlanService {
         struct ItemWrapper: Codable { let data: PlanItemEntry }
         let body = Body(dayOffset: dayOffset)
         let _: ItemWrapper = try await APIService.shared.patch("/plans/\(planId)/items/\(itemId)", body: body, token: token)
+    }
+
+    // MARK: - Collaborative plan methods
+
+    func getMembers(planId: String, token: String) async throws -> [PlanMember] {
+        let response: PlanMembersResponse = try await APIService.shared.get("/plans/\(planId)/members", token: token)
+        return response.data
+    }
+
+    func inviteMembers(planId: String, userIds: [String], token: String) async throws {
+        let body = InviteMembersBody(userIds: userIds)
+        struct Wrapper: Codable { let data: InviteResult }
+        struct InviteResult: Codable { let invited: Int }
+        let _: Wrapper = try await APIService.shared.post("/plans/\(planId)/members", body: body, token: token)
+    }
+
+    func acceptInvitation(planId: String, token: String) async throws {
+        struct EmptyBody: Encodable {}
+        struct Wrapper: Codable { let data: StatusResult }
+        struct StatusResult: Codable { let status: String }
+        let _: Wrapper = try await APIService.shared.post("/plans/\(planId)/members/accept", body: EmptyBody(), token: token)
+    }
+
+    func declineInvitation(planId: String, token: String) async throws {
+        struct EmptyBody: Encodable {}
+        struct Wrapper: Codable { let data: StatusResult }
+        struct StatusResult: Codable { let status: String }
+        let _: Wrapper = try await APIService.shared.post("/plans/\(planId)/members/decline", body: EmptyBody(), token: token)
+    }
+
+    func leavePlan(planId: String, token: String) async throws {
+        struct Empty: Codable {}
+        struct Wrapper: Codable { let data: Empty }
+        let _: Wrapper = try await APIService.shared.delete("/plans/\(planId)/members/me", token: token)
+    }
+
+    func getInvitationCount(token: String) async throws -> Int {
+        let response: InvitationCountResponse = try await APIService.shared.get("/plans/invitations/count", token: token)
+        return response.data.count
+    }
+
+    func getMutualFollowers(token: String) async throws -> [FollowerUser] {
+        struct Wrapper: Codable { let data: [FollowerUser] }
+        let response: Wrapper = try await APIService.shared.get("/users/me/mutual-followers", token: token)
+        return response.data
     }
 }

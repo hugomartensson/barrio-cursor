@@ -232,6 +232,7 @@ struct SpotDetailView: View {
     @State private var showSaveToPlan = false
     @State private var addedInfo: AddedToCollectionInfo? = nil
     @State private var collectionToShow: AddedToCollectionInfo? = nil
+    @State private var addedToPlanInfo: AddedToPlanInfo? = nil
     @State private var showSpotMap = false
     /// Optimistic UI after toggle when using built-in API save
     @State private var resolvedSaved: Bool?
@@ -253,20 +254,32 @@ struct SpotDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let info = addedInfo {
-                AddedToCollectionBanner(
-                    info: info,
-                    onDismiss: { addedInfo = nil },
-                    onGoToCollection: {
-                        collectionToShow = info
-                        addedInfo = nil
-                    }
-                )
-                .environmentObject(authManager)
-                .transition(.move(edge: .top).combined(with: .opacity))
+            VStack(spacing: 0) {
+                if let info = addedInfo {
+                    AddedToCollectionBanner(
+                        info: info,
+                        onDismiss: { addedInfo = nil },
+                        onGoToCollection: {
+                            collectionToShow = info
+                            addedInfo = nil
+                        }
+                    )
+                    .environmentObject(authManager)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                if let planInfo = addedToPlanInfo {
+                    AddedToPlanBanner(
+                        info: planInfo,
+                        onDismiss: { addedToPlanInfo = nil },
+                        onViewPlan: { addedToPlanInfo = nil }
+                    )
+                    .environmentObject(authManager)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
         }
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: addedInfo)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: addedToPlanInfo)
         .fullScreenCover(item: $collectionToShow) { info in
             NavigationStack {
                 CollectionDetailView(collectionId: info.collectionId, name: info.collectionName)
@@ -296,7 +309,10 @@ struct SpotDetailView: View {
                 itemId: spot.id,
                 itemTitle: spot.name,
                 itemCategory: spot.categoryLabel ?? "",
-                itemImageURL: spot.imageURL
+                itemImageURL: spot.imageURL,
+                onSaved: { info in
+                    addedToPlanInfo = info
+                }
             )
             .environmentObject(authManager)
         }

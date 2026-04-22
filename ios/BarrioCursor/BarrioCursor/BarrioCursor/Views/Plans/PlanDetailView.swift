@@ -36,6 +36,8 @@ struct PlanItemDragPayload: Codable, Transferable {
     }
 }
 
+// MARK: - PlanDetailView
+
 struct PlanDetailView: View {
     let plan: PlanData
     @EnvironmentObject var authManager: AuthManager
@@ -48,6 +50,18 @@ struct PlanDetailView: View {
     @State private var selectedSpotId: String?
     @State private var dropTargetDay: Int? = nil
     @State private var showPlanMap = false
+    @State private var showEditPlan = false
+    @State private var showDeleteConfirm = false
+    @State private var showLeavePlanConfirm = false
+    @State private var showInviteFriends = false
+    @State private var errorToast: String? = nil
+    @State private var undoToast: RemovedItemInfo? = nil
+    @State private var currentPlan: PlanData
+
+    init(plan: PlanData) {
+        self.plan = plan
+        _currentPlan = State(initialValue: plan)
+    }
 
     private var planSpots: [PortalSpotItem] {
         localItems.compactMap { item -> PortalSpotItem? in
@@ -63,36 +77,78 @@ struct PlanDetailView: View {
         }
     }
 
+    private var unscheduledItems: [PlanItemEntry] {
+        localItems.filter { $0.dayOffset == -1 }
+    }
+
     private static let dayHeaderFmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "EEEE, MMM d"
         return f
     }()
 
+    private static let shortDayFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE, MMM d"
+        return f
+    }()
+
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 60)
-                } else if let det = detail {
-                    planContent(det)
-                } else if let err = errorMessage {
-                    Text(err)
-                        .font(.portalMetadata)
-                        .foregroundColor(.portalDestructive)
-                        .padding(.portalPagePadding)
+        ZStack(alignment: .bottom) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    if isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 60)
+                    } else if let det = detail {
+                        planContent(det)
+                    } else if let err = errorMessage {
+                        Text(err)
+                            .font(.portalMetadata)
+                            .foregroundColor(.portalDestructive)
+                            .padding(.portalPagePadding)
+                    }
                 }
+                .padding(.bottom, 80)
             }
-            .padding(.bottom, 80)
+            .background(Color.portalBackground)
+
+            // Error toast
+            if let msg = errorToast {
+                errorPill(msg)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 16)
+            }
+
+            // Undo toast
+            if let removedInfo = undoToast {
+                undoPill(removedInfo)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 16)
+            }
         }
-        .background(Color.portalBackground)
-        .navigationTitle(plan.name)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: errorToast)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: undoToast?.id)
+        .navigationTitle(currentPlan.name)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar { toolbarContent }
         .task { await loadDetail() }
+        .sheet(isPresented: $showEditPlan) {
+            EditPlanSheet(plan: currentPlan) { updated in
+                currentPlan = updated
+                Task { await loadDetail() }
+            }
+            .environmentObject(authManager)
+        }
         .sheet(item: $addFromSavesWrapper, onDismiss: { Task { await loadDetail() } }) { wrapper in
-            AddFromSavesSheet(planId: plan.id, dayOffset: wrapper.offset) { items in
+            AddFromSavesSheet(
+                planId: currentPlan.id,
+                dayOffset: wrapper.offset,
+                planStartDate: currentPlan.startDate,
+                planEndDate: currentPlan.endDate,
+                existingItemIds: Set(localItems.map { $0.itemId })
+            ) { items in
                 Task {
                     await addItems(items, dayOffset: wrapper.offset)
                     await MainActor.run { addFromSavesWrapper = nil }
@@ -111,17 +167,68 @@ struct PlanDetailView: View {
                     .presentationDragIndicator(.visible)
             }
         }
+        .sheet(isPresented: $showInviteFriends) {
+            InviteFriendsSheet(
+                planId: currentPlan.id,
+                existingMemberIds: Set((currentPlan.members ?? []).map { $0.userId })
+            ) {
+                Task { await loadDetail() }
+            }
+            .environmentObject(authManager)
+        }
         .navigationDestination(for: Event.self) { event in
             EventDetailView(event: event)
                 .environmentObject(authManager)
         }
         .fullScreenCover(isPresented: $showPlanMap) {
             FocusedMapView(
-                title: plan.name,
+                title: currentPlan.name,
                 spots: planSpots,
                 events: planEvents
             )
             .environmentObject(authManager)
+        }
+        .confirmationDialog(
+            "Delete this plan? This can't be undone.",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Plan", role: .destructive) { Task { await deletePlan() } }
+            Button("Cancel", role: .cancel) { }
+        }
+        .confirmationDialog(
+            "Leave this plan? You'll lose access unless re-invited.",
+            isPresented: $showLeavePlanConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Leave Plan", role: .destructive) { Task { await leavePlan() } }
+            Button("Cancel", role: .cancel) { }
+        }
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                if currentPlan.isOwner {
+                    Button { showEditPlan = true } label: {
+                        Label("Edit Plan", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Label("Delete Plan", systemImage: "trash")
+                    }
+                } else {
+                    Button(role: .destructive) { showLeavePlanConfirm = true } label: {
+                        Label("Leave Plan", systemImage: "rectangle.portrait.and.arrow.right")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.portalForeground)
+            }
         }
     }
 
@@ -142,7 +249,7 @@ struct PlanDetailView: View {
             .padding(.top, 8)
             .padding(.bottom, 16)
 
-            // Mini map — tappable, expands to full FocusedMapView
+            // Mini map
             if !planSpots.isEmpty || !planEvents.isEmpty {
                 PlanMiniMap(spots: planSpots, events: planEvents)
                     .padding(.horizontal, .portalPagePadding)
@@ -150,11 +257,191 @@ struct PlanDetailView: View {
                     .onTapGesture { showPlanMap = true }
             }
 
+            // Friends in Plan
+            friendsSection
+
+            // To be scheduled
+            if !unscheduledItems.isEmpty {
+                toBeScheduledSection(det: det)
+            }
+
+            // Day sections
             ForEach(0..<det.numberOfDays, id: \.self) { offset in
                 daySectionView(det: det, dayOffset: offset)
             }
         }
     }
+
+    // MARK: - Friends in Plan
+
+    @ViewBuilder
+    private var friendsSection: some View {
+        let members = (currentPlan.members ?? []).filter { $0.status == "accepted" }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("FRIENDS IN PLAN")
+                .font(.portalSectionTitle)
+                .tracking(1.0)
+                .foregroundColor(.portalMutedForeground)
+                .padding(.horizontal, .portalPagePadding)
+
+            HStack(spacing: 12) {
+                // Overlapping avatars
+                if members.isEmpty {
+                    Text("No friends invited yet")
+                        .font(.portalMetadata)
+                        .foregroundColor(.portalMutedForeground)
+                } else {
+                    let shown = Array(members.prefix(3))
+                    let extra = members.count - 3
+                    HStack(spacing: -8) {
+                        ForEach(shown) { member in
+                            memberAvatarSmall(member)
+                        }
+                        if extra > 0 {
+                            ZStack {
+                                Circle().fill(Color.portalMuted).frame(width: 32, height: 32)
+                                    .overlay(Circle().stroke(Color.portalBackground, lineWidth: 2))
+                                Text("+\(extra)")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.portalMutedForeground)
+                            }
+                        }
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    showInviteFriends = true
+                } label: {
+                    Text("Invite")
+                        .font(.portalLabelSemibold)
+                        .foregroundColor(.portalPrimary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 7)
+                        .background(Color.portalPrimary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, .portalPagePadding)
+        }
+        .padding(.bottom, 20)
+    }
+
+    @ViewBuilder
+    private func memberAvatarSmall(_ member: PlanMember) -> some View {
+        Group {
+            if let u = member.profilePictureUrl, let url = URL(string: u) {
+                AsyncImage(url: url) { phase in
+                    if case .success(let img) = phase { img.resizable().aspectRatio(contentMode: .fill) }
+                    else { initialsCircleSmall(member.name) }
+                }
+            } else {
+                initialsCircleSmall(member.name)
+            }
+        }
+        .frame(width: 32, height: 32)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Color.portalBackground, lineWidth: 2))
+    }
+
+    private func initialsCircleSmall(_ name: String) -> some View {
+        ZStack {
+            Circle().fill(Color.portalMuted)
+            Text(String(name.prefix(1)).uppercased())
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.portalMutedForeground)
+        }
+    }
+
+    // MARK: - To Be Scheduled
+
+    @ViewBuilder
+    private func toBeScheduledSection(det: PlanDetailData) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("TO BE SCHEDULED")
+                .font(.portalSectionTitle)
+                .tracking(1.0)
+                .foregroundColor(.portalMutedForeground)
+                .padding(.horizontal, .portalPagePadding)
+
+            ForEach(unscheduledItems) { item in
+                unscheduledItemRow(item: item, det: det)
+                    .padding(.horizontal, .portalPagePadding)
+            }
+        }
+        .padding(.bottom, 28)
+        .dropDestination(for: PlanItemDragPayload.self) { payloads, _ in
+            guard let payload = payloads.first else { return false }
+            Task { await moveItem(itemId: payload.itemId, to: -1) }
+            return true
+        } isTargeted: { targeted in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                dropTargetDay = targeted ? -1 : nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func unscheduledItemRow(item: PlanItemEntry, det: PlanDetailData) -> some View {
+        HStack(spacing: 8) {
+            // Item info
+            Group {
+                if item.itemType == "spot", let spot = item.spot {
+                    PlanItemSmallRow(
+                        imageURL: spot.imageUrl,
+                        title: spot.name,
+                        subtitle: spot.neighborhood ?? spot.address,
+                        category: EventCategory(rawValue: spot.category)?.displayName ?? spot.category.capitalized,
+                        categoryColor: .portalPrimary,
+                        mode: .plain(onTap: { selectedSpotId = spot.id })
+                    )
+                } else if item.itemType == "event", let event = item.event {
+                    PlanItemSmallRow(
+                        imageURL: event.media.first?.thumbnailUrl ?? event.media.first?.url,
+                        title: event.title,
+                        subtitle: event.startTime.formatted(.dateTime.month(.abbreviated).day()),
+                        category: event.category.displayName,
+                        categoryColor: Color(hex: event.category.color),
+                        mode: .plain(onTap: nil)
+                    )
+                }
+            }
+
+            // Plan button (day picker)
+            Menu {
+                ForEach(0..<det.numberOfDays, id: \.self) { offset in
+                    if let date = det.date(for: offset) {
+                        Button(Self.shortDayFmt.string(from: date)) {
+                            Task { await moveItem(itemId: item.id, to: offset) }
+                        }
+                    }
+                }
+            } label: {
+                Text("Plan")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.portalPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.portalPrimary.opacity(0.1))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+
+            // Delete button
+            Button {
+                Task { await removeItem(item) }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(.portalDestructive)
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Day Sections
 
     @ViewBuilder
     private func daySectionView(det: PlanDetailData, dayOffset: Int) -> some View {
@@ -188,7 +475,9 @@ struct PlanDetailView: View {
                     planItemRow(item: item)
                         .padding(.horizontal, .portalPagePadding)
                         .padding(.vertical, 4)
-                        .draggable(PlanItemDragPayload(itemId: item.id))
+                        .draggable(PlanItemDragPayload(itemId: item.id)) {
+                            planItemDragPreview(item: item)
+                        }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
                                 Task { await removeItem(item) }
@@ -260,13 +549,51 @@ struct PlanDetailView: View {
         }
     }
 
+    // Drag preview at actual size
+    @ViewBuilder
+    private func planItemDragPreview(item: PlanItemEntry) -> some View {
+        planItemRow(item: item)
+            .frame(width: UIScreen.main.bounds.width - 2 * CGFloat.portalPagePadding)
+            .background(Color.portalCard)
+            .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
+    }
+
+    // MARK: - Toast overlays
+
+    private func errorPill(_ message: String) -> some View {
+        Text(message)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.black.opacity(0.8))
+            .clipShape(Capsule())
+    }
+
+    private func undoPill(_ info: RemovedItemInfo) -> some View {
+        HStack(spacing: 12) {
+            Text("Item removed")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.white)
+            Button("Undo") {
+                Task { await undoRemove(info) }
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.portalPrimary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color.black.opacity(0.85))
+        .clipShape(Capsule())
+    }
+
     // MARK: - Data
 
     private func loadDetail() async {
         guard let token = authManager.token else { return }
         await MainActor.run { isLoading = true }
         do {
-            let result = try await PlanService.shared.getPlan(id: plan.id, token: token)
+            let result = try await PlanService.shared.getPlan(id: currentPlan.id, token: token)
             await MainActor.run {
                 detail = result
                 localItems = result.items
@@ -282,13 +609,33 @@ struct PlanDetailView: View {
 
     private func removeItem(_ item: PlanItemEntry) async {
         guard let token = authManager.token else { return }
-        // Optimistic remove
+        let snapshot = item
         await MainActor.run { localItems.removeAll { $0.id == item.id } }
         do {
-            try await PlanService.shared.removeItem(planId: plan.id, itemId: item.id, token: token)
-            await loadDetail()
+            try await PlanService.shared.removeItem(planId: currentPlan.id, itemId: item.id, token: token)
+            await MainActor.run {
+                undoToast = RemovedItemInfo(entry: snapshot)
+            }
+            // Auto-dismiss undo toast
+            Task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                await MainActor.run {
+                    if undoToast?.entry.id == snapshot.id { undoToast = nil }
+                }
+            }
         } catch {
-            // Revert on failure
+            await loadDetail()
+        }
+    }
+
+    private func undoRemove(_ info: RemovedItemInfo) async {
+        guard let token = authManager.token else { return }
+        await MainActor.run { undoToast = nil }
+        let body = PlanItemBody(itemType: info.entry.itemType, itemId: info.entry.itemId, dayOffset: info.entry.dayOffset)
+        do {
+            let newItems = try await PlanService.shared.addItems(planId: currentPlan.id, items: [body], token: token)
+            await MainActor.run { localItems.append(contentsOf: newItems) }
+        } catch {
             await loadDetail()
         }
     }
@@ -296,13 +643,36 @@ struct PlanDetailView: View {
     private func addItems(_ bodies: [PlanItemBody], dayOffset: Int) async {
         guard let token = authManager.token else { return }
         do {
-            _ = try await PlanService.shared.addItems(planId: plan.id, items: bodies, token: token)
-            await loadDetail()
+            let newItems = try await PlanService.shared.addItems(planId: currentPlan.id, items: bodies, token: token)
+            await MainActor.run { localItems.append(contentsOf: newItems) }
         } catch { }
     }
 
     private func moveItem(itemId: String, to newDayOffset: Int) async {
         guard let token = authManager.token else { return }
+
+        // Event date validation (client-side guard before API call)
+        if newDayOffset >= 0,
+           let item = localItems.first(where: { $0.id == itemId }),
+           item.itemType == "event",
+           let event = item.event,
+           let det = detail {
+            let validOffsets = det.validDayOffsets(forEventStartTime: event.startTime, endTime: event.endTime)
+            if !validOffsets.isEmpty && !validOffsets.contains(newDayOffset) {
+                let dateFmt = DateFormatter()
+                dateFmt.dateFormat = "MMM d"
+                let startStr = dateFmt.string(from: event.startTime)
+                let msg: String
+                if let endTime = event.endTime, !Calendar.current.isDate(event.startTime, inSameDayAs: endTime) {
+                    msg = "This event is on \(startStr)–\(dateFmt.string(from: endTime)) only"
+                } else {
+                    msg = "This event is on \(startStr) only"
+                }
+                await showErrorToast(msg)
+                return
+            }
+        }
+
         // Optimistic update
         await MainActor.run {
             if let idx = localItems.firstIndex(where: { $0.id == itemId }) {
@@ -319,11 +689,32 @@ struct PlanDetailView: View {
             }
         }
         do {
-            try await PlanService.shared.updateItemDay(planId: plan.id, itemId: itemId, dayOffset: newDayOffset, token: token)
-            await loadDetail()
+            try await PlanService.shared.updateItemDay(planId: currentPlan.id, itemId: itemId, dayOffset: newDayOffset, token: token)
         } catch {
             await loadDetail()
         }
+    }
+
+    private func showErrorToast(_ message: String) async {
+        await MainActor.run { errorToast = message }
+        Task {
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            await MainActor.run { if errorToast == message { errorToast = nil } }
+        }
+    }
+
+    private func deletePlan() async {
+        guard let token = authManager.token else { return }
+        do {
+            try await PlanService.shared.deletePlan(id: currentPlan.id, token: token)
+        } catch { }
+    }
+
+    private func leavePlan() async {
+        guard let token = authManager.token else { return }
+        do {
+            try await PlanService.shared.leavePlan(planId: currentPlan.id, token: token)
+        } catch { }
     }
 }
 
@@ -399,9 +790,14 @@ private struct PlanMiniMap: View {
     }
 }
 
-// MARK: - Sheet item wrapper
+// MARK: - Helper types
 
 private struct DayOffsetWrapper: Identifiable {
     let offset: Int
     var id: Int { offset }
+}
+
+private struct RemovedItemInfo: Identifiable {
+    let entry: PlanItemEntry
+    var id: String { entry.id }
 }

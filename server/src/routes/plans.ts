@@ -11,12 +11,14 @@ import {
   addPlanItemsSchema,
   planItemIdSchema,
   updatePlanItemSchema,
+  inviteMembersSchema,
 } from '../schemas/plans.js';
 import type {
   CreatePlanInput,
   UpdatePlanInput,
   AddPlanItemsInput,
   UpdatePlanItemInput,
+  InviteMembersInput,
 } from '../schemas/plans.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
 import { formatEvent } from '../utils/eventFormatters.js';
@@ -54,6 +56,14 @@ export interface PlanItemEntry {
   event?: EventData;
 }
 
+export interface PlanMemberPayload {
+  id: string;
+  userId: string;
+  name: string;
+  profilePictureUrl: string | null;
+  status: string;
+}
+
 export interface PlanData {
   id: string;
   userId: string;
@@ -64,6 +74,10 @@ export interface PlanData {
   previewImageURLs: string[];
   createdAt: string;
   updatedAt: string;
+  role: 'owner' | 'member';
+  members: PlanMemberPayload[];
+  memberStatus?: string;
+  itemIds: string[];
 }
 
 export interface PlanDetailData extends PlanData {
@@ -123,9 +137,28 @@ function formatPlan(
     createdAt: Date;
     updatedAt: Date;
     _count: { items: number };
+    members?: Array<{
+      id: string;
+      userId: string;
+      status: string;
+      user: { name: string; profilePictureUrl: string | null };
+    }>;
+    items?: Array<{ itemId: string }>;
   },
-  previewImageURLs: string[] = []
+  previewImageURLs: string[] = [],
+  currentUserId?: string,
+  memberStatus?: string
 ): PlanData {
+  const members: PlanMemberPayload[] = (plan.members ?? []).map((m) => ({
+    id: m.id,
+    userId: m.userId,
+    name: m.user.name,
+    profilePictureUrl: m.user.profilePictureUrl,
+    status: m.status,
+  }));
+
+  const itemIds: string[] = (plan.items ?? []).map((i) => i.itemId);
+
   return {
     id: plan.id,
     userId: plan.userId,
@@ -136,6 +169,10 @@ function formatPlan(
     previewImageURLs,
     createdAt: plan.createdAt.toISOString(),
     updatedAt: plan.updatedAt.toISOString(),
+    role: currentUserId && plan.userId !== currentUserId ? 'member' : 'owner',
+    members,
+    ...(memberStatus !== undefined && { memberStatus }),
+    itemIds,
   };
 }
 
@@ -234,12 +271,87 @@ async function hydrateItems(
   });
 }
 
+/** Check if current user is allowed to view/edit a plan (owner or accepted member). */
+async function assertPlanAccess(
+  planId: string,
+  userId: string,
+  ownerOnly = false
+): Promise<{ id: string; userId: string; startDate: Date; endDate: Date; name: string }> {
+  const plan = await prisma.plan.findUnique({ where: { id: planId } });
+  if (!plan) {
+    throw ApiError.notFound('Plan');
+  }
+
+  if (plan.userId === userId) {
+    return plan;
+  }
+  if (ownerOnly) {
+    throw ApiError.forbidden('Only the plan owner can perform this action');
+  }
+
+  const membership = await prisma.planMember.findUnique({
+    where: { planId_userId: { planId, userId } },
+  });
+  if (!membership || membership.status !== 'accepted') {
+    throw ApiError.forbidden('You do not have access to this plan');
+  }
+  return plan;
+}
+
+/** Compute valid dayOffsets for an event within a plan's date range. Returns null if event has no date constraint. */
+function validEventDayOffsets(
+  eventStartTime: Date,
+  eventEndTime: Date | null,
+  planStartDate: Date,
+  planEndDate: Date
+): number[] | null {
+  const eventStart = new Date(eventStartTime);
+  eventStart.setHours(0, 0, 0, 0);
+  const eventEnd = eventEndTime ? new Date(eventEndTime) : new Date(eventStartTime);
+  eventEnd.setHours(23, 59, 59, 999);
+
+  const planStart = new Date(planStartDate);
+  planStart.setHours(0, 0, 0, 0);
+  const planEnd = new Date(planEndDate);
+  planEnd.setHours(23, 59, 59, 999);
+
+  const validOffsets: number[] = [];
+  const msPerDay = 86400000;
+  const totalDays = Math.round((planEnd.getTime() - planStart.getTime()) / msPerDay) + 1;
+
+  for (let i = 0; i < totalDays; i++) {
+    const dayStart = new Date(planStart.getTime() + i * msPerDay);
+    const dayEnd = new Date(dayStart.getTime() + msPerDay - 1);
+    // Day overlaps with event if event starts before day ends and event ends after day starts
+    if (eventStart <= dayEnd && eventEnd >= dayStart) {
+      validOffsets.push(i);
+    }
+  }
+  return validOffsets;
+}
+
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
 /**
- * GET /plans — list current user's plans
+ * GET /plans/invitations/count — count of pending invitations for current user
+ * Must be defined before /:id to avoid route conflict
+ */
+router.get(
+  '/invitations/count',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = (req as unknown as AuthenticatedRequest).user.userId;
+    const count = await prisma.planMember.count({
+      where: { userId, status: 'invited' },
+    });
+    res.json({ data: { count } });
+  })
+);
+
+/**
+ * GET /plans — list current user's plans (owned + accepted memberships) plus pending invitations
  */
 router.get(
   '/',
@@ -248,18 +360,61 @@ router.get(
     async (req: Request, res: Response<{ data: PlanData[] } | ApiErrorResponse>) => {
       const userId = (req as unknown as AuthenticatedRequest).user.userId;
 
-      const plans = await prisma.plan.findMany({
+      const planInclude = {
+        _count: { select: { items: true } },
+        members: {
+          include: { user: { select: { name: true, profilePictureUrl: true } } },
+        },
+        items: { select: { itemId: true } },
+      } as const;
+
+      // Owned plans
+      const ownedPlans = await prisma.plan.findMany({
         where: { userId },
         orderBy: { startDate: 'asc' },
-        include: { _count: { select: { items: true } } },
+        include: planInclude,
       });
 
-      const planIds = plans.map((p) => p.id);
+      // Plans the user is a member of (all statuses so invitations show up)
+      const memberships = await prisma.planMember.findMany({
+        where: { userId },
+        include: {
+          plan: { include: planInclude },
+        },
+      });
+
+      const ownedIds = new Set(ownedPlans.map((p) => p.id));
+      const memberPlans = memberships
+        .filter((m) => !ownedIds.has(m.plan.id))
+        .map((m) => ({ plan: m.plan, memberStatus: m.status }));
+
+      const allPlans = [
+        ...ownedPlans.map((p) => ({
+          plan: p,
+          memberStatus: undefined as string | undefined,
+        })),
+        ...memberPlans,
+      ];
+
+      const planIds = allPlans.map((p) => p.plan.id);
       const imageMaps = await Promise.all(
         planIds.map((id) => fetchPlanPreviewImages(id))
       );
 
-      const data: PlanData[] = plans.map((p, i) => formatPlan(p, imageMaps[i]));
+      const data: PlanData[] = allPlans.map((entry, i) =>
+        formatPlan(entry.plan, imageMaps[i], userId, entry.memberStatus)
+      );
+
+      // Sort: invited first, then by startDate
+      data.sort((a, b) => {
+        const aInvited = a.memberStatus === 'invited' ? 0 : 1;
+        const bInvited = b.memberStatus === 'invited' ? 0 : 1;
+        if (aInvited !== bInvited) {
+          return aInvited - bInvited;
+        }
+        return a.startDate.localeCompare(b.startDate);
+      });
+
       res.json({ data });
     }
   )
@@ -292,7 +447,7 @@ router.post(
                   data: initialItems.map((item, idx) => ({
                     itemType: item.itemType,
                     itemId: item.itemId,
-                    dayOffset: item.dayOffset ?? 0,
+                    dayOffset: item.dayOffset ?? -1,
                     order: idx,
                   })),
                 },
@@ -302,12 +457,15 @@ router.post(
         include: {
           items: { orderBy: [{ dayOffset: 'asc' }, { order: 'asc' }] },
           _count: { select: { items: true } },
+          members: {
+            include: { user: { select: { name: true, profilePictureUrl: true } } },
+          },
         },
       });
 
       const hydratedItems = await hydrateItems(plan.items);
       const data: PlanDetailData = {
-        ...formatPlan(plan),
+        ...formatPlan({ ...plan, items: plan.items }, undefined, userId),
         items: hydratedItems,
       };
 
@@ -329,29 +487,50 @@ router.get(
       res: Response<{ data: PlanDetailData } | ApiErrorResponse>
     ) => {
       const userId = (req as unknown as AuthenticatedRequest).user.userId;
-      const plan = await prisma.plan.findUnique({
-        where: { id: req.params.id },
+      const plan = await assertPlanAccess(req.params.id, userId);
+
+      const fullPlan = await prisma.plan.findUnique({
+        where: { id: plan.id },
         include: {
           items: { orderBy: [{ dayOffset: 'asc' }, { order: 'asc' }] },
           _count: { select: { items: true } },
+          members: {
+            include: { user: { select: { name: true, profilePictureUrl: true } } },
+          },
         },
       });
 
-      if (!plan) {
+      if (!fullPlan) {
         throw ApiError.notFound('Plan');
       }
-      if (plan.userId !== userId) {
-        throw ApiError.forbidden('You cannot view this plan');
-      }
 
-      const hydratedItems = await hydrateItems(plan.items);
-      res.json({ data: { ...formatPlan(plan), items: hydratedItems } });
+      const hydratedItems = await hydrateItems(fullPlan.items);
+      const memberStatus =
+        fullPlan.userId !== userId
+          ? (
+              await prisma.planMember.findUnique({
+                where: { planId_userId: { planId: plan.id, userId } },
+              })
+            )?.status
+          : undefined;
+
+      res.json({
+        data: {
+          ...formatPlan(
+            { ...fullPlan, items: fullPlan.items },
+            undefined,
+            userId,
+            memberStatus
+          ),
+          items: hydratedItems,
+        },
+      });
     }
   )
 );
 
 /**
- * PATCH /plans/:id — update name / dates
+ * PATCH /plans/:id — update name / dates (owner only)
  */
 router.patch(
   '/:id',
@@ -360,16 +539,10 @@ router.patch(
   asyncHandler(
     async (
       req: Request<{ id: string }, unknown, UpdatePlanInput>,
-      res: Response<{ data: PlanData } | ApiErrorResponse>
+      res: Response<{ data: PlanData; displacedCount?: number } | ApiErrorResponse>
     ) => {
       const userId = (req as unknown as AuthenticatedRequest).user.userId;
-      const plan = await prisma.plan.findUnique({ where: { id: req.params.id } });
-      if (!plan) {
-        throw ApiError.notFound('Plan');
-      }
-      if (plan.userId !== userId) {
-        throw ApiError.forbidden('You cannot edit this plan');
-      }
+      await assertPlanAccess(req.params.id, userId, true);
 
       const { name, startDate, endDate } = req.body;
       const updated = await prisma.plan.update({
@@ -379,17 +552,66 @@ router.patch(
           ...(startDate !== undefined && { startDate: new Date(startDate) }),
           ...(endDate !== undefined && { endDate: new Date(endDate) }),
         },
-        include: { _count: { select: { items: true } } },
+        include: {
+          _count: { select: { items: true } },
+          members: {
+            include: { user: { select: { name: true, profilePictureUrl: true } } },
+          },
+          items: { select: { itemId: true } },
+        },
       });
 
+      // Orphan handling: move items outside new date range to "To be scheduled"
+      let displacedCount = 0;
+      const newStart = new Date(updated.startDate);
+      const newEnd = new Date(updated.endDate);
+      const newMaxOffset = Math.round((newEnd.getTime() - newStart.getTime()) / 86400000);
+
+      const allItems = await prisma.planItem.findMany({
+        where: { planId: updated.id, dayOffset: { gte: 0 } },
+        include: { plan: false },
+      });
+
+      for (const item of allItems) {
+        let shouldDisplace = item.dayOffset > newMaxOffset;
+
+        // For events, also check date overlap
+        if (!shouldDisplace && item.itemType === 'event') {
+          const event = await prisma.event.findUnique({ where: { id: item.itemId } });
+          if (event) {
+            const validOffsets = validEventDayOffsets(
+              event.startTime,
+              event.endTime,
+              newStart,
+              newEnd
+            );
+            if (
+              validOffsets !== null &&
+              validOffsets.length > 0 &&
+              !validOffsets.includes(item.dayOffset)
+            ) {
+              shouldDisplace = true;
+            }
+          }
+        }
+
+        if (shouldDisplace) {
+          await prisma.planItem.update({
+            where: { id: item.id },
+            data: { dayOffset: -1 },
+          });
+          displacedCount++;
+        }
+      }
+
       const images = await fetchPlanPreviewImages(updated.id);
-      res.json({ data: formatPlan(updated, images) });
+      res.json({ data: formatPlan(updated, images, userId), displacedCount });
     }
   )
 );
 
 /**
- * DELETE /plans/:id
+ * DELETE /plans/:id (owner only)
  */
 router.delete(
   '/:id',
@@ -397,13 +619,7 @@ router.delete(
   validateRequest({ params: planIdSchema }),
   asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
     const userId = (req as unknown as AuthenticatedRequest).user.userId;
-    const plan = await prisma.plan.findUnique({ where: { id: req.params.id } });
-    if (!plan) {
-      throw ApiError.notFound('Plan');
-    }
-    if (plan.userId !== userId) {
-      throw ApiError.forbidden('You cannot delete this plan');
-    }
+    await assertPlanAccess(req.params.id, userId, true);
     await prisma.plan.delete({ where: { id: req.params.id } });
     res.json({ data: { message: 'Plan deleted' } });
   })
@@ -422,18 +638,64 @@ router.post(
       res: Response<{ data: PlanItemEntry[] } | ApiErrorResponse>
     ) => {
       const userId = (req as unknown as AuthenticatedRequest).user.userId;
-      const plan = await prisma.plan.findUnique({
-        where: { id: req.params.id },
-        include: { _count: { select: { items: true } } },
+      const plan = await assertPlanAccess(req.params.id, userId);
+
+      // Duplicate check
+      const existingItems = await prisma.planItem.findMany({
+        where: { planId: req.params.id },
+        select: { itemType: true, itemId: true },
       });
-      if (!plan) {
-        throw ApiError.notFound('Plan');
-      }
-      if (plan.userId !== userId) {
-        throw ApiError.forbidden('You cannot edit this plan');
+      const existingSet = new Set(existingItems.map((i) => `${i.itemType}:${i.itemId}`));
+      const duplicates = req.body.items.filter((item) =>
+        existingSet.has(`${item.itemType}:${item.itemId}`)
+      );
+      if (duplicates.length > 0) {
+        res.status(409).json({
+          error: 'Duplicate items',
+          details: duplicates.map((d) => d.itemId),
+        } as unknown as ApiErrorResponse);
+        return;
       }
 
-      const currentCount = plan._count.items;
+      // Event date validation
+      for (const item of req.body.items) {
+        if (item.itemType === 'event' && item.dayOffset !== -1) {
+          const event = await prisma.event.findUnique({ where: { id: item.itemId } });
+          if (event) {
+            const validOffsets = validEventDayOffsets(
+              event.startTime,
+              event.endTime,
+              plan.startDate,
+              plan.endDate
+            );
+            if (
+              validOffsets !== null &&
+              validOffsets.length > 0 &&
+              !validOffsets.includes(item.dayOffset)
+            ) {
+              const startStr = event.startTime.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              });
+              const endStr = event.endTime
+                ? event.endTime.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                : null;
+              const dateLabel =
+                endStr && endStr !== startStr ? `${startStr}–${endStr}` : startStr;
+              throw ApiError.badRequest(
+                `Event runs on ${dateLabel}; dayOffset ${item.dayOffset} is outside its range`
+              );
+            }
+          }
+        }
+      }
+
+      const currentCount = await prisma.planItem.count({
+        where: { planId: req.params.id },
+      });
       const created = await prisma.$transaction(
         req.body.items.map((item, idx) =>
           prisma.planItem.create({
@@ -441,7 +703,7 @@ router.post(
               planId: req.params.id,
               itemType: item.itemType,
               itemId: item.itemId,
-              dayOffset: item.dayOffset ?? 0,
+              dayOffset: item.dayOffset ?? -1,
               order: currentCount + idx,
             },
           })
@@ -467,24 +729,62 @@ router.patch(
       res: Response
     ) => {
       const userId = (req as unknown as AuthenticatedRequest).user.userId;
-      const plan = await prisma.plan.findUnique({ where: { id: req.params.id } });
-      if (!plan) {
-        throw ApiError.notFound('Plan');
-      }
-      if (plan.userId !== userId) {
-        throw ApiError.forbidden('You cannot edit this plan');
-      }
+      const plan = await assertPlanAccess(req.params.id, userId);
 
       const item = await prisma.planItem.findUnique({ where: { id: req.params.itemId } });
       if (!item || item.planId !== req.params.id) {
         throw ApiError.notFound('Plan item');
       }
 
-      // Clamp dayOffset to valid range for this plan
-      const start = new Date(plan.startDate);
-      const end = new Date(plan.endDate);
-      const maxDayOffset = Math.round((end.getTime() - start.getTime()) / 86400000);
-      const clampedOffset = Math.max(0, Math.min(req.body.dayOffset, maxDayOffset));
+      const newDayOffset = req.body.dayOffset;
+
+      if (newDayOffset === -1) {
+        // Moving to "To be scheduled" — always allowed
+        const updated = await prisma.planItem.update({
+          where: { id: req.params.itemId },
+          data: { dayOffset: -1 },
+        });
+        res.json({ data: updated });
+        return;
+      }
+
+      // Clamp to valid plan range
+      const maxDayOffset = Math.round(
+        (plan.endDate.getTime() - plan.startDate.getTime()) / 86400000
+      );
+      const clampedOffset = Math.max(0, Math.min(newDayOffset, maxDayOffset));
+
+      // Event date validation
+      if (item.itemType === 'event') {
+        const event = await prisma.event.findUnique({ where: { id: item.itemId } });
+        if (event) {
+          const validOffsets = validEventDayOffsets(
+            event.startTime,
+            event.endTime,
+            plan.startDate,
+            plan.endDate
+          );
+          if (
+            validOffsets !== null &&
+            validOffsets.length > 0 &&
+            !validOffsets.includes(clampedOffset)
+          ) {
+            const startStr = event.startTime.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+            });
+            const endStr = event.endTime
+              ? event.endTime.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                })
+              : null;
+            const dateLabel =
+              endStr && endStr !== startStr ? `${startStr}–${endStr}` : startStr;
+            throw ApiError.badRequest(`This event is on ${dateLabel} only`);
+          }
+        }
+      }
 
       const updated = await prisma.planItem.update({
         where: { id: req.params.itemId },
@@ -505,13 +805,7 @@ router.delete(
   validateRequest({ params: planItemIdSchema }),
   asyncHandler(async (req: Request<{ id: string; itemId: string }>, res: Response) => {
     const userId = (req as unknown as AuthenticatedRequest).user.userId;
-    const plan = await prisma.plan.findUnique({ where: { id: req.params.id } });
-    if (!plan) {
-      throw ApiError.notFound('Plan');
-    }
-    if (plan.userId !== userId) {
-      throw ApiError.forbidden('You cannot edit this plan');
-    }
+    await assertPlanAccess(req.params.id, userId);
 
     const item = await prisma.planItem.findUnique({ where: { id: req.params.itemId } });
     if (!item || item.planId !== req.params.id) {
@@ -520,6 +814,150 @@ router.delete(
 
     await prisma.planItem.delete({ where: { id: req.params.itemId } });
     res.json({ data: { message: 'Item removed' } });
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Collaborative Plan Endpoints
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /plans/:id/members — list plan members
+ */
+router.get(
+  '/:id/members',
+  requireAuth,
+  validateRequest({ params: planIdSchema }),
+  asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+    const userId = (req as unknown as AuthenticatedRequest).user.userId;
+    await assertPlanAccess(req.params.id, userId);
+
+    const members = await prisma.planMember.findMany({
+      where: { planId: req.params.id },
+      include: { user: { select: { id: true, name: true, profilePictureUrl: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    res.json({
+      data: members.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        name: m.user.name,
+        profilePictureUrl: m.user.profilePictureUrl,
+        status: m.status,
+      })),
+    });
+  })
+);
+
+/**
+ * POST /plans/:id/members — invite users (owner only)
+ */
+router.post(
+  '/:id/members',
+  requireAuth,
+  validateRequest({ params: planIdSchema, body: inviteMembersSchema }),
+  asyncHandler(
+    async (req: Request<{ id: string }, unknown, InviteMembersInput>, res: Response) => {
+      const userId = (req as unknown as AuthenticatedRequest).user.userId;
+      const plan = await assertPlanAccess(req.params.id, userId, true);
+
+      const { userIds } = req.body;
+      // Filter out the owner themselves and already-existing members
+      const existing = await prisma.planMember.findMany({
+        where: { planId: plan.id },
+        select: { userId: true },
+      });
+      const existingUserIds = new Set([plan.userId, ...existing.map((m) => m.userId)]);
+      const toInvite = userIds.filter((id) => !existingUserIds.has(id));
+
+      if (toInvite.length > 0) {
+        await prisma.planMember.createMany({
+          data: toInvite.map((uid) => ({
+            planId: plan.id,
+            userId: uid,
+            status: 'invited',
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      res.json({ data: { invited: toInvite.length } });
+    }
+  )
+);
+
+/**
+ * POST /plans/:id/members/accept — accept an invitation
+ */
+router.post(
+  '/:id/members/accept',
+  requireAuth,
+  validateRequest({ params: planIdSchema }),
+  asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+    const userId = (req as unknown as AuthenticatedRequest).user.userId;
+    const membership = await prisma.planMember.findUnique({
+      where: { planId_userId: { planId: req.params.id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.notFound('Invitation');
+    }
+
+    await prisma.planMember.update({
+      where: { planId_userId: { planId: req.params.id, userId } },
+      data: { status: 'accepted' },
+    });
+
+    res.json({ data: { status: 'accepted' } });
+  })
+);
+
+/**
+ * POST /plans/:id/members/decline — decline an invitation
+ */
+router.post(
+  '/:id/members/decline',
+  requireAuth,
+  validateRequest({ params: planIdSchema }),
+  asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+    const userId = (req as unknown as AuthenticatedRequest).user.userId;
+    const membership = await prisma.planMember.findUnique({
+      where: { planId_userId: { planId: req.params.id, userId } },
+    });
+    if (!membership) {
+      throw ApiError.notFound('Invitation');
+    }
+
+    await prisma.planMember.delete({
+      where: { planId_userId: { planId: req.params.id, userId } },
+    });
+
+    res.json({ data: { status: 'declined' } });
+  })
+);
+
+/**
+ * DELETE /plans/:id/members/me — leave a plan (non-owner member)
+ */
+router.delete(
+  '/:id/members/me',
+  requireAuth,
+  validateRequest({ params: planIdSchema }),
+  asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+    const userId = (req as unknown as AuthenticatedRequest).user.userId;
+    const plan = await prisma.plan.findUnique({ where: { id: req.params.id } });
+    if (!plan) {
+      throw ApiError.notFound('Plan');
+    }
+    if (plan.userId === userId) {
+      throw ApiError.badRequest('Plan owner cannot leave their own plan');
+    }
+
+    await prisma.planMember.delete({
+      where: { planId_userId: { planId: req.params.id, userId } },
+    });
+
+    res.json({ data: { message: 'Left plan' } });
   })
 );
 

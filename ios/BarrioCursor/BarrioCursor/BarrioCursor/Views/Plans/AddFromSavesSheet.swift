@@ -6,6 +6,9 @@ struct AddFromSavesSheet: View {
 
     let planId: String
     let dayOffset: Int
+    let planStartDate: String
+    let planEndDate: String
+    let existingItemIds: Set<String>
     /// Called with the selected PlanItemBody array when user taps Add.
     var onAdd: (([PlanItemBody]) -> Void)?
 
@@ -19,12 +22,84 @@ struct AddFromSavesSheet: View {
     @State private var savedEvents: [SavedEventEntry] = []
     @State private var isLoading = false
     @State private var selectedBodies: [PlanItemBody] = []
+    @State private var searchText: String = ""
+    @State private var selectedCategory: EventCategory? = nil
 
     private var selectedCount: Int { selectedBodies.count }
+
+    private static let planDateFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    private var planStartDate_: Date? { Self.planDateFmt.date(from: planStartDate) }
+    private var planEndDate_: Date? { Self.planDateFmt.date(from: planEndDate) }
+
+    private var filteredSpots: [SavedSpotEntry] {
+        savedSpots.filter { entry in
+            let matchesSearch: Bool
+            if searchText.isEmpty {
+                matchesSearch = true
+            } else {
+                let q = searchText.lowercased()
+                matchesSearch = entry.name.lowercased().contains(q)
+                    || (entry.neighborhood?.lowercased().contains(q) ?? false)
+                    || (entry.address?.lowercased().contains(q) ?? false)
+            }
+            let matchesCategory: Bool
+            if let cat = selectedCategory {
+                matchesCategory = entry.category?.lowercased() == cat.rawValue.lowercased()
+            } else {
+                matchesCategory = true
+            }
+            return matchesSearch && matchesCategory
+        }
+    }
+
+    private var filteredEvents: [SavedEventEntry] {
+        savedEvents.filter { entry in
+            let event = entry.event
+            // Date overlap filter
+            if let planStart = planStartDate_, let planEnd = planEndDate_ {
+                let cal = Calendar.current
+                let planStartDay = cal.startOfDay(for: planStart)
+                let planEndDay = cal.startOfDay(for: planEnd)
+                let eventStartDay = cal.startOfDay(for: event.startTime)
+                let eventEndDay = cal.startOfDay(for: event.endTime ?? event.startTime)
+                if eventEndDay < planStartDay || eventStartDay > planEndDay {
+                    return false
+                }
+            }
+            let matchesSearch: Bool
+            if searchText.isEmpty {
+                matchesSearch = true
+            } else {
+                let q = searchText.lowercased()
+                matchesSearch = event.title.lowercased().contains(q)
+                    || (event.neighborhood?.lowercased().contains(q) ?? false)
+            }
+            let matchesCategory: Bool
+            if let cat = selectedCategory {
+                matchesCategory = event.category == cat
+            } else {
+                matchesCategory = true
+            }
+            return matchesSearch && matchesCategory
+        }
+    }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Search + category filter
+                searchBar
+                    .padding(.horizontal, .portalPagePadding)
+                    .padding(.top, 12)
+                    .padding(.bottom, 8)
+
+                // Segmented picker
                 Picker("Library", selection: $selectedTab) {
                     ForEach(LibraryTab.allCases, id: \.self) { tab in
                         Text(tab.rawValue).tag(tab)
@@ -32,7 +107,7 @@ struct AddFromSavesSheet: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, .portalPagePadding)
-                .padding(.vertical, 12)
+                .padding(.vertical, 8)
 
                 Divider()
 
@@ -70,26 +145,97 @@ struct AddFromSavesSheet: View {
         }
     }
 
+    // MARK: - Search bar
+
+    private var searchBar: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.portalMutedForeground)
+                    .font(.system(size: 14))
+                TextField("Search saves...", text: $searchText)
+                    .font(.portalLabel)
+                    .foregroundColor(.portalForeground)
+                if !searchText.isEmpty {
+                    Button { searchText = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.portalMutedForeground)
+                            .font(.system(size: 14))
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.portalMuted.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            // Category filter menu
+            Menu {
+                Button("All Categories") { selectedCategory = nil }
+                Divider()
+                ForEach(EventCategory.allCases, id: \.self) { cat in
+                    Button(cat.displayName) { selectedCategory = cat }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(selectedCategory?.displayName ?? "Category")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(selectedCategory != nil ? .portalPrimary : .portalMutedForeground)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(selectedCategory != nil ? .portalPrimary : .portalMutedForeground)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Color.portalMuted.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(selectedCategory != nil ? Color.portalPrimary.opacity(0.5) : Color.clear, lineWidth: 1)
+                )
+            }
+        }
+    }
+
     // MARK: - Lists
 
     @ViewBuilder
     private var spotsList: some View {
-        if savedSpots.isEmpty {
-            emptyState(icon: "mappin.circle", label: "No saved spots")
+        if filteredSpots.isEmpty {
+            emptyState(icon: "mappin.circle", label: savedSpots.isEmpty ? "No saved spots" : "No results")
         } else {
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 8) {
-                    ForEach(savedSpots, id: \.id) { entry in
+                    ForEach(filteredSpots, id: \.id) { entry in
                         let body = PlanItemBody(itemType: "spot", itemId: entry.id, dayOffset: dayOffset)
                         let isSelected = selectedBodies.contains(where: { $0.itemId == entry.id })
-                        PlanItemSmallRow(
-                            imageURL: entry.imageUrl,
-                            title: entry.name,
-                            subtitle: entry.neighborhood ?? entry.address,
-                            category: entry.category.flatMap { EventCategory(rawValue: $0)?.displayName } ?? entry.category?.capitalized,
-                            categoryColor: entry.category != nil ? .portalPrimary : nil,
-                            mode: .selectable(isSelected: isSelected, onTap: { toggleSelection(body) })
-                        )
+                        let alreadyAdded = existingItemIds.contains(entry.id)
+
+                        ZStack(alignment: .trailing) {
+                            PlanItemSmallRow(
+                                imageURL: entry.imageUrl,
+                                title: entry.name,
+                                subtitle: entry.neighborhood ?? entry.address,
+                                category: entry.category.flatMap { EventCategory(rawValue: $0)?.displayName } ?? entry.category?.capitalized,
+                                categoryColor: entry.category != nil ? .portalPrimary : nil,
+                                mode: .selectable(
+                                    isSelected: isSelected && !alreadyAdded,
+                                    onTap: { if !alreadyAdded { toggleSelection(body) } }
+                                )
+                            )
+                            .opacity(alreadyAdded ? 0.5 : 1.0)
+
+                            if alreadyAdded {
+                                Text("Already in plan")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.portalMutedForeground)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(Color.portalMuted)
+                                    .clipShape(Capsule())
+                                    .padding(.trailing, 12)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, .portalPagePadding)
@@ -100,22 +246,41 @@ struct AddFromSavesSheet: View {
 
     @ViewBuilder
     private var eventsList: some View {
-        if savedEvents.isEmpty {
-            emptyState(icon: "calendar.circle", label: "No saved events")
+        if filteredEvents.isEmpty {
+            emptyState(icon: "calendar.circle", label: savedEvents.isEmpty ? "No saved events" : "No events match these dates")
         } else {
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 8) {
-                    ForEach(savedEvents, id: \.event.id) { entry in
+                    ForEach(filteredEvents, id: \.event.id) { entry in
                         let body = PlanItemBody(itemType: "event", itemId: entry.event.id, dayOffset: dayOffset)
                         let isSelected = selectedBodies.contains(where: { $0.itemId == entry.event.id })
-                        PlanItemSmallRow(
-                            imageURL: entry.event.media.first?.thumbnailUrl ?? entry.event.media.first?.url,
-                            title: entry.event.title,
-                            subtitle: entry.event.startTime.formatted(.dateTime.month(.abbreviated).day()),
-                            category: entry.event.category.displayName,
-                            categoryColor: Color(hex: entry.event.category.color),
-                            mode: .selectable(isSelected: isSelected, onTap: { toggleSelection(body) })
-                        )
+                        let alreadyAdded = existingItemIds.contains(entry.event.id)
+
+                        ZStack(alignment: .trailing) {
+                            PlanItemSmallRow(
+                                imageURL: entry.event.media.first?.thumbnailUrl ?? entry.event.media.first?.url,
+                                title: entry.event.title,
+                                subtitle: entry.event.startTime.formatted(.dateTime.month(.abbreviated).day()),
+                                category: entry.event.category.displayName,
+                                categoryColor: Color(hex: entry.event.category.color),
+                                mode: .selectable(
+                                    isSelected: isSelected && !alreadyAdded,
+                                    onTap: { if !alreadyAdded { toggleSelection(body) } }
+                                )
+                            )
+                            .opacity(alreadyAdded ? 0.5 : 1.0)
+
+                            if alreadyAdded {
+                                Text("Already in plan")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.portalMutedForeground)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 3)
+                                    .background(Color.portalMuted)
+                                    .clipShape(Capsule())
+                                    .padding(.trailing, 12)
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, .portalPagePadding)
@@ -165,4 +330,3 @@ struct AddFromSavesSheet: View {
         }
     }
 }
-

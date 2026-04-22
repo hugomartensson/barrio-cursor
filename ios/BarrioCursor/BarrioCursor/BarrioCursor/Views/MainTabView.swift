@@ -12,6 +12,7 @@ struct MainTabView: View {
     @EnvironmentObject var authManager: AuthManager
     @EnvironmentObject var locationManager: LocationManager
     @StateObject private var discoverFilters = DiscoverFilters()
+    @StateObject private var planNotificationManager = PlanNotificationManager()
     @State private var selectedTab: AppTab = .discover
 
     var body: some View {
@@ -22,6 +23,7 @@ struct MainTabView: View {
             Tab("Plans", systemImage: "calendar", value: AppTab.plans) {
                 plansTab
             }
+            .badge(planNotificationManager.pendingInvitationCount > 0 ? planNotificationManager.pendingInvitationCount : 0)
             Tab("Map", systemImage: "map", value: AppTab.map) {
                 mapTab
             }
@@ -35,6 +37,7 @@ struct MainTabView: View {
             if !ProcessInfo.processInfo.arguments.contains("--uitesting") {
                 locationManager.requestPermission()
             }
+            Task { await refreshBadge() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("SwitchToMapTab"))) { _ in
             selectedTab = .map
@@ -53,6 +56,7 @@ struct MainTabView: View {
     private var plansTab: some View {
         PlansTabView()
             .environmentObject(authManager)
+            .environmentObject(planNotificationManager)
             .accessibilityIdentifier("Plans")
     }
 
@@ -68,6 +72,11 @@ struct MainTabView: View {
         ProfileView(isTab: true)
             .environmentObject(authManager)
             .accessibilityIdentifier("Profile")
+    }
+
+    private func refreshBadge() async {
+        guard let token = authManager.token, !token.isEmpty else { return }
+        await planNotificationManager.refresh(token: token)
     }
 }
 

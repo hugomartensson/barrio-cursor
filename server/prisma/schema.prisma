@@ -35,6 +35,7 @@ model User {
   collections      Collection[]
   savedCollections SavedCollection[]
   plans            Plan[]
+  planMemberships  PlanMember[]
   followers        Follow[]        @relation("following")
   following        Follow[]        @relation("follower")
   requestsSent     FollowRequest[] @relation("FollowRequestsSent")
@@ -197,8 +198,9 @@ model Plan {
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items PlanItem[]
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items   PlanItem[]
+  members PlanMember[]
 
   @@index([userId])
   @@map("plans")
@@ -215,9 +217,25 @@ model PlanItem {
 
   plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
+  @@unique([planId, itemType, itemId])
   @@index([planId])
   @@index([itemId])
   @@map("plan_items")
+}
+
+model PlanMember {
+  id        String           @id @default(uuid())
+  planId    String           @map("plan_id")
+  userId    String           @map("user_id")
+  status    PlanMemberStatus @default(invited)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, userId])
+  @@index([userId])
+  @@map("plan_members")
 }
 
 model Follow {
@@ -277,5 +295,11 @@ enum CollectionVisibility {
 enum ItemType {
   spot
   event
+}
+
+enum PlanMemberStatus {
+  invited
+  accepted
+  declined
 }
 

@@ -107,14 +107,32 @@ struct SaveToPlanSheet: View {
     let itemTitle: String
     let itemCategory: String
     let itemImageURL: String?
+    /// For events, used to filter compatible plans and auto-assign dayOffset
+    var eventStartTime: Date? = nil
+    var eventEndTime: Date? = nil
 
-    /// Called after the item is successfully routed to a plan.
-    var onSaved: (() -> Void)?
+    /// Called after the item is successfully routed to a plan, passing AddedToPlanInfo for the banner.
+    var onSaved: ((AddedToPlanInfo) -> Void)?
 
     @State private var plans: [PlanData] = []
     @State private var isLoading = true
     @State private var isSaving: String? = nil    // planId being saved to
     @State private var showCreatePlan = false
+
+    /// Plans filtered by date compatibility (for events)
+    private var eligiblePlans: [PlanData] {
+        guard itemType == "event", let eventStart = eventStartTime else { return plans }
+        return plans.filter { plan in
+            guard let planStart = PlanData.planDateFormatter.date(from: plan.startDate),
+                  let planEnd = PlanData.planDateFormatter.date(from: plan.endDate) else { return true }
+            let cal = Calendar.current
+            let planStartDay = cal.startOfDay(for: planStart)
+            let planEndDay = cal.startOfDay(for: planEnd)
+            let eventStartDay = cal.startOfDay(for: eventStart)
+            let eventEndDay = cal.startOfDay(for: eventEndTime ?? eventStart)
+            return !(eventEndDay < planStartDay || eventStartDay > planEndDay)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -146,15 +164,15 @@ struct SaveToPlanSheet: View {
             .fullScreenCover(isPresented: $showCreatePlan, onDismiss: { Task { await loadPlans() } }) {
                 CreatePlanView(
                     onCreated: { newPlan in
-                        // Pre-add the current item
                         Task { await routeItem(to: PlanData(
                             id: newPlan.id, userId: newPlan.userId, name: newPlan.name,
                             startDate: newPlan.startDate, endDate: newPlan.endDate,
                             itemCount: newPlan.itemCount, previewImageURLs: newPlan.previewImageURLs,
-                            createdAt: newPlan.createdAt, updatedAt: newPlan.updatedAt)) }
+                            createdAt: newPlan.createdAt, updatedAt: newPlan.updatedAt,
+                            role: "owner", members: nil, memberStatus: nil, itemIds: nil)) }
                         showCreatePlan = false
                     },
-                    preselectedItem: PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: 0)
+                    preselectedItem: PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: -1)
                 )
                 .environmentObject(authManager)
             }
@@ -199,19 +217,36 @@ struct SaveToPlanSheet: View {
     private var planList: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 10) {
-                ForEach(plans) { plan in
-                    Button { Task { await routeItem(to: plan) } } label: {
+                if eligiblePlans.isEmpty && !plans.isEmpty {
+                    Text("No plans match this event's dates.")
+                        .font(.portalMetadata)
+                        .foregroundColor(.portalMutedForeground)
+                        .padding(.vertical, 24)
+                        .frame(maxWidth: .infinity)
+                }
+                ForEach(eligiblePlans) { plan in
+                    let alreadyAdded = plan.itemIds?.contains(itemId) ?? false
+                    Button { if !alreadyAdded { Task { await routeItem(to: plan) } } } label: {
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(plan.name)
                                     .font(.portalLabelSemibold)
-                                    .foregroundColor(.portalForeground)
+                                    .foregroundColor(alreadyAdded ? .portalMutedForeground : .portalForeground)
                                 Text(plan.dateRangeLabel)
                                     .font(.portalMetadata)
                                     .foregroundColor(.portalMutedForeground)
                             }
                             Spacer(minLength: 0)
-                            if isSaving == plan.id {
+                            if alreadyAdded {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.portalPrimary)
+                                    Text("Already added")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.portalMutedForeground)
+                                }
+                            } else if isSaving == plan.id {
                                 ProgressView().scaleEffect(0.8)
                             } else {
                                 Image(systemName: "chevron.right")
@@ -222,9 +257,10 @@ struct SaveToPlanSheet: View {
                         .padding(14)
                         .background(Color.portalCard)
                         .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
+                        .opacity(alreadyAdded ? 0.6 : 1.0)
                     }
                     .buttonStyle(.plain)
-                    .disabled(isSaving != nil)
+                    .disabled(isSaving != nil || alreadyAdded)
                 }
 
                 // Create new plan CTA
@@ -271,12 +307,24 @@ struct SaveToPlanSheet: View {
     private func routeItem(to plan: PlanData) async {
         guard let token = authManager.token else { return }
         await MainActor.run { isSaving = plan.id }
+
+        // Auto-assign dayOffset for events that fall on exactly one plan day
+        let assignedDayOffset: Int
+        if itemType == "event", let eventStart = eventStartTime {
+            let validOffsets = plan.validDayOffsets(forEventStartTime: eventStart, endTime: eventEndTime)
+            assignedDayOffset = validOffsets.count == 1 ? validOffsets[0] : -1
+        } else {
+            assignedDayOffset = -1
+        }
+
         do {
-            let body = PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: 0)
-            _ = try await PlanService.shared.addItems(planId: plan.id, items: [body], token: token)
+            let body = PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: assignedDayOffset)
+            let newItems = try await PlanService.shared.addItems(planId: plan.id, items: [body], token: token)
+            let planItemId = newItems.first?.id ?? ""
             await MainActor.run {
                 isSaving = nil
-                onSaved?()
+                let info = AddedToPlanInfo(planId: plan.id, planName: plan.name, planItemId: planItemId)
+                onSaved?(info)
                 dismiss()
             }
         } catch {

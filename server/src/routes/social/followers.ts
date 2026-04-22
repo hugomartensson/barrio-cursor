@@ -4,7 +4,7 @@
  * GET /users/:id/following - Get list of users being followed
  */
 
-import { Router, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { prisma } from '../../services/prisma.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { validateRequest } from '../../middleware/validateRequest.js';
@@ -187,6 +187,54 @@ router.get(
       res.json({ data: following });
     }
   )
+);
+
+/**
+ * GET /users/me/mutual-followers — users who follow me AND I follow them
+ */
+router.get(
+  '/users/me/mutual-followers',
+  requireAuth,
+  asyncHandler(async (req: Request, res: Response) => {
+    const authReq = req as unknown as AuthenticatedRequest;
+    const currentUserId = authReq.user.userId;
+
+    // Users I follow
+    const iFollow = await prisma.follow.findMany({
+      where: { followerId: currentUserId },
+      select: { followingId: true },
+    });
+    const iFollowIds = new Set(iFollow.map((f) => f.followingId));
+
+    // Of those, who follows me back
+    const mutuals = await prisma.follow.findMany({
+      where: {
+        followerId: { in: [...iFollowIds] },
+        followingId: currentUserId,
+      },
+      include: {
+        follower: {
+          select: {
+            id: true,
+            name: true,
+            profilePictureUrl: true,
+            followerCount: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const data = mutuals.map((f) => ({
+      id: f.follower.id,
+      name: f.follower.name,
+      profilePictureUrl: f.follower.profilePictureUrl,
+      followerCount: f.follower.followerCount,
+      isFollowing: true,
+    }));
+
+    res.json({ data });
+  })
 );
 
 export default router;
