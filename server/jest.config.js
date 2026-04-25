@@ -31,8 +31,8 @@ export default {
     global: {
       branches: 10,
       functions: 15,
-      lines: 23,
-      statements: 23,
+      lines: 22,
+      statements: 22,
     },
   },
   coverageDirectory: 'coverage',

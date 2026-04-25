@@ -646,6 +646,8 @@ nonisolated struct CollectionData: Codable, Identifiable {
     let owned: Bool?
     let ownerHandle: String?
     let ownerInitials: String?
+    /// Owner's profile picture URL (nil = fallback to initials)
+    let ownerProfilePictureUrl: String?
     /// PRD: approximate city for this collection (optional)
     let city: String?
     /// PRD: number of saves this collection has received (optional); var for optimistic UI updates
@@ -846,6 +848,10 @@ extension APIService {
 
     func getEventSavers(eventId: String, token: String) async throws -> SaversListResponse {
         return try await get("/events/\(eventId)/savers", token: token)
+    }
+
+    func getCollectionSavers(collectionId: String, token: String) async throws -> SaversListResponse {
+        return try await get("/collections/\(collectionId)/savers", token: token)
     }
 
     // MARK: - Social Endpoints (Following)

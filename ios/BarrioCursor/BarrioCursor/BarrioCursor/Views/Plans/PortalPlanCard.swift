@@ -65,12 +65,16 @@ struct PortalPlanCard: View {
     @ViewBuilder
     private func memberAvatars(_ members: [PlanMember]) -> some View {
         let accepted = members.filter { $0.status == "accepted" }
-        let shown = Array(accepted.prefix(3))
-        let extra = accepted.count - 3
+        let invited = members.filter { $0.status == "invited" }
+        let visible = accepted + invited   // accepted first, then pending
+        let shown = Array(visible.prefix(3))
+        let extra = visible.count - 3
 
         HStack(spacing: -8) {
             ForEach(shown) { member in
                 avatarCircle(urlString: member.profilePictureUrl, initials: String(member.name.prefix(1)).uppercased())
+                    .saturation(member.status == "accepted" ? 1.0 : 0.0)
+                    .opacity(member.status == "accepted" ? 1.0 : 0.55)
             }
             if extra > 0 {
                 ZStack {

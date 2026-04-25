@@ -1528,6 +1528,7 @@ struct CollectionDetailView: View {
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var showFocusedMap = false
+    @State private var ownerProfileWrapper: ProfileSpotIdWrapper?
 
     init(collectionId: String, name: String) {
         self.collectionId = collectionId
@@ -1589,6 +1590,12 @@ struct CollectionDetailView: View {
                     )
                     .environmentObject(authManager)
                 }
+            }
+        }
+        .sheet(item: $ownerProfileWrapper) { wrapper in
+            NavigationStack {
+                UserProfileView(userId: wrapper.id)
+                    .environmentObject(authManager)
             }
         }
         .alert("Delete Collection", isPresented: $showDeleteAlert) {
@@ -1667,7 +1674,8 @@ struct CollectionDetailView: View {
             FocusedMapView(
                 title: viewModel.collection?.name ?? name,
                 spots: spots,
-                events: events
+                events: events,
+                showContentFilter: false
             )
             .environmentObject(authManager)
         }
@@ -1787,38 +1795,65 @@ struct CollectionDetailView: View {
         let ownerHandle = c?.ownerHandle ?? authManager.currentUser?.name ?? "?"
         let ownerInitialChar = c?.ownerInitials.flatMap { $0.prefix(1).uppercased() }
             ?? String(ownerHandle.prefix(1)).uppercased()
-        let itemCount = viewModel.collectionItems.count
+        let ownerPhotoURL = c?.ownerProfilePictureUrl
+        let ownerUserId = c?.userId
         return HStack(spacing: 12) {
-            Circle()
-                .fill(Color.portalPrimary)
-                .frame(width: 40, height: 40)
-                .overlay(
-                    Text(ownerInitialChar)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.portalPrimaryForeground)
-                )
-            VStack(alignment: .leading, spacing: 2) {
-                Text(ownerHandle)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.portalForeground)
-                Text("@\(ownerHandle)")
-                    .font(.system(size: 11))
-                    .foregroundColor(.portalMutedForeground)
+            Button {
+                if let uid = ownerUserId, !uid.isEmpty {
+                    ownerProfileWrapper = ProfileSpotIdWrapper(id: uid)
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    ownerAvatar(url: ownerPhotoURL, fallbackInitial: ownerInitialChar)
+                        .frame(width: 40, height: 40)
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ownerHandle)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.portalForeground)
+                        Text("@\(ownerHandle)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.portalMutedForeground)
+                    }
+                }
             }
+            .buttonStyle(.plain)
+            .disabled(ownerUserId?.isEmpty ?? true)
+
             Spacer(minLength: 0)
-            HStack(spacing: 4) {
-                Image(systemName: "mappin")
-                    .font(.system(size: 12))
-                Text("\(itemCount) items")
-                    .font(.system(size: 12, weight: .medium))
-            }
-            .foregroundColor(.portalMutedForeground)
+
+            CollectionSaversCompact(collectionId: collectionId)
+                .environmentObject(authManager)
         }
+    }
+
+    @ViewBuilder
+    private func ownerAvatar(url: String?, fallbackInitial: String) -> some View {
+        if let urlStr = url?.trimmingCharacters(in: .whitespaces), !urlStr.isEmpty,
+           let url = URL(string: urlStr) {
+            CachedRemoteImage(
+                url: url,
+                placeholder: { ownerInitialsCircle(fallbackInitial) },
+                failure: { ownerInitialsCircle(fallbackInitial) }
+            )
+        } else {
+            ownerInitialsCircle(fallbackInitial)
+        }
+    }
+
+    private func ownerInitialsCircle(_ initial: String) -> some View {
+        Circle()
+            .fill(Color.portalPrimary)
+            .overlay(
+                Text(initial)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.portalPrimaryForeground)
+            )
     }
 
     private var placesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("ITEMS IN THIS COLLECTION")
+            Text("ITEMS IN THIS COLLECTION (\(viewModel.collectionItems.count))")
                 .font(.portalSectionLabel)
                 .tracking(2)
                 .foregroundColor(.portalMutedForeground)
@@ -1846,7 +1881,13 @@ struct CollectionDetailView: View {
                     }
                 case .event(let event):
                     NavigationLink(value: event) {
-                        CollectionEventRowCard(event: event)
+                        PortalEventCard(
+                            event: event,
+                            isSaved: false,
+                            onSaveToggle: nil,
+                            reserveTrailingForExternalSave: 0
+                        )
+                        .environmentObject(authManager)
                     }
                     .buttonStyle(.plain)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -1967,61 +2008,6 @@ private struct CollectionSpotRowCard: View {
                 Text(more)
                     .font(.system(size: 11))
                     .foregroundColor(.portalMutedForeground)
-            }
-        }
-    }
-}
-
-// MARK: - Event row card in collection detail (compact: title, date, category)
-private struct CollectionEventRowCard: View {
-    let event: Event
-    private let thumbHeight: CGFloat = 88
-    private let thumbAspect: CGFloat = 3/4
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            eventThumbnail
-                .frame(width: thumbHeight * (3/4), height: thumbHeight)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-            VStack(alignment: .leading, spacing: 6) {
-                Text(event.title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.portalForeground)
-                Text(event.startTime.formatted(date: .abbreviated, time: .shortened))
-                    .font(.system(size: 11))
-                    .foregroundColor(.portalMutedForeground)
-                Text(event.category.displayName)
-                    .font(.system(size: 10, weight: .medium))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.categoryPillColor(for: event.category.rawValue).opacity(0.2))
-                    .foregroundColor(.portalForeground)
-                    .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(12)
-        .background(Color.portalCard)
-        .clipShape(RoundedRectangle(cornerRadius: .portalRadius))
-        .overlay(RoundedRectangle(cornerRadius: .portalRadius).stroke(Color.portalBorder, lineWidth: 1))
-    }
-
-    private var eventThumbnail: some View {
-        Group {
-            if let urlString = event.media.first?.url, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let img):
-                        img.resizable().aspectRatio(contentMode: .fill)
-                    default:
-                        Rectangle().fill(Color.portalMuted)
-                    }
-                }
-            } else {
-                Rectangle()
-                    .fill(Color.portalMuted)
-                    .overlay(Image(systemName: "calendar").font(.caption).foregroundColor(.portalMutedForeground))
             }
         }
     }

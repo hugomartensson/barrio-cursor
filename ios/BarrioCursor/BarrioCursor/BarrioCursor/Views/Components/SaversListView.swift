@@ -138,9 +138,12 @@ struct SaversListView: View {
         guard let token = authManager.token else { isLoading = false; return }
         do {
             let response: SaversListResponse
-            if itemType == "spot" {
+            switch itemType {
+            case "spot":
                 response = try await APIService.shared.getSpotSavers(spotId: itemId, token: token)
-            } else {
+            case "collection":
+                response = try await APIService.shared.getCollectionSavers(collectionId: itemId, token: token)
+            default:
                 response = try await APIService.shared.getEventSavers(eventId: itemId, token: token)
             }
             await MainActor.run {

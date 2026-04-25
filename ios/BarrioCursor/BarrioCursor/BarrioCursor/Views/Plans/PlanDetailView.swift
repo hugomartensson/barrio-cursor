@@ -135,7 +135,10 @@ struct PlanDetailView: View {
         .toolbar { toolbarContent }
         .task { await loadDetail() }
         .sheet(isPresented: $showEditPlan) {
-            EditPlanSheet(plan: currentPlan) { updated in
+            EditPlanSheet(
+                plan: currentPlan,
+                existingItemIds: Set(localItems.map { $0.itemId })
+            ) { updated in
                 currentPlan = updated
                 Task { await loadDetail() }
             }
@@ -276,7 +279,10 @@ struct PlanDetailView: View {
 
     @ViewBuilder
     private var friendsSection: some View {
-        let members = (currentPlan.members ?? []).filter { $0.status == "accepted" }
+        let allMembers = currentPlan.members ?? []
+        let accepted = allMembers.filter { $0.status == "accepted" }
+        let invited = allMembers.filter { $0.status == "invited" }
+        let visible = accepted + invited   // accepted first, then pending
         VStack(alignment: .leading, spacing: 10) {
             Text("FRIENDS IN PLAN")
                 .font(.portalSectionTitle)
@@ -286,16 +292,18 @@ struct PlanDetailView: View {
 
             HStack(spacing: 12) {
                 // Overlapping avatars
-                if members.isEmpty {
+                if visible.isEmpty {
                     Text("No friends invited yet")
                         .font(.portalMetadata)
                         .foregroundColor(.portalMutedForeground)
                 } else {
-                    let shown = Array(members.prefix(3))
-                    let extra = members.count - 3
+                    let shown = Array(visible.prefix(3))
+                    let extra = visible.count - 3
                     HStack(spacing: -8) {
                         ForEach(shown) { member in
                             memberAvatarSmall(member)
+                                .saturation(member.status == "accepted" ? 1.0 : 0.0)
+                                .opacity(member.status == "accepted" ? 1.0 : 0.55)
                         }
                         if extra > 0 {
                             ZStack {
@@ -377,7 +385,7 @@ struct PlanDetailView: View {
             Task { await moveItem(itemId: payload.itemId, to: -1) }
             return true
         } isTargeted: { targeted in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeOut(duration: 0.12)) {
                 dropTargetDay = targeted ? -1 : nil
             }
         }
@@ -409,23 +417,40 @@ struct PlanDetailView: View {
                 }
             }
 
-            // Plan button (day picker)
-            Menu {
-                ForEach(0..<det.numberOfDays, id: \.self) { offset in
-                    if let date = det.date(for: offset) {
-                        Button(Self.shortDayFmt.string(from: date)) {
-                            Task { await moveItem(itemId: item.id, to: offset) }
-                        }
-                    }
+            // Plan button (day picker) — events restricted to valid dates within the plan range
+            let validOffsets: [Int] = {
+                if item.itemType == "event", let event = item.event {
+                    return det.validDayOffsets(forEventStartTime: event.startTime, endTime: event.endTime)
                 }
-            } label: {
-                Text("Plan")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.portalPrimary)
+                return Array(0..<det.numberOfDays)
+            }()
+
+            if validOffsets.isEmpty {
+                Text("Outside plan dates")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.portalMutedForeground)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.portalPrimary.opacity(0.1))
+                    .background(Color.portalMuted)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                Menu {
+                    ForEach(validOffsets, id: \.self) { offset in
+                        if let date = det.date(for: offset) {
+                            Button(Self.shortDayFmt.string(from: date)) {
+                                Task { await moveItem(itemId: item.id, to: offset) }
+                            }
+                        }
+                    }
+                } label: {
+                    Text("Plan")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.portalPrimary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.portalPrimary.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
             }
 
             // Delete button
@@ -511,13 +536,21 @@ struct PlanDetailView: View {
             .padding(.horizontal, .portalPagePadding)
         }
         .padding(.bottom, 28)
-        .background(isTarget ? Color.portalPrimary.opacity(0.04) : Color.clear)
+        .overlay(
+            RoundedRectangle(cornerRadius: .portalRadiusSm)
+                .strokeBorder(
+                    isTarget ? Color.portalPrimary.opacity(0.7) : Color.clear,
+                    style: StrokeStyle(lineWidth: 2, dash: [6, 4])
+                )
+                .padding(.horizontal, .portalPagePadding - 4)
+                .allowsHitTesting(false)
+        )
         .dropDestination(for: PlanItemDragPayload.self) { payloads, _ in
             guard let payload = payloads.first else { return false }
             Task { await moveItem(itemId: payload.itemId, to: dayOffset) }
             return true
         } isTargeted: { targeted in
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeOut(duration: 0.12)) {
                 dropTargetDay = targeted ? dayOffset : nil
             }
         }
@@ -673,19 +706,21 @@ struct PlanDetailView: View {
             }
         }
 
-        // Optimistic update
+        // Optimistic update — animate so rows slide instead of popping
         await MainActor.run {
-            if let idx = localItems.firstIndex(where: { $0.id == itemId }) {
-                let old = localItems[idx]
-                localItems[idx] = PlanItemEntry(
-                    id: old.id,
-                    itemType: old.itemType,
-                    dayOffset: newDayOffset,
-                    order: old.order,
-                    addedAt: old.addedAt,
-                    spot: old.spot,
-                    event: old.event
-                )
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                if let idx = localItems.firstIndex(where: { $0.id == itemId }) {
+                    let old = localItems[idx]
+                    localItems[idx] = PlanItemEntry(
+                        id: old.id,
+                        itemType: old.itemType,
+                        dayOffset: newDayOffset,
+                        order: old.order,
+                        addedAt: old.addedAt,
+                        spot: old.spot,
+                        event: old.event
+                    )
+                }
             }
         }
         do {

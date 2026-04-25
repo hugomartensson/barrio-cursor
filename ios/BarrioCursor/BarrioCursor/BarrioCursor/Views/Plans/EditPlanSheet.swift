@@ -1,15 +1,20 @@
 import SwiftUI
 
+/// Edit-plan sheet — mirrors the Create Plan UX (large name field, range calendar, items selector for adding more).
+/// Removing existing items still happens via swipe-to-remove inside `PlanDetailView`.
 struct EditPlanSheet: View {
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
 
     let plan: PlanData
+    /// Item ids already in the plan — passed in by PlanDetailView so the items selector can hide them.
+    var existingItemIds: Set<String> = []
     var onSaved: ((PlanData) -> Void)?
 
     @State private var name: String
     @State private var startDate: Date
     @State private var endDate: Date
+    @State private var selectedItemBodies: [PlanItemBody] = []
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -20,14 +25,9 @@ struct EditPlanSheet: View {
         return f
     }()
 
-    private static let displayFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        return f
-    }()
-
-    init(plan: PlanData, onSaved: ((PlanData) -> Void)? = nil) {
+    init(plan: PlanData, existingItemIds: Set<String> = [], onSaved: ((PlanData) -> Void)? = nil) {
         self.plan = plan
+        self.existingItemIds = existingItemIds
         self.onSaved = onSaved
         _name = State(initialValue: plan.name)
         let start = Self.planDateFmt.date(from: plan.startDate) ?? Date()
@@ -42,27 +42,26 @@ struct EditPlanSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("Plan Name") {
-                    TextField("Name", text: $name)
-                }
-
-                Section("Dates") {
-                    DatePicker("Start Date", selection: $startDate, displayedComponents: .date)
-                        .onChange(of: startDate) { _, newStart in
-                            if endDate < newStart { endDate = newStart }
-                        }
-                    DatePicker("End Date", selection: $endDate, in: startDate..., displayedComponents: .date)
-                }
+            VStack(spacing: 0) {
+                PlanFormContent(
+                    mode: .edit(existingItemIds: existingItemIds),
+                    name: $name,
+                    startDate: $startDate,
+                    endDate: $endDate,
+                    selectedItemBodies: $selectedItemBodies,
+                    autofocusName: false
+                )
+                .environmentObject(authManager)
 
                 if let err = errorMessage {
-                    Section {
-                        Text(err)
-                            .foregroundColor(.portalDestructive)
-                            .font(.portalMetadata)
-                    }
+                    Text(err)
+                        .font(.portalMetadata)
+                        .foregroundColor(.portalDestructive)
+                        .padding(.horizontal, .portalPagePadding)
+                        .padding(.bottom, 8)
                 }
             }
+            .background(Color.portalBackground)
             .navigationTitle("Edit Plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -97,6 +96,10 @@ struct EditPlanSheet: View {
                 endDate: endStr,
                 token: token
             )
+            // Add any newly selected items (additive only — removal happens via swipe in PlanDetailView)
+            if !selectedItemBodies.isEmpty {
+                _ = try? await PlanService.shared.addItems(planId: plan.id, items: selectedItemBodies, token: token)
+            }
             await MainActor.run {
                 isSaving = false
                 onSaved?(updated)

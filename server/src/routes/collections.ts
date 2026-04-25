@@ -17,7 +17,11 @@ import type {
   SaveToCollectionInput,
 } from '../schemas/collections.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
-import { canViewCollection, canSaveCollection } from '../services/collectionService.js';
+import {
+  canViewCollection,
+  canSaveCollection,
+  doesUserFollow,
+} from '../services/collectionService.js';
 import { formatEvent } from '../utils/eventFormatters.js';
 import type { EventData } from '../types/responses.js';
 
@@ -103,6 +107,7 @@ interface CollectionData {
   owned: boolean;
   ownerHandle?: string | null;
   ownerInitials?: string | null;
+  ownerProfilePictureUrl?: string | null;
   coverImageURL?: string | null;
   previewSpotImageURLs?: string[];
   saveCount?: number;
@@ -262,7 +267,7 @@ router.get(
       const [currentUser, owned, savedLinks] = await Promise.all([
         prisma.user.findUnique({
           where: { id: userId },
-          select: { handle: true, initials: true },
+          select: { handle: true, initials: true, profilePictureUrl: true },
         }),
         prisma.collection.findMany({
           where: { userId },
@@ -273,7 +278,14 @@ router.get(
           include: {
             collection: {
               include: {
-                user: { select: { id: true, handle: true, initials: true } },
+                user: {
+                  select: {
+                    id: true,
+                    handle: true,
+                    initials: true,
+                    profilePictureUrl: true,
+                  },
+                },
               },
             },
           },
@@ -313,6 +325,7 @@ router.get(
           owned: true,
           ownerHandle: currentUser?.handle ?? null,
           ownerInitials: currentUser?.initials ?? null,
+          ownerProfilePictureUrl: currentUser?.profilePictureUrl ?? null,
           coverImageURL: merged.coverImageURL,
           previewSpotImageURLs: merged.previewSpotImageURLs,
         };
@@ -334,6 +347,7 @@ router.get(
           owned: false,
           ownerHandle: col.user.handle,
           ownerInitials: col.user.initials,
+          ownerProfilePictureUrl: col.user.profilePictureUrl ?? null,
           coverImageURL: merged.coverImageURL,
           previewSpotImageURLs: merged.previewSpotImageURLs,
         };
@@ -385,7 +399,9 @@ router.get(
         orderBy: { savedBy: { _count: 'desc' } },
         take: RECOMMENDED_LIMIT,
         include: {
-          user: { select: { id: true, handle: true, initials: true } },
+          user: {
+            select: { id: true, handle: true, initials: true, profilePictureUrl: true },
+          },
           _count: { select: { items: true, savedBy: true } },
         },
       });
@@ -408,6 +424,7 @@ router.get(
           owned: false,
           ownerHandle: c.user.handle,
           ownerInitials: c.user.initials,
+          ownerProfilePictureUrl: c.user.profilePictureUrl ?? null,
           coverImageURL: merged.coverImageURL,
           previewSpotImageURLs: merged.previewSpotImageURLs,
         };
@@ -550,7 +567,9 @@ router.get(
 
       const collection = await prisma.collection.findUnique({
         where: { id },
-        include: { user: { select: { handle: true, initials: true } } },
+        include: {
+          user: { select: { handle: true, initials: true, profilePictureUrl: true } },
+        },
       });
       if (!collection) {
         throw ApiError.notFound('Collection');
@@ -583,6 +602,7 @@ router.get(
           owned,
           ownerHandle: collection.user.handle,
           ownerInitials: collection.user.initials,
+          ownerProfilePictureUrl: collection.user.profilePictureUrl ?? null,
           coverImageURL: merged.coverImageURL,
           previewSpotImageURLs: merged.previewSpotImageURLs,
         },
@@ -908,6 +928,64 @@ router.delete(
       res.json({ data: { saved: false } });
     }
   )
+);
+
+/**
+ * GET /collections/:id/savers — all users who have saved this collection
+ */
+router.get(
+  '/:id/savers',
+  requireAuth,
+  validateRequest({ params: collectionIdSchema }),
+  asyncHandler(async (req: Request<{ id: string }>, res: Response) => {
+    const authReq = req as unknown as AuthenticatedRequest;
+    const viewerId = authReq.user.userId;
+    const collectionId = req.params.id;
+
+    // Verify the collection exists and the viewer can see it
+    const collection = await prisma.collection.findUnique({
+      where: { id: collectionId },
+    });
+    if (!collection) {
+      throw ApiError.notFound('Collection');
+    }
+    const allowed = await canViewCollection(collection, viewerId);
+    if (!allowed) {
+      throw ApiError.forbidden('You cannot view this collection');
+    }
+
+    const saves = await prisma.savedCollection.findMany({
+      where: { collectionId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            handle: true,
+            initials: true,
+            profilePictureUrl: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const savers = await Promise.all(
+      saves.map(async (save) => {
+        const isFollowing = await doesUserFollow(viewerId, save.user.id);
+        return {
+          id: save.user.id,
+          name: save.user.name ?? save.user.handle ?? 'User',
+          handle: save.user.handle ?? null,
+          initials: save.user.initials ?? null,
+          profilePictureUrl: save.user.profilePictureUrl ?? null,
+          isFollowing,
+        };
+      })
+    );
+
+    res.json({ data: savers, total: savers.length });
+  })
 );
 
 export default router;
