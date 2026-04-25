@@ -28,7 +28,7 @@ struct DetailActionBar: View {
 
             if let planName = addedToPlanName {
                 actionButton(
-                    icon: "calendar.badge.checkmark",
+                    icon: "calendar.fill",
                     label: "Added to \(planName)",
                     count: nil,
                     tint: .portalPrimary,
@@ -50,7 +50,7 @@ struct DetailActionBar: View {
 
             if let colName = addedToCollectionName {
                 actionButton(
-                    icon: "folder.badge.checkmark",
+                    icon: "folder.fill",
                     label: "Added to \(colName)",
                     count: nil,
                     tint: .portalPrimary,

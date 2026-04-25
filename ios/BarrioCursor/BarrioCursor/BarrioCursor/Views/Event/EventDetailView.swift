@@ -16,6 +16,9 @@ struct EventDetailView: View {
     @State private var addedInfo: AddedToCollectionInfo? = nil
     @State private var collectionToShow: AddedToCollectionInfo? = nil
     @State private var addedToPlanInfo: AddedToPlanInfo? = nil
+    // Persistent button labels — set on add, never cleared by banner dismissal
+    @State private var planNameAdded: String? = nil
+    @State private var collectionNameAdded: String? = nil
     @State private var showEventMap = false
     @State private var showFullScreenPhoto = false
     @State private var errorMessage: String? = nil
@@ -108,6 +111,7 @@ struct EventDetailView: View {
                 eventEndTime: event.endTime,
                 onSaved: { info in
                     addedToPlanInfo = info
+                    planNameAdded = info.planName
                 }
             )
             .environmentObject(authManager)
@@ -144,6 +148,7 @@ struct EventDetailView: View {
                     itemId: event.id,
                     itemType: "event"
                 )
+                collectionNameAdded = colName
                 showAddToCollection = false
             })
             .environmentObject(authManager)
@@ -356,8 +361,8 @@ struct EventDetailView: View {
                     addedInfo = nil
                     showAddToCollection = true
                 },
-                addedToPlanName: addedToPlanInfo?.planName,
-                addedToCollectionName: addedInfo?.collectionName
+                addedToPlanName: planNameAdded,
+                addedToCollectionName: collectionNameAdded
             )
             Divider().background(Color.portalBorder)
             CollectionsContainingSection(itemType: "event", itemId: event.id)
