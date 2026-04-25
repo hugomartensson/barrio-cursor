@@ -162,6 +162,7 @@ struct SaveToPlanSheet: View {
             }
             .task { await loadPlans() }
             .fullScreenCover(isPresented: $showCreatePlan, onDismiss: { Task { await loadPlans() } }) {
+                let week = eventStartTime.map { weekInterval(for: $0) }
                 CreatePlanView(
                     onCreated: { newPlan in
                         Task { await routeItem(to: PlanData(
@@ -172,7 +173,9 @@ struct SaveToPlanSheet: View {
                             role: "owner", members: nil, memberStatus: nil, itemIds: nil)) }
                         showCreatePlan = false
                     },
-                    preselectedItem: PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: -1)
+                    preselectedItem: PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: -1),
+                    initialStartDate: week?.start,
+                    initialEndDate: week?.end
                 )
                 .environmentObject(authManager)
             }
@@ -287,6 +290,17 @@ struct SaveToPlanSheet: View {
             .padding(.horizontal, .portalPagePadding)
             .padding(.vertical, 12)
         }
+    }
+
+    // MARK: - Helpers
+
+    private func weekInterval(for date: Date) -> (start: Date, end: Date) {
+        var cal = Calendar.current
+        cal.firstWeekday = 2 // Monday
+        let monday = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date))
+            ?? cal.startOfDay(for: date)
+        let sunday = cal.date(byAdding: .day, value: 6, to: monday) ?? monday
+        return (monday, sunday)
     }
 
     // MARK: - Actions

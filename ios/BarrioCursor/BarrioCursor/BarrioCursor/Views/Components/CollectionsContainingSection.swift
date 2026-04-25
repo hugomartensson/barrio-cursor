@@ -15,7 +15,7 @@ struct CollectionsContainingSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             Text(headerTitle)
                 .font(.portalSectionTitle)
                 .tracking(1.0)

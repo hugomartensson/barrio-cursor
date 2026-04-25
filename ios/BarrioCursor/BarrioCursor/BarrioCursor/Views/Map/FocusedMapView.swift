@@ -11,6 +11,8 @@ struct FocusedMapView: View {
     let events: [Event]
     /// When set, the camera will start focused on this coordinate with a tight zoom.
     var focusCoordinate: CLLocationCoordinate2D? = nil
+    /// When false, hides the All/Spots/Events filter pills and clears the top bar background.
+    var showContentFilter: Bool = true
 
     @Environment(\.dismiss) private var dismiss
     @State private var cameraPosition: MapCameraPosition = .automatic
@@ -113,36 +115,42 @@ struct FocusedMapView: View {
             }
             .buttonStyle(.plain)
 
-            Text(title)
-                .font(.portalLabelSemibold)
-                .foregroundColor(.portalForeground)
-                .lineLimit(1)
+            if showContentFilter {
+                Text(title)
+                    .font(.portalLabelSemibold)
+                    .foregroundColor(.portalForeground)
+                    .lineLimit(1)
 
-            Spacer()
+                Spacer()
 
-            // Content type pills
-            HStack(spacing: 4) {
-                ForEach(ContentFilter.allCases, id: \.self) { filter in
-                    let active = contentFilter == filter
-                    Button { contentFilter = filter } label: {
-                        Text(filter.label)
-                            .font(.system(size: 12, weight: active ? .semibold : .regular))
-                            .foregroundColor(active ? .portalPrimaryForeground : .portalForeground)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(active ? Color.portalPrimary : Color.portalCard)
-                            .clipShape(Capsule())
+                // Content type pills
+                HStack(spacing: 4) {
+                    ForEach(ContentFilter.allCases, id: \.self) { filter in
+                        let active = contentFilter == filter
+                        Button { contentFilter = filter } label: {
+                            Text(filter.label)
+                                .font(.system(size: 12, weight: active ? .semibold : .regular))
+                                .foregroundColor(active ? .portalPrimaryForeground : .portalForeground)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(active ? Color.portalPrimary : Color.portalCard)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .animation(.easeInOut(duration: 0.15), value: contentFilter)
                     }
-                    .buttonStyle(.plain)
-                    .animation(.easeInOut(duration: 0.15), value: contentFilter)
                 }
+            } else {
+                Spacer()
             }
         }
         .padding(.horizontal, .portalPagePadding)
         .padding(.vertical, 12)
-        .background(.ultraThinMaterial)
+        .background(showContentFilter ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.clear))
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.portalBorder).frame(height: 0.5)
+            if showContentFilter {
+                Rectangle().fill(Color.portalBorder).frame(height: 0.5)
+            }
         }
     }
 

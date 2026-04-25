@@ -9,6 +9,8 @@ struct DetailActionBar: View {
     let onSave: () -> Void
     let onAddToPlan: () -> Void
     let onAddToCollection: () -> Void
+    var addedToPlanName: String? = nil
+    var addedToCollectionName: String? = nil
 
     var body: some View {
         HStack(spacing: 0) {
@@ -24,25 +26,45 @@ struct DetailActionBar: View {
                 .frame(height: 36)
                 .foregroundColor(Color.portalBorder)
 
-            actionButton(
-                icon: "calendar.badge.plus",
-                label: "Add to Plan",
-                count: nil,
-                tint: .portalForeground,
-                action: onAddToPlan
-            )
+            if let planName = addedToPlanName {
+                actionButton(
+                    icon: "calendar.badge.checkmark",
+                    label: "Added to \(planName)",
+                    count: nil,
+                    tint: .portalPrimary,
+                    action: onAddToPlan
+                )
+            } else {
+                actionButton(
+                    icon: "calendar.badge.plus",
+                    label: "Add to Plan",
+                    count: nil,
+                    tint: .portalForeground,
+                    action: onAddToPlan
+                )
+            }
 
             Divider()
                 .frame(height: 36)
                 .foregroundColor(Color.portalBorder)
 
-            actionButton(
-                icon: "folder.badge.plus",
-                label: "Add to Collection",
-                count: nil,
-                tint: .portalForeground,
-                action: onAddToCollection
-            )
+            if let colName = addedToCollectionName {
+                actionButton(
+                    icon: "folder.badge.checkmark",
+                    label: "Added to \(colName)",
+                    count: nil,
+                    tint: .portalPrimary,
+                    action: onAddToCollection
+                )
+            } else {
+                actionButton(
+                    icon: "folder.badge.plus",
+                    label: "Add to Collection",
+                    count: nil,
+                    tint: .portalForeground,
+                    action: onAddToCollection
+                )
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(height: 56)

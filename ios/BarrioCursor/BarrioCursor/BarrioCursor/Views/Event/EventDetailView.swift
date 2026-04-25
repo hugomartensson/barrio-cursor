@@ -17,6 +17,7 @@ struct EventDetailView: View {
     @State private var collectionToShow: AddedToCollectionInfo? = nil
     @State private var addedToPlanInfo: AddedToPlanInfo? = nil
     @State private var showEventMap = false
+    @State private var showFullScreenPhoto = false
     @State private var errorMessage: String? = nil
     @State private var cachedPlayers: [String: AVPlayer] = [:]
 
@@ -111,6 +112,27 @@ struct EventDetailView: View {
             )
             .environmentObject(authManager)
         }
+        .fullScreenCover(isPresented: $showFullScreenPhoto) {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                if let urlStr = event.media.first?.url, let url = URL(string: urlStr) {
+                    CachedRemoteImage(
+                        url: url,
+                        placeholder: { Color.black },
+                        failure: { Color.black }
+                    )
+                    .scaledToFit()
+                    .ignoresSafeArea()
+                }
+                Button { showFullScreenPhoto = false } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 28))
+                        .foregroundColor(.white)
+                        .padding(20)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
+        }
         .sheet(isPresented: $showEditEvent) {
             CreateEventView(eventToEdit: event)
         }
@@ -178,13 +200,17 @@ struct EventDetailView: View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = w / heroAspectRatio
+            let topInset = geo.safeAreaInsets.top
             ZStack(alignment: .top) {
                 eventHeroImage
-                    .frame(width: w, height: h)
+                    .frame(width: w, height: h + topInset)
+                    .offset(y: -topInset)
                     .clipped()
+                    .onTapGesture { showFullScreenPhoto = true }
 
                 eventHeroGradient
-                    .frame(width: w, height: h)
+                    .frame(width: w, height: h + topInset)
+                    .offset(y: -topInset)
                     .allowsHitTesting(false)
 
                 VStack {
@@ -228,7 +254,8 @@ struct EventDetailView: View {
                 title: event.title,
                 spots: [],
                 events: [event],
-                focusCoordinate: event.coordinate
+                focusCoordinate: event.coordinate,
+                showContentFilter: false
             )
             .environmentObject(authManager)
         }
@@ -248,30 +275,25 @@ struct EventDetailView: View {
             }
             .buttonStyle(.plain)
             Spacer(minLength: 0)
-            HStack(spacing: .portalCardGap) {
-                if authManager.currentUser?.id == event.user.id {
-                    Menu {
-                        Button {
-                            showEditEvent = true
-                        } label: {
-                            Label("Edit Event", systemImage: "pencil")
-                        }
-                        Button(role: .destructive) {
-                            showDeleteAlert = true
-                        } label: {
-                            Label("Delete Event", systemImage: "trash")
-                        }
+            if authManager.currentUser?.id == event.user.id {
+                Menu {
+                    Button {
+                        showEditEvent = true
                     } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 16))
-                            .foregroundColor(.portalForeground)
-                            .frame(width: 36, height: 36)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay(Circle().stroke(Color.portalBorder.opacity(0.5), lineWidth: 1))
+                        Label("Edit Event", systemImage: "pencil")
                     }
-                }
-                PortalSaveButton(isSaved: isSaved, count: saveCount, surface: .dark) {
-                    Task { await toggleSave() }
+                    Button(role: .destructive) {
+                        showDeleteAlert = true
+                    } label: {
+                        Label("Delete Event", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 16))
+                        .foregroundColor(.portalForeground)
+                        .frame(width: 36, height: 36)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Color.portalBorder.opacity(0.5), lineWidth: 1))
                 }
             }
         }
@@ -333,7 +355,9 @@ struct EventDetailView: View {
                 onAddToCollection: {
                     addedInfo = nil
                     showAddToCollection = true
-                }
+                },
+                addedToPlanName: addedToPlanInfo?.planName,
+                addedToCollectionName: addedInfo?.collectionName
             )
             Divider().background(Color.portalBorder)
             CollectionsContainingSection(itemType: "event", itemId: event.id)

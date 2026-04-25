@@ -9,6 +9,10 @@ struct CreatePlanView: View {
     /// Optional item pre-selected (e.g. from "Save to Plan" FAB flow)
     var preselectedItem: PlanItemBody?
 
+    /// Optional initial date range (e.g. pre-filled from an event's week)
+    var initialStartDate: Date? = nil
+    var initialEndDate: Date? = nil
+
     @State private var name: String = ""
     @FocusState private var nameFocused: Bool
     @State private var startDate: Date = Calendar.current.startOfDay(for: Date())
@@ -40,6 +44,17 @@ struct CreatePlanView: View {
 
     private var isValid: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
     private var selectedCount: Int { selectedItemBodies.count }
+
+    private var filteredEvents: [SavedEventEntry] {
+        savedEvents.filter { entry in
+            let cal = Calendar.current
+            let planStart = cal.startOfDay(for: startDate)
+            let planEnd   = cal.startOfDay(for: endDate)
+            let evStart   = cal.startOfDay(for: entry.event.startTime)
+            let evEnd     = cal.startOfDay(for: entry.event.endTime ?? entry.event.startTime)
+            return !(evEnd < planStart || evStart > planEnd)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -146,6 +161,8 @@ struct CreatePlanView: View {
                 if let pre = preselectedItem {
                     selectedItemBodies = [pre]
                 }
+                if let s = initialStartDate { startDate = s }
+                if let e = initialEndDate   { endDate   = e }
                 Task { await loadLibrary() }
             }
         }
@@ -213,8 +230,8 @@ struct CreatePlanView: View {
 
     @ViewBuilder private var eventsCarousel: some View {
         Group {
-            if savedEvents.isEmpty {
-                Text("No saved events")
+            if filteredEvents.isEmpty {
+                Text(savedEvents.isEmpty ? "No saved events" : "No events match these dates")
                     .font(.portalMetadata)
                     .foregroundColor(.portalMutedForeground)
                     .frame(maxWidth: .infinity)
@@ -222,7 +239,7 @@ struct CreatePlanView: View {
                     .padding(.horizontal, .portalPagePadding)
             } else {
                 LazyVStack(spacing: 8) {
-                    ForEach(savedEvents, id: \.event.id) { entry in
+                    ForEach(filteredEvents, id: \.event.id) { entry in
                         let body = PlanItemBody(itemType: "event", itemId: entry.event.id, dayOffset: -1)
                         let isSelected = selectedItemBodies.contains(where: { $0.itemId == entry.event.id })
                         PlanItemSmallRow(
