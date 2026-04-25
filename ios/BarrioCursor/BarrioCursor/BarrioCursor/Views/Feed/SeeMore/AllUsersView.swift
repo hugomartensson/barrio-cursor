@@ -6,6 +6,7 @@ struct AllUsersView: View {
     @EnvironmentObject var authManager: AuthManager
     @State private var nameSearch = ""
     @State private var locationSearch = ""
+    @State private var isEditingLocation = false
     @State private var followingIds: Set<String> = []
     @State private var togglingId: String? = nil
     @State private var profileUserId: String? = nil
@@ -28,27 +29,56 @@ struct AllUsersView: View {
 
     var body: some View {
         List {
-            // Search bars
+            // Search row: location pill + name search field on same line
             Section {
-                VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    // Location pill — tapping toggles inline location text entry
+                    Button { isEditingLocation.toggle() } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 12))
+                                .foregroundColor(.portalPrimary)
+                            if isEditingLocation {
+                                TextField("City", text: $locationSearch)
+                                    .font(.portalMetadata)
+                                    .frame(minWidth: 60, maxWidth: 100)
+                            } else {
+                                Text(locationSearch.isEmpty ? "Location" : locationSearch)
+                                    .font(.portalMetadata)
+                                    .foregroundColor(locationSearch.isEmpty ? .portalMutedForeground : .portalForeground)
+                                    .lineLimit(1)
+                            }
+                            if !locationSearch.isEmpty {
+                                Button { locationSearch = ""; isEditingLocation = false } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.portalMutedForeground)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color.portalMuted)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    // Name / handle search — takes remaining width
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.portalMutedForeground)
                             .font(.system(size: 14))
                         TextField("Search by name or handle", text: $nameSearch)
                             .font(.portalBody)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.portalMuted)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                    HStack(spacing: 8) {
-                        Image(systemName: "mappin")
-                            .foregroundColor(.portalMutedForeground)
-                            .font(.system(size: 14))
-                        TextField("Filter by city", text: $locationSearch)
-                            .font(.portalBody)
+                        if !nameSearch.isEmpty {
+                            Button { nameSearch = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.portalMutedForeground)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)

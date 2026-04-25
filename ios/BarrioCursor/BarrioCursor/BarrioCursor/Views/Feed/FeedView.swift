@@ -21,6 +21,8 @@ struct DiscoverView: View {
     @State private var showLocationDropdown = false
     @State private var discoverNavPath = NavigationPath()
     @State private var showDateRangePicker = false
+    @State private var isSearching = false
+    @State private var discoverSearchText = ""
 
     /// Extracted to avoid "compiler is unable to type-check this expression in reasonable time".
     private var discoverRootContent: some View {
@@ -182,138 +184,184 @@ struct DiscoverView: View {
             PortalWordmark()
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Filter row: pills next to each other from the left; Time & Categories keep size, Location gets remainder and truncates "..." so row never spills.
+            // Filter row: pills + search icon. When isSearching, pills swap out for a text search bar.
             HStack(alignment: .center, spacing: 4) {
-                // Location pill — gets remaining width after Time/Categories (layoutPriority 0), truncates with "..."
-                Button {
-                    showTimeFilterDropdown = false
-                    showCategoryFilterDropdown = false
-                    showLocationDropdown.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "mappin")
-                            .font(.system(size: 12))
-                            .foregroundColor(.portalPrimary)
-                        Text(locationLabel)
-                            .font(.portalMetadata)
+                if isSearching {
+                    // Full-width search field
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 14))
                             .foregroundColor(.portalMutedForeground)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.portalMutedForeground)
+                        TextField("Search events, spots, people...", text: $discoverSearchText)
+                            .font(.portalBody)
+                            .autocorrectionDisabled()
+                        if !discoverSearchText.isEmpty {
+                            Button { discoverSearchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.portalMutedForeground)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 12)
                     .frame(height: 44)
                     .frame(maxWidth: .infinity)
                     .background(Color.portalCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
-                            .stroke(Color.portalBorder, lineWidth: 1)
-                    )
+                    .overlay(RoundedRectangle(cornerRadius: .portalCategoryPillRadius).stroke(Color.portalBorder, lineWidth: 1))
                     .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
-                }
-                .contentShape(Rectangle())
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Location filter")
-                .buttonStyle(.plain)
-                .frame(minWidth: 0, maxWidth: .infinity)
-                .layoutPriority(0)
 
-                // Time pill — fixed size so it sits right next to Location
-                Button {
-                    showLocationDropdown = false
-                    showCategoryFilterDropdown = false
-                    showTimeFilterDropdown.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        if discoverFilters.time == nil {
-                            Text("Time")
-                                .font(.portalLabelSemibold)
-                                .foregroundColor(.portalForeground)
+                    Button {
+                        isSearching = false
+                        discoverSearchText = ""
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.portalForeground)
+                            .frame(width: 36, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    // Location pill — gets remaining width after Time/Categories (layoutPriority 0), truncates with "..."
+                    Button {
+                        showTimeFilterDropdown = false
+                        showCategoryFilterDropdown = false
+                        showLocationDropdown.toggle()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 12))
+                                .foregroundColor(.portalPrimary)
+                            Text(locationLabel)
+                                .font(.portalMetadata)
+                                .foregroundColor(.portalMutedForeground)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundColor(.portalMutedForeground)
-                        } else {
-                            Text(discoverFilters.time!.label)
-                                .font(.portalLabelSemibold)
-                                .foregroundColor(.portalPrimaryForeground)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
                         }
+                        .padding(.horizontal, 10)
+                        .frame(height: 44)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.portalCard)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
+                                .stroke(Color.portalBorder, lineWidth: 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
                     }
-                    .padding(.horizontal, 10)
-                    .frame(height: 44)
-                    .background(timePillBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
-                            .stroke(Color.portalBorder, lineWidth: discoverFilters.time != nil ? 0 : 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
-                }
-                .contentShape(Rectangle())
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Time filter")
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: false)
-                .layoutPriority(1)
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Location filter")
+                    .buttonStyle(.plain)
+                    .frame(minWidth: 0, maxWidth: .infinity)
+                    .layoutPriority(0)
 
-                // Categories pill — fixed size, next to Time
-                Button {
-                    showLocationDropdown = false
-                    showTimeFilterDropdown = false
-                    showCategoryFilterDropdown.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        if discoverFilters.categories.isEmpty {
-                            Text("Categories")
-                                .font(.portalLabelSemibold)
-                                .foregroundColor(.portalForeground)
-                        } else if discoverFilters.categories.count == 1 {
-                            Text(discoverFilters.categories.first!.label)
-                                .font(.portalLabelSemibold)
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        } else {
-                            Text("\(discoverFilters.categories.count)")
-                                .font(.portalLabelSemibold)
-                                .foregroundColor(.white)
-                        }
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(hasActiveCategoryFilter ? .white.opacity(0.9) : .portalMutedForeground)
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 44)
-                    .background(categoryPillBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
-                            .stroke(Color.portalBorder, lineWidth: hasActiveCategoryFilter ? 0 : 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
-                }
-                .contentShape(Rectangle())
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Categories filter")
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: false)
-                .layoutPriority(1)
-
-                if hasActiveFilter {
+                    // Time pill — fixed size so it sits right next to Location
                     Button {
-                        discoverFilters.time = nil
-                        discoverFilters.categories = []
-                        showTimeFilterDropdown = false
+                        showLocationDropdown = false
                         showCategoryFilterDropdown = false
+                        showTimeFilterDropdown.toggle()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(Color.portalMutedForeground.opacity(0.8))
+                        HStack(spacing: 4) {
+                            if discoverFilters.time == nil {
+                                Text("Time")
+                                    .font(.portalLabelSemibold)
+                                    .foregroundColor(.portalForeground)
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundColor(.portalMutedForeground)
+                            } else {
+                                Text(discoverFilters.time!.label)
+                                    .font(.portalLabelSemibold)
+                                    .foregroundColor(.portalPrimaryForeground)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 44)
+                        .background(timePillBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
+                                .stroke(Color.portalBorder, lineWidth: discoverFilters.time != nil ? 0 : 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
+                    }
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Time filter")
+                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+
+                    // Categories pill — fixed size, next to Time
+                    Button {
+                        showLocationDropdown = false
+                        showTimeFilterDropdown = false
+                        showCategoryFilterDropdown.toggle()
+                    } label: {
+                        HStack(spacing: 4) {
+                            if discoverFilters.categories.isEmpty {
+                                Text("Categories")
+                                    .font(.portalLabelSemibold)
+                                    .foregroundColor(.portalForeground)
+                            } else if discoverFilters.categories.count == 1 {
+                                Text(discoverFilters.categories.first!.label)
+                                    .font(.portalLabelSemibold)
+                                    .foregroundColor(.white)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            } else {
+                                Text("\(discoverFilters.categories.count)")
+                                    .font(.portalLabelSemibold)
+                                    .foregroundColor(.white)
+                            }
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(hasActiveCategoryFilter ? .white.opacity(0.9) : .portalMutedForeground)
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 44)
+                        .background(categoryPillBackground)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
+                                .stroke(Color.portalBorder, lineWidth: hasActiveCategoryFilter ? 0 : 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
+                    }
+                    .contentShape(Rectangle())
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Categories filter")
+                    .buttonStyle(.plain)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+
+                    if hasActiveFilter {
+                        Button {
+                            discoverFilters.time = nil
+                            discoverFilters.categories = []
+                            showTimeFilterDropdown = false
+                            showCategoryFilterDropdown = false
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(Color.portalMutedForeground.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Search icon — expands row into search bar when tapped
+                    Button { isSearching = true } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(.portalMutedForeground)
+                            .frame(width: 36, height: 44)
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isSearching)
             .frame(maxWidth: .infinity)
             .clipped()
 
@@ -535,18 +583,18 @@ struct DiscoverView: View {
                 .listSectionSeparator(.hidden)
             }
 
-            // USERS — horizontal scroll; "See more" pushes AllUsersView
-            if !viewModel.suggestedUsers.isEmpty {
-                Section(header: sectionHeaderNav(title: "USERS", count: viewModel.suggestedUsers.count, route: .users)) {
-                    usersHorizontalRow
+            // COLLECTIONS — horizontal scroll; "See more" pushes AllCollectionsView
+            if !filteredCollections.isEmpty {
+                Section(header: sectionHeaderNav(title: "COLLECTIONS", count: filteredCollections.count, route: .collections)) {
+                    collectionsHorizontalRow
                 }
                 .listSectionSeparator(.hidden)
             }
 
-            // COLLECTIONS — horizontal scroll; "See more" pushes AllCollectionsView
-            if !viewModel.recommendedCollections.isEmpty {
-                Section(header: sectionHeaderNav(title: "COLLECTIONS", count: viewModel.recommendedCollections.count, route: .collections)) {
-                    collectionsHorizontalRow
+            // USERS — horizontal scroll; "See more" pushes AllUsersView
+            if !filteredUsers.isEmpty {
+                Section(header: sectionHeaderNav(title: "USERS", count: filteredUsers.count, route: .users)) {
+                    usersHorizontalRow
                 }
                 .listSectionSeparator(.hidden)
             }
@@ -613,6 +661,7 @@ struct DiscoverView: View {
         case .collections:
             AllCollectionsView(collections: viewModel.recommendedCollections, savedIds: viewModel.savedCollectionIds)
                 .environmentObject(authManager)
+                .environmentObject(discoverFilters)
         case .users:
             AllUsersView(users: viewModel.suggestedUsers.map { SuggestedUserItem(from: $0) })
                 .environmentObject(authManager)
@@ -665,7 +714,7 @@ struct DiscoverView: View {
     private var usersHorizontalRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: .portalCardGap) {
-                ForEach(viewModel.suggestedUsers.map { SuggestedUserItem(from: $0) }, id: \.id) { user in
+                ForEach(filteredUsers.map { SuggestedUserItem(from: $0) }, id: \.id) { user in
                     Button {
                         userIdForProfile = user.id
                         showUserProfileSheet = true
@@ -689,7 +738,7 @@ struct DiscoverView: View {
     private var collectionsHorizontalRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: .portalCardGap) {
-                ForEach(viewModel.recommendedCollections.map { PortalCollectionItem(from: $0) }, id: \.id) { collection in
+                ForEach(filteredCollections.map { PortalCollectionItem(from: $0) }, id: \.id) { collection in
                     let rowCollSaved = viewModel.savedCollectionIds.contains(collection.id)
                     ZStack(alignment: .topTrailing) {
                         Button {
@@ -789,6 +838,11 @@ struct DiscoverView: View {
             }
         }
         
+        // Text search filter (from search bar in header)
+        if !discoverSearchText.isEmpty {
+            events = events.filter { $0.title.localizedCaseInsensitiveContains(discoverSearchText) }
+        }
+
         // PRD Section 5.3: Sort events
         switch sortOption {
         case .soonest:
@@ -826,13 +880,34 @@ struct DiscoverView: View {
         return false
     }
 
-    /// Spots filtered by selected categories. Empty categories = all spots.
+    /// Spots filtered by selected categories and text search.
     private var filteredSpots: [Spot] {
         var result = viewModel.spots
         if !discoverFilters.categories.isEmpty {
             result = result.filter { discoverFilters.categories.contains($0.category) }
         }
+        if !discoverSearchText.isEmpty {
+            result = result.filter { $0.name.localizedCaseInsensitiveContains(discoverSearchText) }
+        }
         return result
+    }
+
+    /// Collections filtered by text search.
+    private var filteredCollections: [CollectionData] {
+        guard !discoverSearchText.isEmpty else { return viewModel.recommendedCollections }
+        return viewModel.recommendedCollections.filter {
+            $0.name.localizedCaseInsensitiveContains(discoverSearchText)
+        }
+    }
+
+    /// Suggested users filtered by text search.
+    private var filteredUsers: [SuggestedUserData] {
+        guard !discoverSearchText.isEmpty else { return viewModel.suggestedUsers }
+        return viewModel.suggestedUsers.filter {
+            let handle = $0.handle ?? ""
+            return handle.localizedCaseInsensitiveContains(discoverSearchText) ||
+                   (($0.initials ?? "").localizedCaseInsensitiveContains(discoverSearchText))
+        }
     }
     
     // Helper to reload events with current filters

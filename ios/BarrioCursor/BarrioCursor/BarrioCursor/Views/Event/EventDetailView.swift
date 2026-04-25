@@ -56,6 +56,7 @@ struct EventDetailView: View {
                 bodySection
             }
         }
+        .ignoresSafeArea(edges: .top)
         .background(Color.portalBackground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
@@ -253,7 +254,6 @@ struct EventDetailView: View {
             }
         }
         .aspectRatio(heroAspectRatio, contentMode: .fit)
-        .ignoresSafeArea(edges: .top)
         .fullScreenCover(isPresented: $showEventMap) {
             FocusedMapView(
                 title: event.title,
