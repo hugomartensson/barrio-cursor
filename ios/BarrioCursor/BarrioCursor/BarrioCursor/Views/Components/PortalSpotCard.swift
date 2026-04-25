@@ -234,6 +234,8 @@ struct SpotDetailView: View {
     @State private var collectionToShow: AddedToCollectionInfo? = nil
     @State private var addedToPlanInfo: AddedToPlanInfo? = nil
     @State private var showSpotMap = false
+    @State private var planNameAdded: String? = nil
+    @State private var collectionNameAdded: String? = nil
     /// Optimistic UI after toggle when using built-in API save
     @State private var resolvedSaved: Bool?
     @State private var resolvedSaveCount: Int?
@@ -312,6 +314,7 @@ struct SpotDetailView: View {
                 itemImageURL: spot.imageURL,
                 onSaved: { info in
                     addedToPlanInfo = info
+                    planNameAdded = info.planName
                 }
             )
             .environmentObject(authManager)
@@ -414,7 +417,6 @@ struct SpotDetailView: View {
             }
             .buttonStyle(.plain)
             Spacer(minLength: 0)
-            PortalSaveButton(isSaved: displaySaved, count: displaySaveCount, surface: .dark, action: performSaveTap)
         }
     }
 
@@ -478,7 +480,9 @@ struct SpotDetailView: View {
                 onAddToCollection: {
                     addedInfo = nil
                     showAddToCollection = true
-                }
+                },
+                addedToPlanName: planNameAdded,
+                addedToCollectionName: collectionNameAdded
             )
             Divider().background(Color.portalBorder)
             CollectionsContainingSection(itemType: "spot", itemId: spot.id)
@@ -499,6 +503,7 @@ struct SpotDetailView: View {
                     itemId: spot.id,
                     itemType: "spot"
                 )
+                collectionNameAdded = colName
                 showAddToCollection = false
             })
             .environmentObject(authManager)
