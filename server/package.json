@@ -16,6 +16,7 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "seed:bcn": "tsx prisma/seed-bcn-mock.ts",
+    "seed:bcn:events": "tsx prisma/seed-bcn-events-extra.ts",
     "batch": "tsx src/tools/ingest/batch.ts",
     "bot:dev": "tsx src/tools/ingest/bot-dev.ts",
     "bot:set-webhook": "tsx src/tools/ingest/set-webhook.ts",
