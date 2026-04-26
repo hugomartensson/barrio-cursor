@@ -1,4 +1,4 @@
-app = "portal-api"
+app = "portal-api123"
 primary_region = "mad"
 
 [build]
