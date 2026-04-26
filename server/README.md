@@ -2,18 +2,22 @@
 
 Backend server for Barrio - a hyperlocal events discovery app.
 
+## Status (April 2026)
+
+Telegram bot ingestion and Mastra workflow integration are currently disabled. Code is preserved in `src/telegramWebhook.ts`, `src/middleware/mastraWorkflowProxy.ts`, `src/routes/ingest.ts`, and `src/tools/ingest/`. To revive, uncomment the wiring in `src/app.ts` and `src/routes/index.ts` and restore the relevant env vars from `.env.example`.
+
 ## Tech Stack
 
-- **Runtime**: Node.js 18+
+- **Runtime**: Node.js 20+
 - **Framework**: Express.js with TypeScript
 - **Database**: PostgreSQL 14+ with PostGIS
 - **ORM**: Prisma
 - **Storage**: Supabase Storage
-- **Auth**: JWT
+- **Auth**: Supabase Auth
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - Docker & Docker Compose
 - Supabase account (for storage)
 

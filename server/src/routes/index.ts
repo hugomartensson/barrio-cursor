@@ -9,7 +9,8 @@ import uploadRouter from './upload.js';
 import socialRouter from './social/index.js';
 import collectionsRouter from './collections.js';
 import plansRouter from './plans.js';
-import ingestRouter from './ingest.js';
+// DORMANT 2026-04: Telegram/Mastra disabled during Fly migration. To revive, uncomment and restore env vars.
+// import ingestRouter from './ingest.js';
 import searchRouter from './search.js';
 
 const router = Router();
@@ -24,7 +25,8 @@ router.use('/', socialRouter);
 router.use('/collections', collectionsRouter);
 router.use('/plans', plansRouter);
 router.use('/upload', uploadRouter);
-router.use('/ingest', ingestRouter);
+// DORMANT 2026-04: Telegram/Mastra disabled during Fly migration. To revive, uncomment and restore env vars.
+// router.use('/ingest', ingestRouter);
 router.use('/search', searchRouter);
 
 export default router;

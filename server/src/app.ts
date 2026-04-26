@@ -10,9 +10,12 @@ import { logger } from './services/logger.js';
 import { requestIdMiddleware } from './middleware/requestId.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import routes from './routes/index.js';
-import { registerTelegramWebhook } from './telegramWebhook.js';
-import { requireAuth } from './middleware/auth.js';
-import { mastraWorkflowProxy } from './middleware/mastraWorkflowProxy.js';
+// DORMANT 2026-04: Telegram/Mastra disabled during Fly migration. To revive, uncomment and restore env vars.
+// import { registerTelegramWebhook } from './telegramWebhook.js';
+// DORMANT 2026-04: requireAuth was only used by the Mastra workflow proxy below; commented alongside it.
+// import { requireAuth } from './middleware/auth.js';
+// DORMANT 2026-04: Telegram/Mastra disabled during Fly migration. To revive, uncomment and restore env vars.
+// import { mastraWorkflowProxy } from './middleware/mastraWorkflowProxy.js';
 import type { RequestWithId } from './types/index.js';
 
 export const createApp = (): Express => {
@@ -108,15 +111,17 @@ export const createApp = (): Express => {
   app.use(express.json({ limit: '70mb' }));
   app.use(express.urlencoded({ extended: true, limit: '70mb' }));
 
+  // DORMANT 2026-04: Telegram/Mastra disabled during Fly migration. To revive, uncomment and restore env vars.
   // Telegram webhook MUST mount before `app.use('/api', routes)` and before `notFoundHandler`.
   // Previously it was registered in index.ts after createApp(), which placed it *after* notFoundHandler,
   // so POST /api/telegram/webhook always returned 404.
-  if (config.TELEGRAM_BOT_TOKEN) {
-    registerTelegramWebhook(app);
-  }
+  // if (config.TELEGRAM_BOT_TOKEN) {
+  //   registerTelegramWebhook(app);
+  // }
 
+  // DORMANT 2026-04: Telegram/Mastra disabled during Fly migration. To revive, uncomment and restore env vars.
   // Mastra ingest workflow API (JWT same as rest of app; forwards to MASTRA_API_URL)
-  app.use('/api/workflows', requireAuth, mastraWorkflowProxy);
+  // app.use('/api/workflows', requireAuth, mastraWorkflowProxy);
 
   // API routes
   app.use('/api', routes);
