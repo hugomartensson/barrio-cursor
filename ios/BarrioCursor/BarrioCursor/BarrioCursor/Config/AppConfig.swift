@@ -3,13 +3,13 @@ import Foundation
 enum AppConfig {
     // API Configuration
     // - Debug: auto-discovery (saved IP → simulator localhost → Bonjour → subnet scan).
-    // - Release/TestFlight: set productionAPIBaseURL to your Railway (or other) API URL.
-    //   Example: "https://your-app-name.railway.app/api"
+    // - Release/TestFlight: set productionAPIBaseURL to your Fly.io (or other) API URL.
+    //   Example: "https://your-app-name.fly.dev/api"
     //   Leave nil to fall back to discovery (e.g. internal TestFlight with dev server).
     
     /// Production API base URL. Set this for TestFlight/Release when backend is deployed (e.g. Railway).
     /// Must be HTTPS. Leave nil to use auto-discovery.
-    nonisolated static let productionAPIBaseURL: String? = "https://barrio-api-production.up.railway.app/api"
+    nonisolated static let productionAPIBaseURL: String? = "https://portal-api123.fly.dev/api"
     
     /// When true, debug builds also use the production API (skips local discovery).
     /// Flip to false when you want to develop against a local server.
