@@ -75,7 +75,9 @@ export async function getPlaceAutocomplete(
         radius: 30_000,
       },
     },
-    includedRegionCodes: ['se', 'es'],
+    // No `includedRegionCodes` and no `includedPrimaryTypes` — return both
+    // venues (`establishment`) and street addresses (`address` / `geocode`)
+    // worldwide, so the search behaves like Google Maps.
     languageCode: 'en',
   };
 

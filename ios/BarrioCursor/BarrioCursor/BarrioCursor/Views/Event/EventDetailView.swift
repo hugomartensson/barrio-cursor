@@ -222,7 +222,7 @@ struct EventDetailView: View {
                 VStack {
                     eventHeroTopBar
                         .padding(.horizontal, .portalPagePadding)
-                        .padding(.top, 16 + geo.safeAreaInsets.top)
+                        .padding(.top, PortalLayout.statusBarTopInset + 8)
                     if event.isLive {
                         Text("• HAPPENING NOW")
                             .font(.system(size: 12, weight: .semibold))

@@ -252,6 +252,7 @@ struct SpotDetailView: View {
                 bodySection
             }
         }
+        .ignoresSafeArea(edges: .top)
         .background(Color.portalBackground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
@@ -301,7 +302,8 @@ struct SpotDetailView: View {
                 title: spot.name,
                 spots: [spot],
                 events: [],
-                focusCoordinate: spot.coordinate
+                focusCoordinate: spot.coordinate,
+                showContentFilter: false
             )
             .environmentObject(authManager)
         }
@@ -338,7 +340,7 @@ struct SpotDetailView: View {
                 VStack {
                     spotHeroTopBar
                         .padding(.horizontal, .portalPagePadding)
-                        .padding(.top, 16 + geo.safeAreaInsets.top)
+                        .padding(.top, PortalLayout.statusBarTopInset + 8)
                     Spacer(minLength: 0)
                     HStack(alignment: .bottom) {
                         spotHeroTitleBlock

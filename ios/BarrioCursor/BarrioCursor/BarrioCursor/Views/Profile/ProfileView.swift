@@ -1883,8 +1883,11 @@ struct CollectionDetailView: View {
                     NavigationLink(value: event) {
                         PortalEventCard(
                             event: event,
-                            isSaved: false,
-                            onSaveToggle: nil,
+                            isSaved: viewModel.savedEventIds.contains(event.id),
+                            onSaveToggle: {
+                                guard let token = authManager.token else { return }
+                                Task { await viewModel.toggleEventSave(eventId: event.id, token: token) }
+                            },
                             reserveTrailingForExternalSave: 0
                         )
                         .environmentObject(authManager)
@@ -1993,11 +1996,7 @@ private struct CollectionSpotRowCard: View {
 
     @ViewBuilder
     private var mutualsText: some View {
-        if spot.friendsWhoSaved.isEmpty {
-            Text("0 saved")
-                .font(.system(size: 11))
-                .foregroundColor(.portalMutedForeground)
-        } else {
+        if !spot.friendsWhoSaved.isEmpty {
             let names = spot.friendsWhoSaved.prefix(2).map(\.name).joined(separator: ", ")
             let more = spot.friendsWhoSaved.count > 2 ? " + \(spot.friendsWhoSaved.count - 2) saved" : " saved"
             HStack(spacing: 0) {
@@ -2035,6 +2034,7 @@ final class CollectionDetailViewModel: ObservableObject {
     @Published var collection: CollectionData?
     @Published var spotItems: [PortalSpotItem] = []
     @Published var savedSpotIds: Set<String> = []
+    @Published var savedEventIds: Set<String> = []
     @Published var isLoading = false
     @Published var isSaved = false
     /// Set when `load` fails (e.g. network or decode); use for `ErrorView` instead of silent empty state.
@@ -2066,12 +2066,14 @@ final class CollectionDetailViewModel: ObservableObject {
         do {
             async let collectionTask = api.getCollection(id: collectionId, token: token)
             async let savedSpotsTask = api.getSavedSpots(token: token)
+            async let savedEventsTask = api.getSavedEvents(token: token)
             async let itemsTask = api.getCollectionItems(collectionId: collectionId, token: token)
-            let (collectionResponse, savedSpotsResponse, itemsResponse) = try await (collectionTask, savedSpotsTask, itemsTask)
+            let (collectionResponse, savedSpotsResponse, savedEventsResponse, itemsResponse) = try await (collectionTask, savedSpotsTask, savedEventsTask, itemsTask)
             collection = collectionResponse.data
             loadError = nil
             isSaved = false
             savedSpotIds = Set(savedSpotsResponse.data.map(\.id))
+            savedEventIds = Set(savedEventsResponse.data.map { $0.event.id })
             collectionItems = itemsResponse.data.compactMap { entry -> CollectionRowItem? in
                 if let payload = entry.spot {
                     let spot = Spot(
@@ -2143,6 +2145,17 @@ final class CollectionDetailViewModel: ObservableObject {
                     s.saveCount = response.saveCount
                     collectionItems[idx] = .spot(s)
                 }
+            }
+        } catch { }
+    }
+
+    func toggleEventSave(eventId: String, token: String) async {
+        do {
+            let result = try await SaveService.shared.toggleEventSave(eventId: eventId, token: token)
+            if result.isSaved {
+                savedEventIds.insert(eventId)
+            } else {
+                savedEventIds.remove(eventId)
             }
         } catch { }
     }

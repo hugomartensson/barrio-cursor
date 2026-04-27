@@ -28,8 +28,8 @@ struct DetailActionBar: View {
 
             if let planName = addedToPlanName {
                 actionButton(
-                    icon: "calendar.fill",
-                    label: "Added to \(planName)",
+                    icon: "calendar.badge.checkmark",
+                    label: "In \(planName)",
                     count: nil,
                     tint: .portalPrimary,
                     action: onAddToPlan
@@ -50,8 +50,8 @@ struct DetailActionBar: View {
 
             if let colName = addedToCollectionName {
                 actionButton(
-                    icon: "folder.fill",
-                    label: "Added to \(colName)",
+                    icon: "folder.badge.plus",
+                    label: "In \(colName)",
                     count: nil,
                     tint: .portalPrimary,
                     action: onAddToCollection
@@ -107,6 +107,9 @@ struct DetailActionBar: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(tint)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .minimumScaleFactor(0.85)
+                    .padding(.horizontal, 4)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 56)

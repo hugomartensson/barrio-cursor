@@ -170,7 +170,8 @@ struct SaveToPlanSheet: View {
                             startDate: newPlan.startDate, endDate: newPlan.endDate,
                             itemCount: newPlan.itemCount, previewImageURLs: newPlan.previewImageURLs,
                             createdAt: newPlan.createdAt, updatedAt: newPlan.updatedAt,
-                            role: "owner", members: nil, memberStatus: nil, itemIds: nil)) }
+                            role: "owner", members: nil, memberStatus: nil, itemIds: nil,
+                            ownerName: nil, ownerProfilePictureUrl: nil)) }
                         showCreatePlan = false
                     },
                     preselectedItem: PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: -1),

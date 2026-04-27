@@ -47,6 +47,9 @@ struct PortalSaveButton: View {
                 }
                 .padding(.vertical, 4)
             }
+            .overlay(
+                Circle().stroke(Color.portalPrimary, lineWidth: 1.5)
+            )
             .frame(width: max(diameter, 44), height: max(diameter, 44))
             .contentShape(Circle())
         }

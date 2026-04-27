@@ -15,6 +15,25 @@ enum PortalScreenBounds {
     }
 }
 
+// Top safe-area inset reported from the actual key window. Use this in views that
+// call `.ignoresSafeArea(edges: .top)`, where `GeometryReader.safeAreaInsets.top`
+// returns 0 and back-button overlays would otherwise sit under the status bar.
+@MainActor
+enum PortalLayout {
+    static var statusBarTopInset: CGFloat {
+#if canImport(UIKit)
+        let inset = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first(where: { $0.isKeyWindow })?
+            .safeAreaInsets.top
+        return inset ?? 47
+#else
+        return 47
+#endif
+    }
+}
+
 // MARK: - portal· Design System — Spacing & Layout Tokens
 
 extension CGFloat {

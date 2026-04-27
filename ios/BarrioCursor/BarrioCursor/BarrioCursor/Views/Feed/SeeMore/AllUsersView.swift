@@ -4,9 +4,10 @@ struct AllUsersView: View {
     let users: [SuggestedUserItem]
 
     @EnvironmentObject var authManager: AuthManager
+    @EnvironmentObject var locationManager: LocationManager
     @State private var nameSearch = ""
     @State private var locationSearch = ""
-    @State private var isEditingLocation = false
+    @State private var showLocationDropdown = false
     @State private var followingIds: Set<String> = []
     @State private var togglingId: String? = nil
     @State private var profileUserId: String? = nil
@@ -31,59 +32,82 @@ struct AllUsersView: View {
         List {
             // Search row: location pill + name search field on same line
             Section {
-                HStack(spacing: 8) {
-                    // Location pill — tapping toggles inline location text entry
-                    Button { isEditingLocation.toggle() } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "mappin")
-                                .font(.system(size: 12))
-                                .foregroundColor(.portalPrimary)
-                            if isEditingLocation {
-                                TextField("City", text: $locationSearch)
-                                    .font(.portalMetadata)
-                                    .frame(minWidth: 60, maxWidth: 100)
-                            } else {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        // Location pill — opens a live LocationSearchField dropdown (matches Discover)
+                        Button {
+                            showLocationDropdown.toggle()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "mappin")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.portalPrimary)
                                 Text(locationSearch.isEmpty ? "Location" : locationSearch)
                                     .font(.portalMetadata)
                                     .foregroundColor(locationSearch.isEmpty ? .portalMutedForeground : .portalForeground)
                                     .lineLimit(1)
+                                if !locationSearch.isEmpty {
+                                    Button {
+                                        locationSearch = ""
+                                        showLocationDropdown = false
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 11))
+                                            .foregroundColor(.portalMutedForeground)
+                                    }
+                                    .buttonStyle(.plain)
+                                } else {
+                                    Image(systemName: showLocationDropdown ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(.portalMutedForeground)
+                                }
                             }
-                            if !locationSearch.isEmpty {
-                                Button { locationSearch = ""; isEditingLocation = false } label: {
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(Color.portalMuted)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                        .fixedSize(horizontal: true, vertical: false)
+
+                        // Name / handle search — takes remaining width
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundColor(.portalMutedForeground)
+                                .font(.system(size: 14))
+                            TextField("Search by name or handle", text: $nameSearch)
+                                .font(.portalBody)
+                            if !nameSearch.isEmpty {
+                                Button { nameSearch = "" } label: {
                                     Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 11))
                                         .foregroundColor(.portalMutedForeground)
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 8)
                         .background(Color.portalMuted)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .buttonStyle(.plain)
-                    .fixedSize(horizontal: true, vertical: false)
 
-                    // Name / handle search — takes remaining width
-                    HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.portalMutedForeground)
-                            .font(.system(size: 14))
-                        TextField("Search by name or handle", text: $nameSearch)
-                            .font(.portalBody)
-                        if !nameSearch.isEmpty {
-                            Button { nameSearch = "" } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.portalMutedForeground)
+                    if showLocationDropdown {
+                        LocationSearchField(
+                            biasCenter: locationManager.coordinate,
+                            onUseCurrentLocation: {
+                                locationSearch = ""
+                                showLocationDropdown = false
+                            },
+                            onSelect: { resolved in
+                                locationSearch = resolved.neighborhood ?? resolved.formattedAddress
+                                showLocationDropdown = false
                             }
-                            .buttonStyle(.plain)
-                        }
+                        )
+                        .padding(12)
+                        .background(Color.portalCard)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.portalBorder, lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color.portalMuted)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .listRowInsets(EdgeInsets(top: 8, leading: .portalPagePadding, bottom: 8, trailing: .portalPagePadding))
                 .listRowSeparator(.hidden)

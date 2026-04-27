@@ -59,46 +59,23 @@ struct EditProfileView: View {
     // MARK: - Profile picture section
     private var profilePictureSection: some View {
         VStack(spacing: 12) {
-            if let profileImage = profileImage {
-                Image(uiImage: profileImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 120, height: 120)
-                    .clipShape(Circle())
-                    .overlay(
-                        Circle()
-                            .stroke(Color.portalBorder, lineWidth: 2)
-                    )
-            } else if let profilePictureUrl = authManager.currentUser?.profilePictureUrl,
-                      let url = URL(string: profilePictureUrl) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView().tint(.portalPrimary)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    case .failure:
-                        defaultAvatar
-                    @unknown default:
-                        defaultAvatar
-                    }
-                }
-                .frame(width: 120, height: 120)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.portalBorder, lineWidth: 2)
-                )
-            } else {
-                defaultAvatar
-            }
             PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                Text("Change Photo")
-                    .font(.portalBody)
-                    .foregroundColor(.portalPrimary)
+                ZStack(alignment: .bottomTrailing) {
+                    profilePictureAvatar
+                    // Camera affordance so the existing photo (visible behind) is clearly tappable.
+                    ZStack {
+                        Circle()
+                            .fill(Color.portalPrimary)
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                    .overlay(Circle().stroke(Color.portalBackground, lineWidth: 2))
+                    .offset(x: 4, y: 4)
+                }
             }
+            .buttonStyle(.plain)
             .onChange(of: selectedPhoto) { _, newItem in
                 Task {
                     if let data = try? await newItem?.loadTransferable(type: Data.self),
@@ -107,9 +84,45 @@ struct EditProfileView: View {
                     }
                 }
             }
+            Text("Change Photo")
+                .font(.portalBody)
+                .foregroundColor(.portalPrimary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
+    }
+
+    @ViewBuilder
+    private var profilePictureAvatar: some View {
+        if let profileImage = profileImage {
+            Image(uiImage: profileImage)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 120, height: 120)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.portalBorder, lineWidth: 2))
+        } else if let profilePictureUrl = authManager.currentUser?.profilePictureUrl,
+                  let url = URL(string: profilePictureUrl) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView().tint(.portalPrimary)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                case .failure:
+                    defaultAvatar
+                @unknown default:
+                    defaultAvatar
+                }
+            }
+            .frame(width: 120, height: 120)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.portalBorder, lineWidth: 2))
+        } else {
+            defaultAvatar
+        }
     }
 
     // MARK: - Name field (borderless + bottom line, matches CreateSpotView)

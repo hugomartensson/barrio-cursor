@@ -183,9 +183,6 @@ struct SuggestedUserCard: View {
                     Text("\(user.mutualCount) mutuals")
                         .font(.portalMetadata)
                 }
-            } else {
-                Text("0 mutuals")
-                    .font(.portalMetadata)
             }
         }
         .foregroundColor(.portalMutedForeground)

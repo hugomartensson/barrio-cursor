@@ -41,6 +41,7 @@ struct PlanItemDragPayload: Codable, Transferable {
 struct PlanDetailView: View {
     let plan: PlanData
     @EnvironmentObject var authManager: AuthManager
+    @Environment(\.dismiss) private var dismiss
 
     @State private var detail: PlanDetailData?
     @State private var localItems: [PlanItemEntry] = []
@@ -139,8 +140,9 @@ struct PlanDetailView: View {
                 plan: currentPlan,
                 existingItemIds: Set(localItems.map { $0.itemId })
             ) { updated in
+                // Update header fields in place — no refetch, so the scroll position
+                // and rendered items don't flash/reload while the user is editing.
                 currentPlan = updated
-                Task { await loadDetail() }
             }
             .environmentObject(authManager)
         }
@@ -279,10 +281,26 @@ struct PlanDetailView: View {
 
     @ViewBuilder
     private var friendsSection: some View {
-        let allMembers = currentPlan.members ?? []
+        let viewerId = authManager.currentUser?.id
+        let rawMembers = currentPlan.members ?? []
+        // Hide the viewer themself; they don't count as a "friend in this plan".
+        let allMembers = rawMembers.filter { $0.userId != viewerId }
         let accepted = allMembers.filter { $0.status == "accepted" }
         let invited = allMembers.filter { $0.status == "invited" }
-        let visible = accepted + invited   // accepted first, then pending
+        // Always include the creator (so invited users see who they're joining).
+        // The owner isn't in `members` (members is non-owners only), so synthesize an entry.
+        let ownerEntry: PlanMember? = {
+            guard currentPlan.userId != viewerId else { return nil }
+            guard !allMembers.contains(where: { $0.userId == currentPlan.userId }) else { return nil }
+            return PlanMember(
+                id: "owner-\(currentPlan.userId)",
+                userId: currentPlan.userId,
+                name: currentPlan.ownerName ?? "Creator",
+                profilePictureUrl: currentPlan.ownerProfilePictureUrl,
+                status: "accepted"
+            )
+        }()
+        let visible = (ownerEntry.map { [$0] } ?? []) + accepted + invited   // creator, accepted, then pending
         VStack(alignment: .leading, spacing: 10) {
             Text("FRIENDS IN PLAN")
                 .font(.portalSectionTitle)
@@ -749,6 +767,9 @@ struct PlanDetailView: View {
         guard let token = authManager.token else { return }
         do {
             try await PlanService.shared.leavePlan(planId: currentPlan.id, token: token)
+            // Notify the plans list to refresh, then pop back to the plans overview.
+            NotificationCenter.default.post(name: NSNotification.Name("PlanLeft"), object: currentPlan.id)
+            await MainActor.run { dismiss() }
         } catch { }
     }
 }

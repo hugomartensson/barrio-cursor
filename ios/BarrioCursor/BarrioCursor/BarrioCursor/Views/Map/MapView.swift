@@ -221,27 +221,21 @@ struct MapView: View {
         .mapControls {
             MapCompass()
         }
-        .onMapCameraChange { context in
-            // Update search location when map moves (for search following map)
-            // This is debounced in onChange(of: cameraPosition)
+        .onMapCameraChange { _ in
+            // Close any open filter dropdown when the user pans/zooms the map.
+            // This replaces a full-screen invisible tap-catcher that previously blocked map gestures.
+            if showTimeFilterDropdown || showCategoryFilterDropdown || showLocationDropdown {
+                showTimeFilterDropdown = false
+                showCategoryFilterDropdown = false
+                showLocationDropdown = false
+            }
         }
     }
-    
+
     // MARK: - Discover-mirror filter overlay: floating card so map uses full height; categories hang freely with spacing from actions
     @ViewBuilder
     private var filterControlsOverlay: some View {
         ZStack(alignment: .top) {
-            if showTimeFilterDropdown || showCategoryFilterDropdown || showLocationDropdown {
-                Color.clear
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        showTimeFilterDropdown = false
-                        showCategoryFilterDropdown = false
-                        showLocationDropdown = false
-                    }
-                    .allowsHitTesting(true)
-            }
 
             VStack(alignment: .leading, spacing: 0) {
                 // Floating filter row: Location | Time | Categories with clear gap before action buttons

@@ -461,20 +461,45 @@ router.get(
       })
     );
 
-    const collections = visible.filter(Boolean).map((col) => ({
-      id: col!.id,
-      name: col!.name,
-      description: col!.description,
-      visibility: col!.visibility,
-      coverImageURL: col!.coverImageUrl ?? null,
-      itemCount: col!.items.length,
-      ownerHandle: col!.user.handle ?? null,
-      ownerInitials: col!.user.initials ?? null,
-      owned: col!.userId === viewerId,
-      saveCount: 0,
-      createdAt: col!.createdAt.toISOString(),
-      updatedAt: col!.updatedAt.toISOString(),
-    }));
+    const collections = await Promise.all(
+      visible.filter(Boolean).map(async (col) => {
+        const colSpotItems = await prisma.collectionItem.findMany({
+          where: { collectionId: col!.id, itemType: 'spot' },
+          take: 3,
+          select: { itemId: true },
+        });
+        const spotIds = colSpotItems.map((s) => s.itemId);
+        const mediaItems = spotIds.length
+          ? await prisma.mediaItem.findMany({
+              where: { spotId: { in: spotIds } },
+              select: { url: true },
+              take: 3,
+            })
+          : [];
+        const previewUrls = mediaItems.map((m) => m.url).slice(0, 2);
+        const dbCover = col!.coverImageUrl?.trim();
+        const coverImageURL = dbCover || previewUrls[0] || null;
+        const previewSpotImageURLs = dbCover
+          ? previewUrls.slice(0, 2)
+          : previewUrls.slice(1);
+
+        return {
+          id: col!.id,
+          name: col!.name,
+          description: col!.description,
+          visibility: col!.visibility,
+          coverImageURL,
+          previewSpotImageURLs,
+          itemCount: col!.items.length,
+          ownerHandle: col!.user.handle ?? null,
+          ownerInitials: col!.user.initials ?? null,
+          owned: col!.userId === viewerId,
+          saveCount: 0,
+          createdAt: col!.createdAt.toISOString(),
+          updatedAt: col!.updatedAt.toISOString(),
+        };
+      })
+    );
 
     res.json({ data: collections });
   })

@@ -13,8 +13,7 @@ struct DiscoverView: View {
     @State private var sortOption: SortOption = .soonest // PRD Section 5.3: Sort option
     @State private var eventToShare: Event? = nil // Phase 3.5: Swipe "Share"
     // Removed Phase 3.6 pinch-to-zoom overview per PRD simplification
-    @State private var userIdForProfile: String? = nil // Organizer tap from EventCard → UserProfileView
-    @State private var showUserProfileSheet = false
+    @State private var userIdForProfile: UserProfileRoute? = nil // Organizer tap from EventCard → UserProfileView
     @State private var locationLabel: String = "Current location"
     @State private var showTimeFilterDropdown = false
     @State private var showCategoryFilterDropdown = false
@@ -99,12 +98,10 @@ struct DiscoverView: View {
                 onDismiss: { eventToShare = nil }
             )
         }
-        .sheet(isPresented: $showUserProfileSheet, onDismiss: { userIdForProfile = nil }) {
-            if let userId = userIdForProfile {
-                NavigationStack {
-                    UserProfileView(userId: userId)
-                        .environmentObject(authManager)
-                }
+        .sheet(item: $userIdForProfile) { route in
+            NavigationStack {
+                UserProfileView(userId: route.id)
+                    .environmentObject(authManager)
             }
         }
         .sheet(isPresented: $showDateRangePicker) {
@@ -140,8 +137,7 @@ struct DiscoverView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowUserProfile"))) { notification in
                 if let userId = notification.object as? String {
-                    userIdForProfile = userId
-                    showUserProfileSheet = true
+                    userIdForProfile = UserProfileRoute(id: userId)
                 }
             }
     }
@@ -482,11 +478,13 @@ struct DiscoverView: View {
             biasCenter: locationManager.coordinate,
             onUseCurrentLocation: {
                 discoverFilters.searchLocation = nil
+                discoverFilters.searchNeighborhood = nil
                 showLocationDropdown = false
                 Task { await updateLocationLabel() }
             },
             onSelect: { resolved in
                 discoverFilters.searchLocation = resolved.coordinate
+                discoverFilters.searchNeighborhood = resolved.neighborhood
                 showLocationDropdown = false
                 Task { await updateLocationLabel() }
             }
@@ -716,8 +714,7 @@ struct DiscoverView: View {
             HStack(spacing: .portalCardGap) {
                 ForEach(filteredUsers.map { SuggestedUserItem(from: $0) }, id: \.id) { user in
                     Button {
-                        userIdForProfile = user.id
-                        showUserProfileSheet = true
+                        userIdForProfile = UserProfileRoute(id: user.id)
                     } label: {
                         SuggestedUserCard(user: user)
                     }
@@ -837,7 +834,12 @@ struct DiscoverView: View {
                 categoryMatches(event: event)
             }
         }
-        
+
+        // Neighborhood filter (set when user picks a neighborhood in the location search)
+        if let n = discoverFilters.searchNeighborhood, !n.isEmpty {
+            events = events.filter { ($0.neighborhood ?? "").localizedCaseInsensitiveContains(n) }
+        }
+
         // Text search filter (from search bar in header)
         if !discoverSearchText.isEmpty {
             events = events.filter { $0.title.localizedCaseInsensitiveContains(discoverSearchText) }
@@ -885,6 +887,9 @@ struct DiscoverView: View {
         var result = viewModel.spots
         if !discoverFilters.categories.isEmpty {
             result = result.filter { discoverFilters.categories.contains($0.category) }
+        }
+        if let n = discoverFilters.searchNeighborhood, !n.isEmpty {
+            result = result.filter { $0.neighborhood.localizedCaseInsensitiveContains(n) }
         }
         if !discoverSearchText.isEmpty {
             result = result.filter { $0.name.localizedCaseInsensitiveContains(discoverSearchText) }
@@ -1584,6 +1589,12 @@ struct SpotIdWrapper: Identifiable, Equatable, Hashable {
 struct CollectionRoute: Identifiable, Hashable {
     let id: String
     let name: String
+}
+
+/// Identifiable wrapper for `.sheet(item:)` user-profile presentation. Using `.sheet(item:)`
+/// guarantees the body is built with the id present (avoids first-tap blank sheet).
+struct UserProfileRoute: Identifiable, Hashable {
+    let id: String
 }
 
 // MARK: - Share Sheet (Phase 3.5)

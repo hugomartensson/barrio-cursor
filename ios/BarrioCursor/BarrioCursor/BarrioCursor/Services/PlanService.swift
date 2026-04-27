@@ -27,6 +27,10 @@ nonisolated struct PlanData: Codable, Identifiable, Hashable {
     let members: [PlanMember]?
     let memberStatus: String?   // "invited" | "accepted" | "declined" (only when role == "member")
     let itemIds: [String]?      // IDs of all items in the plan (for duplicate detection)
+    /// Plan creator's display name (only present on plan-detail responses).
+    let ownerName: String?
+    /// Plan creator's profile picture URL.
+    let ownerProfilePictureUrl: String?
 
     static func == (lhs: PlanData, rhs: PlanData) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
@@ -102,40 +106,25 @@ nonisolated struct PlanDetailData: Codable, Identifiable {
     let memberStatus: String?
     let itemIds: [String]?
     let items: [PlanItemEntry]
+    let ownerName: String?
+    let ownerProfilePictureUrl: String?
 
     var isOwner: Bool { role == "owner" || role == nil }
 
-    var numberOfDays: Int {
+    var asPlanData: PlanData {
         PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
                  itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
                  updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
-                 itemIds: itemIds).numberOfDays
+                 itemIds: itemIds, ownerName: ownerName, ownerProfilePictureUrl: ownerProfilePictureUrl)
     }
 
-    func date(for dayOffset: Int) -> Date? {
-        PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
-                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
-                 updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
-                 itemIds: itemIds).date(for: dayOffset)
-    }
-
+    var numberOfDays: Int { asPlanData.numberOfDays }
+    func date(for dayOffset: Int) -> Date? { asPlanData.date(for: dayOffset) }
     func validDayOffsets(forEventStartTime startTime: Date, endTime: Date?) -> [Int] {
-        PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
-                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
-                 updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
-                 itemIds: itemIds).validDayOffsets(forEventStartTime: startTime, endTime: endTime)
+        asPlanData.validDayOffsets(forEventStartTime: startTime, endTime: endTime)
     }
-
-    func items(for dayOffset: Int) -> [PlanItemEntry] {
-        items.filter { $0.dayOffset == dayOffset }
-    }
-
-    var dateRangeLabel: String {
-        PlanData(id: id, userId: userId, name: name, startDate: startDate, endDate: endDate,
-                 itemCount: itemCount, previewImageURLs: previewImageURLs, createdAt: createdAt,
-                 updatedAt: updatedAt, role: role, members: members, memberStatus: memberStatus,
-                 itemIds: itemIds).dateRangeLabel
-    }
+    func items(for dayOffset: Int) -> [PlanItemEntry] { items.filter { $0.dayOffset == dayOffset } }
+    var dateRangeLabel: String { asPlanData.dateRangeLabel }
 }
 
 nonisolated struct PlanItemEntry: Codable, Identifiable {

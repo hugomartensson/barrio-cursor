@@ -47,6 +47,8 @@ final class DiscoverFilters: ObservableObject {
     @Published var followingOnly: Bool = false
     /// When set, both Discover and Map use this location instead of current device location (nil = use current location)
     @Published var searchLocation: CLLocationCoordinate2D? = nil
+    /// When set (typically by selecting a Neighborhoods result), Discover/See-More scope results to this neighborhood by name.
+    @Published var searchNeighborhood: String? = nil
     /// When time == .pickDate, filter events to this range (inclusive). Nil = show all until user picks.
     @Published var customDateRange: (start: Date, end: Date)? = nil
     /// True when event or collection detail is pushed (hide map pill)

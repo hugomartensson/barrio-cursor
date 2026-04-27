@@ -13,12 +13,18 @@ struct AllSpotsView: View {
     private let columns = [GridItem(.flexible(), spacing: .portalCardGap), GridItem(.flexible(), spacing: .portalCardGap)]
 
     private var filtered: [Spot] {
-        guard !discoverFilters.categories.isEmpty else { return spots }
-        return spots.filter { spot in
-            discoverFilters.categories.contains { cat in
-                spot.category.rawValue.lowercased() == cat.rawValue.lowercased()
+        var result = spots
+        if !discoverFilters.categories.isEmpty {
+            result = result.filter { spot in
+                discoverFilters.categories.contains { cat in
+                    spot.category.rawValue.lowercased() == cat.rawValue.lowercased()
+                }
             }
         }
+        if let n = discoverFilters.searchNeighborhood, !n.isEmpty {
+            result = result.filter { $0.neighborhood.localizedCaseInsensitiveContains(n) }
+        }
+        return result
     }
 
     private var cardWidth: CGFloat {
@@ -151,6 +157,11 @@ struct AllEventsView: View {
                     event.category.rawValue.lowercased() == cat.rawValue.lowercased()
                 }
             }
+        }
+
+        // Neighborhood filter
+        if let n = discoverFilters.searchNeighborhood, !n.isEmpty {
+            result = result.filter { ($0.neighborhood ?? "").localizedCaseInsensitiveContains(n) }
         }
 
         return result
@@ -349,10 +360,13 @@ private struct _SeeMoreFilterStrip: View {
     let showTime: Bool
     @Binding var showCategoryDropdown: Bool
     @EnvironmentObject var discoverFilters: DiscoverFilters
+    @EnvironmentObject var locationManager: LocationManager
     @State private var showTimeDialog = false
+    @State private var showLocationDropdown = false
 
     private var locationLabel: String {
-        discoverFilters.searchLocation != nil ? "Searched area" : "Current location"
+        if let n = discoverFilters.searchNeighborhood, !n.isEmpty { return n }
+        return discoverFilters.searchLocation != nil ? "Searched area" : "Current location"
     }
 
     private var hasActiveFilter: Bool {
@@ -360,24 +374,58 @@ private struct _SeeMoreFilterStrip: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            // Location — display only (changing it from Discover also updates here)
-            HStack(spacing: 4) {
-                Image(systemName: "mappin")
-                    .font(.system(size: 11))
-                    .foregroundColor(.portalPrimary)
-                Text(locationLabel)
-                    .font(.portalMetadata)
-                    .foregroundColor(.portalMutedForeground)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+        VStack(alignment: .leading, spacing: 8) {
+            filterRow
+            if showLocationDropdown {
+                LocationSearchField(
+                    biasCenter: locationManager.coordinate,
+                    onUseCurrentLocation: {
+                        discoverFilters.searchLocation = nil
+                        discoverFilters.searchNeighborhood = nil
+                        showLocationDropdown = false
+                    },
+                    onSelect: { resolved in
+                        discoverFilters.searchLocation = resolved.coordinate
+                        discoverFilters.searchNeighborhood = resolved.neighborhood
+                        showLocationDropdown = false
+                    }
+                )
+                .padding(12)
+                .background(Color.portalCard)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.portalBorder, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
             }
-            .padding(.horizontal, 10)
-            .frame(height: 36)
-            .frame(maxWidth: .infinity)
-            .background(Color.portalCard)
-            .overlay(RoundedRectangle(cornerRadius: .portalCategoryPillRadius).stroke(Color.portalBorder, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
+        }
+    }
+
+    private var filterRow: some View {
+        HStack(spacing: 4) {
+            // Location — tappable, opens live LocationSearchField dropdown
+            Button {
+                showCategoryDropdown = false
+                showLocationDropdown.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "mappin")
+                        .font(.system(size: 11))
+                        .foregroundColor(.portalPrimary)
+                    Text(locationLabel)
+                        .font(.portalMetadata)
+                        .foregroundColor(.portalMutedForeground)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image(systemName: showLocationDropdown ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.portalMutedForeground)
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 36)
+                .frame(maxWidth: .infinity)
+                .background(Color.portalCard)
+                .overlay(RoundedRectangle(cornerRadius: .portalCategoryPillRadius).stroke(Color.portalBorder, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
+            }
+            .buttonStyle(.plain)
             .layoutPriority(0)
 
             // Time pill (events only)

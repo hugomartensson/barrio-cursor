@@ -78,6 +78,10 @@ export interface PlanData {
   members: PlanMemberPayload[];
   memberStatus?: string;
   itemIds: string[];
+  /** Owner's display name (creator of the plan). Used to render the creator in the Friends section. */
+  ownerName?: string;
+  /** Owner's profile picture URL. */
+  ownerProfilePictureUrl?: string | null;
 }
 
 export interface PlanDetailData extends PlanData {
@@ -137,6 +141,7 @@ function formatPlan(
     createdAt: Date;
     updatedAt: Date;
     _count: { items: number };
+    user?: { name: string; profilePictureUrl: string | null } | null;
     members?: Array<{
       id: string;
       userId: string;
@@ -173,6 +178,10 @@ function formatPlan(
     members,
     ...(memberStatus !== undefined && { memberStatus }),
     itemIds,
+    ...(plan.user && {
+      ownerName: plan.user.name,
+      ownerProfilePictureUrl: plan.user.profilePictureUrl,
+    }),
   };
 }
 
@@ -492,6 +501,7 @@ router.get(
       const fullPlan = await prisma.plan.findUnique({
         where: { id: plan.id },
         include: {
+          user: { select: { name: true, profilePictureUrl: true } },
           items: { orderBy: [{ dayOffset: 'asc' }, { order: 'asc' }] },
           _count: { select: { items: true } },
           members: {

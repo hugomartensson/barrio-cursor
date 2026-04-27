@@ -42,6 +42,9 @@ struct PlansTabView: View {
             .onAppear {
                 planNotificationManager.clearBadge()
             }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PlanLeft"))) { _ in
+                Task { await loadPlans() }
+            }
             .navigationDestination(for: PlanData.self) { plan in
                 PlanDetailView(plan: plan)
                     .environmentObject(authManager)
