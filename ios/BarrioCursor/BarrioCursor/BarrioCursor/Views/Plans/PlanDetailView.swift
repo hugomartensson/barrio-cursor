@@ -509,8 +509,7 @@ struct PlanDetailView: View {
                     .padding(.horizontal, .portalPagePadding)
                     .background(
                         RoundedRectangle(cornerRadius: .portalRadiusSm)
-                            .stroke(isTarget ? Color.portalPrimary : Color.clear,
-                                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                            .stroke(isTarget ? Color.portalPrimary : Color.portalBorder, lineWidth: 1)
                             .padding(.horizontal, .portalPagePadding)
                     )
             } else {
@@ -547,7 +546,7 @@ struct PlanDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
                 .overlay(
                     RoundedRectangle(cornerRadius: .portalRadiusSm)
-                        .stroke(Color.portalPrimary.opacity(0.5), style: StrokeStyle(lineWidth: 1.5, dash: [6, 3]))
+                        .stroke(Color.portalPrimary.opacity(0.3), lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -557,8 +556,8 @@ struct PlanDetailView: View {
         .overlay(
             RoundedRectangle(cornerRadius: .portalRadiusSm)
                 .strokeBorder(
-                    isTarget ? Color.portalPrimary.opacity(0.7) : Color.clear,
-                    style: StrokeStyle(lineWidth: 2, dash: [6, 4])
+                    isTarget ? Color.portalPrimary.opacity(0.4) : Color.clear,
+                    lineWidth: 2
                 )
                 .padding(.horizontal, .portalPagePadding - 4)
                 .allowsHitTesting(false)
@@ -600,13 +599,17 @@ struct PlanDetailView: View {
         }
     }
 
-    // Drag preview at actual size
+    // Drag preview at the same visual size as the source row.
+    // iOS's default `.draggable` lift snapshot scales the source to ~70%; passing
+    // an explicit preview view at the full row width prevents the shrink.
     @ViewBuilder
     private func planItemDragPreview(item: PlanItemEntry) -> some View {
         planItemRow(item: item)
             .frame(width: UIScreen.main.bounds.width - 2 * CGFloat.portalPagePadding)
+            .padding(.vertical, 4)
             .background(Color.portalCard)
             .clipShape(RoundedRectangle(cornerRadius: .portalRadiusSm))
+            .shadow(color: Color.black.opacity(0.18), radius: 8, x: 0, y: 4)
     }
 
     // MARK: - Toast overlays
@@ -642,7 +645,13 @@ struct PlanDetailView: View {
 
     private func loadDetail() async {
         guard let token = authManager.token else { return }
-        await MainActor.run { isLoading = true }
+        // Only show the loading spinner on the first load. Subsequent re-fetches
+        // (after drag/drop, edit, item add) keep the existing list rendered to
+        // avoid the gray flash while the network round-trip is in flight.
+        let isFirstLoad = detail == nil
+        if isFirstLoad {
+            await MainActor.run { isLoading = true }
+        }
         do {
             let result = try await PlanService.shared.getPlan(id: currentPlan.id, token: token)
             await MainActor.run {

@@ -19,7 +19,10 @@ import CoreLocation
 /// ```
 struct LocationSearchField: View {
     // MARK: - Inputs
-    var biasCenter: CLLocationCoordinate2D
+    /// Optional bias center. Pass `LocationManager.realCoordinate` (not `coordinate`)
+    /// so we don't bias Google Places to the Stockholm fallback when the user has
+    /// no GPS fix.
+    var biasCenter: CLLocationCoordinate2D?
     var placeholder: String = "Search location..."
     var onUseCurrentLocation: (() -> Void)?
     var onSelect: (ResolvedLocation) -> Void

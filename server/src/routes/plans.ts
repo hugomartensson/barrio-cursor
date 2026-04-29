@@ -801,7 +801,16 @@ router.patch(
         data: { dayOffset: clampedOffset },
       });
 
-      res.json({ data: updated });
+      res.json({
+        data: {
+          id: updated.id,
+          itemType: updated.itemType,
+          itemId: updated.itemId,
+          dayOffset: updated.dayOffset,
+          order: updated.order,
+          addedAt: updated.createdAt.toISOString(),
+        },
+      });
     }
   )
 );

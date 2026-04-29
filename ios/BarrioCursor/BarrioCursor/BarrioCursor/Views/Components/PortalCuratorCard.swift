@@ -280,13 +280,20 @@ struct PortalCollectionCard: View {
         HStack(spacing: 0) {
             // Main cover — width is explicit so the strip always reserves 52pt.
             ZStack(alignment: .bottomLeading) {
-                CachedRemoteImage(
-                    url: portalMediaURL(collection.resolvedCoverImageURLString),
-                    placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
-                    failure: { Rectangle().fill(Color.portalMuted) }
-                )
-                .frame(width: mainPanelWidth, height: cardHeight)
-                .clipped()
+                if let coverURL = collection.resolvedCoverImageURLString,
+                   !coverURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    CachedRemoteImage(
+                        url: portalMediaURL(coverURL),
+                        placeholder: { Rectangle().fill(Color.portalMuted).overlay { ProgressView() } },
+                        failure: { CollectionCoverFallback(seed: collection.title, letter: collection.title.prefix(1).uppercased()) }
+                    )
+                    .frame(width: mainPanelWidth, height: cardHeight)
+                    .clipped()
+                } else {
+                    CollectionCoverFallback(seed: collection.title, letter: collection.title.prefix(1).uppercased())
+                        .frame(width: mainPanelWidth, height: cardHeight)
+                        .clipped()
+                }
 
                 EditorialBottomGradient(heightFraction: 0.62, cardHeight: cardHeight)
                     .frame(width: mainPanelWidth, height: cardHeight)
@@ -383,4 +390,35 @@ extension PortalCollectionItem {
         PortalCollectionItem(id: "1", title: "The Night Edit", subtitle: "Late Night Done Right", imageURL: nil, ownerInitial: "NE", ownerHandle: "nightedit", accentColor: .portalAccent, itemCount: 12, saveCount: 2100, categoryLabels: ["Food", "Music", "Art"], previewImageURLs: nil),
         PortalCollectionItem(id: "2", title: "Weekend Atlas", subtitle: "A Red Saturday Brooklyn", imageURL: nil, ownerInitial: "W", ownerHandle: "weekendatlas", accentColor: .portalLive, itemCount: 8, saveCount: nil, categoryLabels: ["Food", "Art"], previewImageURLs: nil),
     ]
+}
+
+// MARK: - Branded fallback for collections with no cover
+
+/// Deterministic gradient + first letter, shown when a collection has no
+/// cover image and no spot media to fall back to. Same name → same gradient.
+struct CollectionCoverFallback: View {
+    let seed: String
+    let letter: String
+
+    private static let palettes: [[Color]] = [
+        [Color(hex: "#2F7168"), Color(hex: "#3D8A80")],
+        [Color(hex: "#E94560"), Color(hex: "#FF6B6B")],
+        [Color(hex: "#5B6CFF"), Color(hex: "#7C5BFF")],
+        [Color(hex: "#F2994A"), Color(hex: "#F2C94C")],
+        [Color(hex: "#27AE60"), Color(hex: "#6FCF97")],
+        [Color(hex: "#9B51E0"), Color(hex: "#BB6BD9")],
+    ]
+
+    private var palette: [Color] {
+        Self.palettes[abs(seed.hashValue) % Self.palettes.count]
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(colors: palette, startPoint: .topLeading, endPoint: .bottomTrailing)
+            Text(letter)
+                .font(.system(size: 64, weight: .bold))
+                .foregroundColor(.white.opacity(0.85))
+        }
+    }
 }

@@ -12,6 +12,7 @@ import { suggestedUsersQuerySchema } from '../schemas/suggestedUsers.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
 import type { EventsListResponse } from '../types/responses.js';
 import { formatEvent } from '../utils/eventFormatters.js';
+import { resolveCollectionImages } from '../services/collectionService.js';
 
 const router = Router();
 
@@ -878,8 +879,8 @@ interface UserCollectionItem {
   owned: boolean;
   ownerHandle: string | null;
   ownerInitials: string | null;
-  coverImageURL: null;
-  previewSpotImageURLs: null;
+  coverImageURL: string | null;
+  previewSpotImageURLs: string[];
 }
 
 /**
@@ -941,6 +942,10 @@ router.get(
         )
       );
 
+      const images = await Promise.all(
+        collections.map((c) => resolveCollectionImages(c.id, c.coverImageUrl))
+      );
+
       const data: UserCollectionItem[] = collections.map((c, i) => ({
         id: c.id,
         userId: c.userId,
@@ -950,11 +955,11 @@ router.get(
         itemCount: counts[i] ?? 0,
         createdAt: c.createdAt.toISOString(),
         updatedAt: c.updatedAt.toISOString(),
-        owned: false,
+        owned: userId === viewerId,
         ownerHandle: user.handle,
         ownerInitials: user.initials,
-        coverImageURL: null,
-        previewSpotImageURLs: null,
+        coverImageURL: images[i]?.coverImageURL ?? null,
+        previewSpotImageURLs: images[i]?.previewSpotImageURLs ?? [],
       }));
 
       res.json({ data });

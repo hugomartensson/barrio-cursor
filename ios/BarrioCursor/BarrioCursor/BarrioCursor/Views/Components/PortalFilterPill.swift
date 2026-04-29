@@ -81,6 +81,59 @@ struct PortalFilterPill: View {
     }
 }
 
+// MARK: - Time filter pill
+// Shared between Discover (FeedView) and the See-More AllEvents list so the
+// gradient-active styling and dropdown chevron stay in sync.
+struct TimeFilterPill: View {
+    let selected: DiscoverTimeIntent?
+    let isOpen: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if let time = selected {
+                    Text(time.label)
+                        .font(.portalLabelSemibold)
+                        .foregroundColor(.portalPrimaryForeground)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                } else {
+                    Text("Time")
+                        .font(.portalLabelSemibold)
+                        .foregroundColor(.portalForeground)
+                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.portalMutedForeground)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 36)
+            .background(background)
+            .overlay(
+                RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
+                    .stroke(Color.portalBorder, lineWidth: selected != nil ? 0 : 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
+        }
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder
+    private var background: some View {
+        if selected != nil {
+            LinearGradient(
+                colors: [Color(hex: "#2F7168"), Color(hex: "#3D8A80")],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        } else {
+            Color.portalCard
+        }
+    }
+}
+
 #Preview("Filter pills") {
     HStack(spacing: .portalCardGap) {
         PortalFilterPill(title: "All", isActive: true) {}

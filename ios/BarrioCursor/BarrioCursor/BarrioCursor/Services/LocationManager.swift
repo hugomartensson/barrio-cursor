@@ -66,6 +66,13 @@ class LocationManager: NSObject, ObservableObject {
             longitude: AppConfig.fallbackLongitude
         )
     }
+
+    /// Real-fix coordinate, or nil when permission is missing / no GPS fix yet.
+    /// Use this for biasing search APIs so we don't bias Google Places results
+    /// to Stockholm when the user is actually elsewhere.
+    var realCoordinate: CLLocationCoordinate2D? {
+        location?.coordinate
+    }
     
     /// Geocode an address string to coordinates
     /// Per PRD Section 3: If location permission denied, user can manually enter address

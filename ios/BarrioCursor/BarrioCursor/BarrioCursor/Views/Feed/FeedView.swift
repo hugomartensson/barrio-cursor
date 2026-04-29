@@ -253,42 +253,17 @@ struct DiscoverView: View {
                     .frame(minWidth: 0, maxWidth: .infinity)
                     .layoutPriority(0)
 
-                    // Time pill — fixed size so it sits right next to Location
-                    Button {
-                        showLocationDropdown = false
-                        showCategoryFilterDropdown = false
-                        showTimeFilterDropdown.toggle()
-                    } label: {
-                        HStack(spacing: 4) {
-                            if discoverFilters.time == nil {
-                                Text("Time")
-                                    .font(.portalLabelSemibold)
-                                    .foregroundColor(.portalForeground)
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .foregroundColor(.portalMutedForeground)
-                            } else {
-                                Text(discoverFilters.time!.label)
-                                    .font(.portalLabelSemibold)
-                                    .foregroundColor(.portalPrimaryForeground)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                            }
+                    // Time pill — shared component with the See-More AllEvents list
+                    TimeFilterPill(
+                        selected: discoverFilters.time,
+                        isOpen: showTimeFilterDropdown,
+                        action: {
+                            showLocationDropdown = false
+                            showCategoryFilterDropdown = false
+                            showTimeFilterDropdown.toggle()
                         }
-                        .padding(.horizontal, 10)
-                        .frame(height: 44)
-                        .background(timePillBackground)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: .portalCategoryPillRadius)
-                                .stroke(Color.portalBorder, lineWidth: discoverFilters.time != nil ? 0 : 1)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
-                    }
-                    .contentShape(Rectangle())
-                    .accessibilityElement(children: .ignore)
+                    )
                     .accessibilityLabel("Time filter")
-                    .buttonStyle(.plain)
-                    .fixedSize(horizontal: true, vertical: false)
                     .layoutPriority(1)
 
                     // Categories pill — fixed size, next to Time
@@ -384,19 +359,6 @@ struct DiscoverView: View {
 
     private var hasActiveCategoryFilter: Bool {
         !discoverFilters.categories.isEmpty
-    }
-
-    @ViewBuilder
-    private var timePillBackground: some View {
-        if discoverFilters.time != nil {
-            LinearGradient(
-                colors: [Color(hex: "#2F7168"), Color(hex: "#3D8A80")],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        } else {
-            Color.portalCard
-        }
     }
 
     @ViewBuilder

@@ -153,7 +153,12 @@ router.get(
         return;
       }
 
-      const cacheKey = getCacheKey(q, lat, lng);
+      // For the Barrio spot text search the lat/lng only affects distance
+      // sort order, so 0/0 is a safe default when the client has no fix.
+      const spotLat = lat ?? 0;
+      const spotLng = lng ?? 0;
+
+      const cacheKey = getCacheKey(q, spotLat, spotLng);
       const cached = suggestCache.get(cacheKey);
       if (cached && cached.expiresAt > Date.now()) {
         res.json({ data: cached.data });
@@ -163,12 +168,12 @@ router.get(
       const start = Date.now();
 
       const [spotRows, neighborhoodHits, placeHits] = await Promise.all([
-        fetchSpotsByText(q, lat, lng, 5).catch((err) => {
+        fetchSpotsByText(q, spotLat, spotLng, 5).catch((err) => {
           logger.warn({ err }, 'search/suggest: spot query failed');
           return [] as TextSearchSpotRow[];
         }),
         Promise.resolve(searchNeighborhoods(q, 3)),
-        getPlaceAutocomplete(q, lat, lng, sessionToken, 5).catch((err) => {
+        getPlaceAutocomplete(q, lat, lng, sessionToken, 15).catch((err) => {
           logger.warn({ err }, 'search/suggest: Places Autocomplete failed');
           return [];
         }),

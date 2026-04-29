@@ -165,14 +165,15 @@ struct SaveToPlanSheet: View {
                 let week = eventStartTime.map { weekInterval(for: $0) }
                 CreatePlanView(
                     onCreated: { newPlan in
-                        Task { await routeItem(to: PlanData(
-                            id: newPlan.id, userId: newPlan.userId, name: newPlan.name,
-                            startDate: newPlan.startDate, endDate: newPlan.endDate,
-                            itemCount: newPlan.itemCount, previewImageURLs: newPlan.previewImageURLs,
-                            createdAt: newPlan.createdAt, updatedAt: newPlan.updatedAt,
-                            role: "owner", members: nil, memberStatus: nil, itemIds: nil,
-                            ownerName: nil, ownerProfilePictureUrl: nil)) }
+                        // The plan was created with `initialItems` containing this spot/event,
+                        // so the server already inserted the row. Skip the second POST (which
+                        // would 409) and fire the `onSaved` callback directly so the parent
+                        // detail view's CTA flips to "In {planName}".
+                        let createdItemId = newPlan.items.first(where: { $0.itemId == itemId })?.id ?? ""
+                        let info = AddedToPlanInfo(planId: newPlan.id, planName: newPlan.name, planItemId: createdItemId)
                         showCreatePlan = false
+                        onSaved?(info)
+                        dismiss()
                     },
                     preselectedItem: PlanItemBody(itemType: itemType, itemId: itemId, dayOffset: -1),
                     initialStartDate: week?.start,

@@ -44,6 +44,40 @@ export async function canViewCollection(
   return !!saved;
 }
 
+export interface CollectionImageData {
+  coverImageURL: string | null;
+  previewSpotImageURLs: string[];
+}
+
+/**
+ * Resolve a collection's cover image and preview thumbnails. Falls back to the
+ * first media item from up to 3 spots in the collection when no explicit cover
+ * is set on the row.
+ */
+export async function resolveCollectionImages(
+  collectionId: string,
+  dbCoverImageUrl: string | null | undefined
+): Promise<CollectionImageData> {
+  const colSpotItems = await prisma.collectionItem.findMany({
+    where: { collectionId, itemType: 'spot' },
+    take: 3,
+    select: { itemId: true },
+  });
+  const spotIds = colSpotItems.map((s) => s.itemId);
+  const mediaItems = spotIds.length
+    ? await prisma.mediaItem.findMany({
+        where: { spotId: { in: spotIds } },
+        select: { url: true },
+        take: 3,
+      })
+    : [];
+  const previewUrls = mediaItems.map((m) => m.url).slice(0, 2);
+  const dbCover = dbCoverImageUrl?.trim();
+  const coverImageURL = dbCover || previewUrls[0] || null;
+  const previewSpotImageURLs = dbCover ? previewUrls.slice(0, 2) : previewUrls.slice(1);
+  return { coverImageURL, previewSpotImageURLs };
+}
+
 /**
  * Can the requester save this collection? (public → anyone; friends → only if follows owner; not own)
  */

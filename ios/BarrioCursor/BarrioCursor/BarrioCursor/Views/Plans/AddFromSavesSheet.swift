@@ -93,10 +93,14 @@ struct AddFromSavesSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search + category filter
+                // Search bar
                 searchBar
                     .padding(.horizontal, .portalPagePadding)
                     .padding(.top, 12)
+                    .padding(.bottom, 8)
+
+                // Category pills (Discover-style)
+                categoryPills
                     .padding(.bottom, 8)
 
                 // Segmented picker
@@ -149,52 +153,45 @@ struct AddFromSavesSheet: View {
 
     private var searchBar: some View {
         HStack(spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.portalMutedForeground)
-                    .font(.system(size: 14))
-                TextField("Search saves...", text: $searchText)
-                    .font(.portalLabel)
-                    .foregroundColor(.portalForeground)
-                if !searchText.isEmpty {
-                    Button { searchText = "" } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.portalMutedForeground)
-                            .font(.system(size: 14))
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.portalMutedForeground)
+                .font(.system(size: 14))
+            TextField("Search saves...", text: $searchText)
+                .font(.portalLabel)
+                .foregroundColor(.portalForeground)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.portalMutedForeground)
+                        .font(.system(size: 14))
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.portalMuted.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Category pills (Discover-style)
+
+    private var categoryPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: .portalCardGap) {
+                ForEach(EventCategory.allCases, id: \.self) { category in
+                    PortalFilterPill(
+                        title: category.label,
+                        isActive: selectedCategory == category,
+                        categoryColor: Color.categoryPillColor(for: category.label)
+                    ) {
+                        selectedCategory = (selectedCategory == category ? nil : category)
                     }
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(Color.portalMuted.opacity(0.5))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-            // Category filter menu
-            Menu {
-                Button("All Categories") { selectedCategory = nil }
-                Divider()
-                ForEach(EventCategory.allCases, id: \.self) { cat in
-                    Button(cat.displayName) { selectedCategory = cat }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(selectedCategory?.displayName ?? "Category")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(selectedCategory != nil ? .portalPrimary : .portalMutedForeground)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(selectedCategory != nil ? .portalPrimary : .portalMutedForeground)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.portalMuted.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(selectedCategory != nil ? Color.portalPrimary.opacity(0.5) : Color.clear, lineWidth: 1)
-                )
-            }
+            .padding(.horizontal, .portalPagePadding)
         }
+        .frame(height: 44)
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     // MARK: - Lists

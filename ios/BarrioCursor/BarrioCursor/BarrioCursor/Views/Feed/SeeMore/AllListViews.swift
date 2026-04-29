@@ -428,32 +428,13 @@ private struct _SeeMoreFilterStrip: View {
             .buttonStyle(.plain)
             .layoutPriority(0)
 
-            // Time pill (events only)
+            // Time pill (events only) — shared component with Discover
             if showTime {
-                Button { showTimeDialog = true } label: {
-                    HStack(spacing: 4) {
-                        if let time = discoverFilters.time {
-                            Text(time.label)
-                                .font(.portalLabelSemibold)
-                                .foregroundColor(.portalPrimaryForeground)
-                                .lineLimit(1)
-                        } else {
-                            Text("Time")
-                                .font(.portalLabelSemibold)
-                                .foregroundColor(.portalForeground)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.portalMutedForeground)
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 36)
-                    .background(discoverFilters.time != nil ? AnyShapeStyle(LinearGradient(colors: [Color(hex: "#2F7168"), Color(hex: "#3D8A80")], startPoint: .topLeading, endPoint: .bottomTrailing)) : AnyShapeStyle(Color.portalCard))
-                    .overlay(RoundedRectangle(cornerRadius: .portalCategoryPillRadius).stroke(Color.portalBorder, lineWidth: discoverFilters.time != nil ? 0 : 1))
-                    .clipShape(RoundedRectangle(cornerRadius: .portalCategoryPillRadius))
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: false)
+                TimeFilterPill(
+                    selected: discoverFilters.time,
+                    isOpen: showTimeDialog,
+                    action: { showTimeDialog = true }
+                )
                 .layoutPriority(1)
                 .confirmationDialog("Filter by time", isPresented: $showTimeDialog, titleVisibility: .visible) {
                     ForEach(DiscoverTimeIntent.allCases, id: \.self) { intent in

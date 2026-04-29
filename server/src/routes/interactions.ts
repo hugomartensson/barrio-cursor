@@ -6,7 +6,10 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { eventIdSchema } from '../schemas/events.js';
 import type { AuthenticatedRequest, ApiErrorResponse } from '../types/index.js';
-import { doesUserFollow } from '../services/collectionService.js';
+import {
+  doesUserFollow,
+  resolveCollectionImages,
+} from '../services/collectionService.js';
 const router = Router();
 
 interface SaveResponse {
@@ -126,25 +129,10 @@ router.get(
 
     const collections = await Promise.all(
       visible.filter(Boolean).map(async (col) => {
-        const colSpotItems = await prisma.collectionItem.findMany({
-          where: { collectionId: col!.id, itemType: 'spot' },
-          take: 3,
-          select: { itemId: true },
-        });
-        const spotIds = colSpotItems.map((s) => s.itemId);
-        const mediaItems = spotIds.length
-          ? await prisma.mediaItem.findMany({
-              where: { spotId: { in: spotIds } },
-              select: { url: true },
-              take: 3,
-            })
-          : [];
-        const previewUrls = mediaItems.map((m) => m.url).slice(0, 2);
-        const dbCover = col!.coverImageUrl?.trim();
-        const coverImageURL = dbCover || previewUrls[0] || null;
-        const previewSpotImageURLs = dbCover
-          ? previewUrls.slice(0, 2)
-          : previewUrls.slice(1);
+        const { coverImageURL, previewSpotImageURLs } = await resolveCollectionImages(
+          col!.id,
+          col!.coverImageUrl
+        );
 
         return {
           id: col!.id,

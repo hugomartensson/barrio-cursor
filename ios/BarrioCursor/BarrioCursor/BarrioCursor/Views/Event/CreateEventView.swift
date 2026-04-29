@@ -462,7 +462,7 @@ struct CreateEventView: View {
                         .padding(.top, 16)
                         .padding(.bottom, 8)
                     LocationSearchField(
-                        biasCenter: locationManager.coordinate,
+                        biasCenter: locationManager.realCoordinate,
                         placeholder: "Search address or venue",
                         onUseCurrentLocation: {
                             Task {

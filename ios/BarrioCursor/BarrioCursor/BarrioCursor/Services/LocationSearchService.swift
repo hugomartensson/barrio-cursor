@@ -83,7 +83,10 @@ final class LocationSearchService {
     // MARK: - Public API
 
     /// Fire a debounced suggest call. Call on every keystroke.
-    func search(query: String, near center: CLLocationCoordinate2D, token: String) {
+    /// `near` is optional — when nil (no GPS fix / permission denied) the request
+    /// is sent without lat/lng so Google falls back to IP-based localization
+    /// instead of biasing to a stale fallback location (e.g. Stockholm).
+    func search(query: String, near center: CLLocationCoordinate2D?, token: String) {
         searchTask?.cancel()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
@@ -100,7 +103,8 @@ final class LocationSearchService {
 
             do {
                 let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? trimmed
-                let endpoint = "/search/suggest?q=\(encoded)&lat=\(center.latitude)&lng=\(center.longitude)&sessionToken=\(self.sessionToken)"
+                let biasParams = center.map { "&lat=\($0.latitude)&lng=\($0.longitude)" } ?? ""
+                let endpoint = "/search/suggest?q=\(encoded)\(biasParams)&sessionToken=\(self.sessionToken)"
                 let response: SearchSuggestResponse = try await APIService.shared.get(endpoint, token: token)
                 guard !Task.isCancelled else { return }
                 self.sections = SearchSections(
